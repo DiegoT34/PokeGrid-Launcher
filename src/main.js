@@ -697,7 +697,10 @@ async function loadScriptShopCatalog(refresh = false) {
     if (response.url && response.url !== SCRIPT_SHOP_CATALOG_URL) throw new Error('El catálogo respondió desde un origen no permitido.');
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 512 KB.');
-    const catalog = normalizeScriptShopCatalog(JSON.parse(bytes.toString('utf8')));
+    // Windows PowerShell 5 puede anteponer BOM (EF BB BF) a archivos UTF-8.
+    // Se tolera para que una publicación antigua no inutilice toda la Shop.
+    const catalogText = bytes.toString('utf8').replace(/^\uFEFF/, '');
+    const catalog = normalizeScriptShopCatalog(JSON.parse(catalogText));
     scriptShopCache = { fetchedAt: now, catalog };
     return catalog;
   } catch (error) {

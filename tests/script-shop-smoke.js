@@ -20,6 +20,7 @@ assert.match(main, /actualHash !== item\.sha256/);
 assert.match(main, /assertScriptShopDownloadUrl\(response\.url \|\| target\)/);
 assert.match(main, /La descarga no pertenece al repositorio oficial de la Shop/);
 assert.match(main, /SCRIPT_SHOP_CATALOG_LIMIT = 512_000/);
+assert.match(main, /replace\(\/\^\\uFEFF\//);
 assert.match(main, /USER_SCRIPT_CODE_LIMIT/);
 assert.match(main, /existing\?\.accounts/);
 assert.match(main, /existing\?\.enabled !== false/);
