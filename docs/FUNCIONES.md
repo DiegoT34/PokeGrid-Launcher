@@ -34,6 +34,8 @@ Admite cuatro perfiles para Poke Idle World. Las credenciales se cifran con `saf
 
 Permite crear, importar, editar, validar, activar y asignar userscripts a cuentas concretas. Los archivos `.js` y `.user.js` pueden arrastrarse al panel para instalar o actualizar su copia. La vista informa permisos y dominios declarados antes de guardar.
 
+La pestaña **Shop online** consulta el catálogo oficial publicado en un repositorio separado. Presenta versión, autor, descripción, categoría, etiquetas, permisos y cambios de cada script. Permite instalar, verificar actualizaciones y desinstalar. Todas las descargas se limitan al repositorio oficial y deben coincidir con el SHA-256 publicado antes de guardarse. Las actualizaciones conservan las cuentas seleccionadas y el estado activo del usuario.
+
 Los userscripts personales almacenados junto al código fuente no se publican en este repositorio.
 
 ## Hunt Analyzer

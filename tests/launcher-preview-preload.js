@@ -131,6 +131,22 @@ window.__telegramPreview = true;`,
     sourceUrl: 'pokegrid-bundled://PokeGrid-Telegram-Alerts.user.js'
   }),
   fetchUserScriptUrl: async () => ({ ok: false, error: 'No disponible en preview.' }),
+  loadScriptShop: async () => ({
+    ok: true,
+    launcherVersion: '0.22.0',
+    scripts: userScripts,
+    catalog: { schemaVersion: 1, updatedAt: '2026-08-24', scripts: [{
+      id: 'market-helper', name: 'Market Helper', namespace: 'pokegrid.shop.market-helper', version: '1.2.0',
+      author: 'DiegoT34', summary: 'Herramientas visuales y datos útiles para el mercado.',
+      description: 'Añade utilidades de consulta sin modificar operaciones del mercado.', category: 'Market',
+      tags: ['market', 'interfaz'], permissions: ['Lee tarjetas visibles del mercado'], minLauncherVersion: '0.22.0',
+      downloadUrl: 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/scripts/market-helper.user.js',
+      sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', homepage: '',
+      changelog: 'Nueva tarjeta informativa.', icon: '🛒', featured: true, publishedAt: '2026-08-24T00:00:00Z'
+    }] }
+  }),
+  installScriptShopItem: async () => ({ ok: false, error: 'No disponible en preview.' }),
+  uninstallScriptShopItem: async () => ({ ok: false, error: 'No disponible en preview.' }),
   getGuestPreloadUrl: async () => '',
   pickUnpackedExtension: async () => ({ ok: false, canceled: true }),
   getUnpackedExtensionStatus: async () => ({

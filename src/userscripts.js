@@ -63,6 +63,16 @@
   const extensionAccountToggles = document.querySelector('#extensionAccountToggles');
   const extensionStatus = document.querySelector('#extensionStatus');
   const applyExtensionButton = document.querySelector('#applyExtensionButton');
+  const installedScriptsTab = document.querySelector('#installedScriptsTab');
+  const scriptShopTab = document.querySelector('#scriptShopTab');
+  const installedScriptsView = document.querySelector('#installedScriptsView');
+  const scriptShopView = document.querySelector('#scriptShopView');
+  const scriptShopUpdateBadge = document.querySelector('#scriptShopUpdateBadge');
+  const scriptShopSearch = document.querySelector('#scriptShopSearch');
+  const refreshScriptShopButton = document.querySelector('#refreshScriptShopButton');
+  const scriptShopSummary = document.querySelector('#scriptShopSummary');
+  const scriptShopGrid = document.querySelector('#scriptShopGrid');
+  const scriptShopMessage = document.querySelector('#scriptShopMessage');
 
   let scripts = [];
   let selectedId = null;
@@ -77,6 +87,11 @@
   let findMatches = [];
   let findMatchIndex = -1;
   let dropDepth = 0;
+  let scriptShopCatalog = null;
+  let scriptShopLoading = false;
+  let scriptShopBusyId = '';
+  let scriptShopLauncherVersion = '0.0.0';
+  let activeScriptsView = 'installed';
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -367,6 +382,192 @@
     }
   }
 
+  function installedShopScript(shopId) {
+    return scripts.find((script) => script.shopId === shopId) || null;
+  }
+
+  function scriptShopState(item) {
+    const installed = installedShopScript(item.id);
+    if (!installed) return { key: 'available', label: 'Disponible', installed: null };
+    const comparison = compareVersions(item.version, installed.version);
+    if (comparison > 0) return { key: 'update', label: `Actualización ${item.version}`, installed };
+    if (installed.shopVersion && installed.shopSha256 !== item.sha256) {
+      return { key: 'modified', label: 'Modificado localmente', installed };
+    }
+    return { key: 'installed', label: `Instalado ${installed.version}`, installed };
+  }
+
+  function updateScriptShopBadge() {
+    const updates = scriptShopCatalog?.scripts?.filter((item) => scriptShopState(item).key === 'update').length || 0;
+    scriptShopUpdateBadge.textContent = String(updates);
+    scriptShopUpdateBadge.hidden = updates === 0;
+  }
+
+  function setScriptShopMessage(text, kind = '') {
+    scriptShopMessage.textContent = text;
+    scriptShopMessage.classList.toggle('is-ok', kind === 'ok');
+  }
+
+  function renderScriptShop() {
+    scriptShopGrid.replaceChildren();
+    updateScriptShopBadge();
+    if (!scriptShopCatalog) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'script-shop-empty';
+      placeholder.innerHTML = '<span aria-hidden="true">☁</span><strong>Conecta con la Shop para ver el catálogo</strong><small>El catálogo solo se consulta al abrir esta pestaña o pulsar Verificar.</small>';
+      scriptShopGrid.appendChild(placeholder);
+      scriptShopSummary.textContent = '';
+      return;
+    }
+
+    const query = String(scriptShopSearch.value || '').trim().toLowerCase();
+    const rows = (scriptShopCatalog.scripts || []).filter((item) => !query || [
+      item.name, item.summary, item.description, item.category, item.author, ...(item.tags || [])
+    ].join(' ').toLowerCase().includes(query));
+    const installedCount = scriptShopCatalog.scripts.filter((item) => Boolean(installedShopScript(item.id))).length;
+    const updateCount = scriptShopCatalog.scripts.filter((item) => scriptShopState(item).key === 'update').length;
+    scriptShopSummary.innerHTML = `
+      <span><b>${scriptShopCatalog.scripts.length}</b> publicados</span>
+      <span><b>${installedCount}</b> instalados</span>
+      <span class="${updateCount ? 'has-updates' : ''}"><b>${updateCount}</b> actualizaciones</span>
+      <small>${scriptShopCatalog.stale ? 'Copia guardada · GitHub no respondió' : `Catálogo ${escapeHtml(scriptShopCatalog.updatedAt || 'actual')}`}</small>`;
+
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'script-shop-empty';
+      empty.innerHTML = scriptShopCatalog.scripts.length
+        ? '<span aria-hidden="true">⌕</span><strong>No hay resultados</strong><small>Prueba otra palabra o categoría.</small>'
+        : '<span aria-hidden="true">📦</span><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
+      scriptShopGrid.appendChild(empty);
+      return;
+    }
+
+    for (const item of rows) {
+      const state = scriptShopState(item);
+      const compatible = compareVersions(scriptShopLauncherVersion, item.minLauncherVersion) >= 0;
+      const card = document.createElement('article');
+      card.className = `script-shop-card is-${state.key}${item.featured ? ' is-featured' : ''}`;
+      const tags = (item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join('');
+      const permissions = (item.permissions || []).map((permission) => `<li>${escapeHtml(permission)}</li>`).join('');
+      const actionLabel = state.key === 'update' || state.key === 'modified' ? 'Actualizar' : 'Instalar';
+      const busy = scriptShopBusyId === item.id;
+      card.innerHTML = `
+        <div class="script-shop-card-icon" aria-hidden="true">${escapeHtml(item.icon || '📜')}</div>
+        <div class="script-shop-card-copy">
+          <div class="script-shop-card-title">
+            <div><span>${escapeHtml(item.category)}</span><h3>${escapeHtml(item.name)}</h3></div>
+            <strong class="script-shop-status">${escapeHtml(state.label)}</strong>
+          </div>
+          <p>${escapeHtml(item.summary || item.description || 'Sin descripción.')}</p>
+          <div class="script-shop-tags">${tags}</div>
+          <dl>
+            <div><dt>Versión</dt><dd>${escapeHtml(item.version)}</dd></div>
+            <div><dt>Autor</dt><dd>${escapeHtml(item.author)}</dd></div>
+            <div><dt>Launcher</dt><dd>≥ ${escapeHtml(item.minLauncherVersion)}${compatible ? '' : ' · incompatible'}</dd></div>
+          </dl>
+          <details>
+            <summary>Información y permisos</summary>
+            <p>${escapeHtml(item.description || item.summary || 'Sin información adicional.')}</p>
+            ${permissions ? `<h4>Permisos declarados</h4><ul>${permissions}</ul>` : '<p>El catálogo no declara permisos adicionales.</p>'}
+            ${item.changelog ? `<h4>Cambios de esta versión</h4><p>${escapeHtml(item.changelog)}</p>` : ''}
+            <code title="SHA-256 completo">SHA-256 ${escapeHtml(item.sha256.slice(0, 16))}…</code>
+          </details>
+        </div>
+        <div class="script-shop-card-actions">
+          ${state.installed ? `<button class="button script-shop-remove" data-action="remove" type="button" ${busy ? 'disabled' : ''}>Desinstalar</button>` : ''}
+          ${state.key !== 'installed' ? `<button class="button button-primary" data-action="install" type="button" ${busy || !compatible ? 'disabled' : ''}>${busy ? 'Procesando…' : actionLabel}</button>` : '<button class="button button-secondary" data-action="open" type="button">Abrir instalado</button>'}
+        </div>`;
+      card.querySelector('[data-action="install"]')?.addEventListener('click', () => installFromScriptShop(item));
+      card.querySelector('[data-action="remove"]')?.addEventListener('click', () => uninstallFromScriptShop(item));
+      card.querySelector('[data-action="open"]')?.addEventListener('click', () => {
+        switchScriptsView('installed');
+        if (state.installed) selectScript(state.installed.id);
+      });
+      scriptShopGrid.appendChild(card);
+    }
+  }
+
+  async function loadScriptShop(refresh = false) {
+    if (scriptShopLoading) return;
+    scriptShopLoading = true;
+    refreshScriptShopButton.disabled = true;
+    setScriptShopMessage(refresh ? 'Verificando publicaciones y actualizaciones…' : 'Conectando con la Shop…');
+    try {
+      const result = await window.pokeGrid.loadScriptShop(refresh);
+      if (!result?.ok) throw new Error(result?.error || 'No se pudo cargar el catálogo online.');
+      scriptShopCatalog = result.catalog;
+      scriptShopLauncherVersion = String(result.launcherVersion || scriptShopLauncherVersion);
+      if (Array.isArray(result.scripts)) scripts = result.scripts;
+      renderList();
+      renderScriptShop();
+      setScriptShopMessage(result.catalog?.stale
+        ? `Se muestra la última copia disponible. ${result.catalog.warning || ''}`
+        : 'Catálogo verificado con GitHub.', result.catalog?.stale ? '' : 'ok');
+    } catch (error) {
+      renderScriptShop();
+      setScriptShopMessage(error.message || 'No se pudo abrir la Shop. Comprueba tu conexión.');
+    } finally {
+      scriptShopLoading = false;
+      refreshScriptShopButton.disabled = false;
+    }
+  }
+
+  async function installFromScriptShop(item) {
+    const previous = installedShopScript(item.id);
+    scriptShopBusyId = item.id;
+    renderScriptShop();
+    setScriptShopMessage(`${previous ? 'Actualizando' : 'Descargando'} ${item.name}…`);
+    try {
+      const result = await window.pokeGrid.installScriptShopItem({ shopId: item.id });
+      if (!result?.ok) throw new Error(result?.error || 'No se pudo instalar el script.');
+      scripts = result.scripts || scripts;
+      const affected = Array.from({ length: ACCOUNT_COUNT }, (_, index) =>
+        Boolean(previous?.accounts?.[index] || result.script?.accounts?.[index])
+      );
+      reloadAccounts(affected);
+      renderList();
+      setScriptShopMessage(`${item.name} ${previous ? 'fue actualizado' : 'quedó instalado'} y se aplicó en las cuentas seleccionadas.`, 'ok');
+    } catch (error) {
+      setScriptShopMessage(error.message || 'No se pudo completar la instalación.');
+    } finally {
+      scriptShopBusyId = '';
+      renderScriptShop();
+    }
+  }
+
+  async function uninstallFromScriptShop(item) {
+    const installed = installedShopScript(item.id);
+    if (!installed || !window.confirm(`¿Desinstalar “${item.name}” y borrar sus datos guardados?`)) return;
+    scriptShopBusyId = item.id;
+    renderScriptShop();
+    setScriptShopMessage(`Desinstalando ${item.name}…`);
+    try {
+      const result = await window.pokeGrid.uninstallScriptShopItem(item.id);
+      if (!result?.ok) throw new Error(result?.error || 'No se pudo desinstalar el script.');
+      scripts = result.scripts || scripts;
+      reloadAccounts(installed.accounts || []);
+      renderList();
+      setScriptShopMessage(`${item.name} fue desinstalado.`, 'ok');
+    } catch (error) {
+      setScriptShopMessage(error.message || 'No se pudo desinstalar el script.');
+    } finally {
+      scriptShopBusyId = '';
+      renderScriptShop();
+    }
+  }
+
+  function switchScriptsView(view) {
+    activeScriptsView = view === 'shop' ? 'shop' : 'installed';
+    const shopActive = activeScriptsView === 'shop';
+    installedScriptsView.hidden = shopActive;
+    scriptShopView.hidden = !shopActive;
+    installedScriptsTab.classList.toggle('is-active', !shopActive);
+    scriptShopTab.classList.toggle('is-active', shopActive);
+    installedScriptsTab.setAttribute('aria-selected', String(!shopActive));
+    scriptShopTab.setAttribute('aria-selected', String(shopActive));
+    if (shopActive && !scriptShopCatalog) loadScriptShop(false);
+  }
+
   function draftAccounts() {
     if (focusAccount < 0) return Array(ACCOUNT_COUNT).fill(true);
     return Array.from({ length: ACCOUNT_COUNT }, (_, index) => index === focusAccount);
@@ -625,7 +826,8 @@
     panelRows.forEach((panel) => panel.webview?.style.setProperty('visibility', 'hidden', 'important'));
     backdrop.hidden = false;
     if (!selectedId && !scripts.length) showDraft();
-    codeInput.focus();
+    if (activeScriptsView === 'installed') codeInput.focus();
+    if (!scriptShopCatalog && typeof window.pokeGrid.loadScriptShop === 'function') loadScriptShop(false);
   }
 
   function close() {
@@ -915,10 +1117,15 @@ ${script.code}
   async function initialize() {
     guestPreloadUrl = await window.pokeGrid.getGuestPreloadUrl();
     await Promise.all([loadScripts(), loadExtensionStatus()]);
+    renderScriptShop();
     return guestPreloadUrl;
   }
 
   scriptsButton.addEventListener('click', () => open(-1));
+  installedScriptsTab.addEventListener('click', () => switchScriptsView('installed'));
+  scriptShopTab.addEventListener('click', () => switchScriptsView('shop'));
+  refreshScriptShopButton.addEventListener('click', () => loadScriptShop(true));
+  scriptShopSearch.addEventListener('input', renderScriptShop);
   closeButton.addEventListener('click', close);
   newButton.addEventListener('click', () => showDraft());
   importButton.addEventListener('click', importLocalFile);

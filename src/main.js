@@ -16,6 +16,9 @@ const USER_SCRIPT_CODE_LIMIT = 1_000_000;
 const USER_SCRIPT_RESPONSE_LIMIT = 2_000_000;
 const USER_SCRIPT_SHARED_VALUE_LIMIT = 256_000;
 const USER_SCRIPT_SHARED_STORE_LIMIT = 1_000_000;
+const SCRIPT_SHOP_CATALOG_URL = 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/catalog.json';
+const SCRIPT_SHOP_CATALOG_LIMIT = 512_000;
+const SCRIPT_SHOP_CACHE_MS = 5 * 60 * 1000;
 const POKEAPI_SPECIES_LIMIT = 2_000;
 const REMOTE_IMAGE_CACHE_LIMIT = 48;
 const SPECIES_CACHE_LIMIT = 256;
@@ -32,6 +35,7 @@ const remoteImageCache = new Map();
 const pokeApiSpeciesCache = new Map();
 const loadedUnpackedExtensions = Array.from({ length: ACCOUNT_COUNT }, () => null);
 const browserInstanceSessions = new WeakSet();
+let scriptShopCache = null;
 
 function readLruCache(cache, key) {
   if (!cache.has(key)) return undefined;
@@ -260,6 +264,12 @@ function normalizeUserScript(value, existing = null) {
     ? runAtValue
     : 'document-end';
   const sourceUrl = String(value?.sourceUrl || existing?.sourceUrl || '').slice(0, 2_000);
+  const codeUnchanged = Boolean(existing && existing.code === code);
+  const shopId = String(value?.shopId || existing?.shopId || '').trim().slice(0, 100);
+  const requestedShopSha256 = String(value?.shopSha256 || '').trim().toLowerCase();
+  const shopSha256 = /^[a-f0-9]{64}$/.test(requestedShopSha256)
+    ? requestedShopSha256
+    : (codeUnchanged && /^[a-f0-9]{64}$/.test(String(existing?.shopSha256 || '')) ? existing.shopSha256 : '');
 
   return {
     id: String(existing?.id || value?.id || crypto.randomUUID()).slice(0, 100),
@@ -269,6 +279,10 @@ function normalizeUserScript(value, existing = null) {
     description: String(metadata.description?.[0] || value?.description || existing?.description || '').slice(0, 500),
     author: String(metadata.author?.[0] || value?.author || existing?.author || '').slice(0, 120),
     sourceUrl,
+    shopId,
+    shopVersion: String(value?.shopVersion || existing?.shopVersion || '').slice(0, 40),
+    shopSha256,
+    shopCatalogUrl: shopId ? SCRIPT_SHOP_CATALOG_URL : '',
     code,
     enabled: value?.enabled !== false,
     accounts: Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false),
@@ -598,6 +612,155 @@ async function readUserScriptFromUrl(rawUrl) {
   const code = bytes.toString('utf8');
   if (!/==UserScript==/i.test(code)) throw new Error('El archivo no contiene un bloque ==UserScript==.');
   return { code, sourceUrl: response.url || target.href };
+}
+
+function compareScriptShopVersions(left, right) {
+  const parse = (value) => {
+    const match = String(value || '').trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/i);
+    return match ? match.slice(1).map(Number) : null;
+  };
+  const a = parse(left);
+  const b = parse(right);
+  if (!a || !b) return null;
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1;
+  }
+  return 0;
+}
+
+function assertScriptShopDownloadUrl(rawUrl) {
+  let target;
+  try { target = new URL(String(rawUrl || '')); } catch {
+    throw new Error('El catálogo contiene una URL de descarga inválida.');
+  }
+  const rawFile = target.hostname === 'raw.githubusercontent.com' &&
+    /^\/DiegoT34\/PokeGrid-Script-Shop\/(?:main|[a-f0-9]{40})\/scripts\/[a-z0-9][a-z0-9._-]{0,99}\.user\.js$/i.test(target.pathname);
+  const releaseFile = target.hostname === 'github.com' &&
+    /^\/DiegoT34\/PokeGrid-Script-Shop\/releases\/download\/[^/]+\/[a-z0-9][a-z0-9._-]{0,99}\.user\.js$/i.test(target.pathname);
+  if (target.protocol !== 'https:' || target.username || target.password || target.search || target.hash || (!rawFile && !releaseFile)) {
+    throw new Error('La descarga no pertenece al repositorio oficial de la Shop.');
+  }
+  return target.href;
+}
+
+function normalizeScriptShopCatalog(value) {
+  if (Number(value?.schemaVersion) !== 1 || !Array.isArray(value?.scripts)) {
+    throw new Error('El catálogo de la Shop usa un formato no compatible.');
+  }
+  const ids = new Set();
+  const scripts = value.scripts.slice(0, 200).map((row) => {
+    const id = String(row?.id || '').trim().toLowerCase();
+    const version = String(row?.version || '').trim().replace(/^v/i, '');
+    const sha256 = String(row?.sha256 || '').trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._-]{1,79}$/.test(id) || ids.has(id)) throw new Error('El catálogo contiene un ID de script inválido o duplicado.');
+    if (compareScriptShopVersions(version, version) !== 0) throw new Error(`La versión publicada para ${id} no es válida.`);
+    if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`La firma SHA-256 de ${id} no es válida.`);
+    ids.add(id);
+    return {
+      id,
+      name: String(row?.name || id).trim().slice(0, 120),
+      namespace: String(row?.namespace || '').trim().slice(0, 240),
+      version,
+      author: String(row?.author || 'DiegoT34').trim().slice(0, 120),
+      summary: String(row?.summary || '').trim().slice(0, 240),
+      description: String(row?.description || row?.summary || '').trim().slice(0, 2_000),
+      category: String(row?.category || 'Utilidades').trim().slice(0, 60),
+      tags: cleanMetadataList(row?.tags, 12).map((tag) => tag.slice(0, 40)),
+      permissions: cleanMetadataList(row?.permissions, 30).map((entry) => entry.slice(0, 160)),
+      minLauncherVersion: String(row?.minLauncherVersion || '0.22.0').trim().replace(/^v/i, '').slice(0, 40),
+      downloadUrl: assertScriptShopDownloadUrl(row?.downloadUrl),
+      sha256,
+      homepage: String(row?.homepage || '').trim().slice(0, 2_000),
+      changelog: String(row?.changelog || '').trim().slice(0, 1_000),
+      icon: String(row?.icon || '📜').trim().slice(0, 8) || '📜',
+      featured: row?.featured === true,
+      publishedAt: String(row?.publishedAt || '').trim().slice(0, 40)
+    };
+  });
+  return {
+    schemaVersion: 1,
+    updatedAt: String(value?.updatedAt || '').slice(0, 40),
+    scripts: scripts.sort((a, b) => Number(b.featured) - Number(a.featured) || a.name.localeCompare(b.name, 'es'))
+  };
+}
+
+async function loadScriptShopCatalog(refresh = false) {
+  const now = Date.now();
+  if (!refresh && scriptShopCache && now - scriptShopCache.fetchedAt < SCRIPT_SHOP_CACHE_MS) return scriptShopCache.catalog;
+  try {
+    const response = await net.fetch(SCRIPT_SHOP_CATALOG_URL, {
+      redirect: 'follow', cache: refresh ? 'no-store' : 'default',
+      headers: { Accept: 'application/json', 'User-Agent': `PokeGrid-Launcher/${app.getVersion()}` }
+    });
+    if (!response.ok) throw new Error(`GitHub no respondió correctamente (HTTP ${response.status}).`);
+    if (response.url !== SCRIPT_SHOP_CATALOG_URL) throw new Error('El catálogo fue redirigido a un origen no permitido.');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 512 KB.');
+    const catalog = normalizeScriptShopCatalog(JSON.parse(bytes.toString('utf8')));
+    scriptShopCache = { fetchedAt: now, catalog };
+    return catalog;
+  } catch (error) {
+    if (scriptShopCache?.catalog) return { ...scriptShopCache.catalog, stale: true, warning: error.message };
+    throw error;
+  }
+}
+
+async function downloadScriptShopCode(item) {
+  const target = assertScriptShopDownloadUrl(item.downloadUrl);
+  const response = await net.fetch(target, {
+    redirect: 'follow', cache: 'no-store',
+    headers: { Accept: 'text/javascript, text/plain;q=0.9', 'User-Agent': `PokeGrid-Launcher/${app.getVersion()}` }
+  });
+  if (!response.ok) throw new Error(`No se pudo descargar el script (HTTP ${response.status}).`);
+  const finalUrl = assertScriptShopDownloadUrl(response.url || target);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length || bytes.length > USER_SCRIPT_CODE_LIMIT) throw new Error('El script está vacío o supera 1 MB.');
+  const actualHash = crypto.createHash('sha256').update(bytes).digest('hex');
+  if (actualHash !== item.sha256) throw new Error('La firma SHA-256 no coincide. La instalación fue cancelada por seguridad.');
+  const code = bytes.toString('utf8');
+  if (!/==UserScript==/i.test(code)) throw new Error('El archivo publicado no contiene un bloque ==UserScript==.');
+  return { code, sourceUrl: finalUrl, sha256: actualHash };
+}
+
+async function installScriptShopItem(value) {
+  const shopId = String(value?.shopId || '').trim().toLowerCase();
+  const catalog = await loadScriptShopCatalog(true);
+  const item = catalog.scripts.find((candidate) => candidate.id === shopId);
+  if (!item) throw new Error('El script ya no está disponible en el catálogo oficial.');
+  const launcherCompatibility = compareScriptShopVersions(app.getVersion(), item.minLauncherVersion);
+  if (launcherCompatibility === null || launcherCompatibility < 0) {
+    throw new Error(`Este script requiere PokeGrid Launcher ${item.minLauncherVersion} o posterior.`);
+  }
+  const downloaded = await downloadScriptShopCode(item);
+  const metadata = metadataFromUserScript(downloaded.code);
+  const publishedVersion = String(metadata.version?.[0] || '').trim().replace(/^v/i, '');
+  const publishedNamespace = String(metadata.namespace?.[0] || '').trim();
+  if (publishedVersion !== item.version) throw new Error('La versión del archivo no coincide con el catálogo.');
+  if (item.namespace && publishedNamespace !== item.namespace) throw new Error('El namespace del archivo no coincide con el catálogo.');
+
+  const scripts = readUserScripts();
+  const existing = scripts.find((script) => script.shopId === item.id) ||
+    scripts.find((script) => item.namespace && script.namespace === item.namespace);
+  const accounts = existing?.accounts || Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false);
+  const script = saveUserScript({
+    id: existing?.id,
+    code: downloaded.code,
+    enabled: existing?.enabled !== false,
+    accounts,
+    sourceUrl: downloaded.sourceUrl,
+    shopId: item.id,
+    shopVersion: item.version,
+    shopSha256: downloaded.sha256
+  });
+  return { script, scripts: readUserScripts(), item };
+}
+
+function uninstallScriptShopItem(rawShopId) {
+  const shopId = String(rawShopId || '').trim().toLowerCase();
+  const script = readUserScripts().find((candidate) => candidate.shopId === shopId);
+  if (!script) throw new Error('El script de la Shop ya no está instalado.');
+  removeUserScript(script.id);
+  return { script, scripts: readUserScripts() };
 }
 
 async function maintainGameSessionCaches(gameSessions) {
@@ -1270,6 +1433,24 @@ ipcMain.handle('userscripts:bundled-telegram', () => {
 });
 ipcMain.handle('userscripts:fetch-url', async (_event, url) => {
   try { return { ok: true, ...(await readUserScriptFromUrl(url)) }; } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+ipcMain.handle('userscripts:shop-catalog', async (_event, refresh) => {
+  try {
+    const catalog = await loadScriptShopCatalog(Boolean(refresh));
+    return { ok: true, catalog, scripts: readUserScripts(), launcherVersion: app.getVersion() };
+  } catch (error) {
+    return { ok: false, catalog: null, scripts: readUserScripts(), error: error.message };
+  }
+});
+ipcMain.handle('userscripts:shop-install', async (_event, value) => {
+  try { return { ok: true, ...(await installScriptShopItem(value)) }; } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+ipcMain.handle('userscripts:shop-uninstall', (_event, shopId) => {
+  try { return { ok: true, ...uninstallScriptShopItem(shopId) }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });

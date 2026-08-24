@@ -299,6 +299,17 @@
           <p><strong>Los scripts pueden controlar por completo la p&aacute;gina del juego.</strong> Instala solo c&oacute;digo de confianza y revisa sus permisos antes de activarlo.</p>
         </div>
 
+        <nav class="scripts-view-tabs" aria-label="Secciones del centro de scripts">
+          <button id="installedScriptsTab" class="scripts-view-tab is-active" type="button" aria-selected="true">
+            <span aria-hidden="true">&#128736;</span> Mis scripts
+          </button>
+          <button id="scriptShopTab" class="scripts-view-tab" type="button" aria-selected="false">
+            <span aria-hidden="true">&#128722;</span> Shop online
+            <i id="scriptShopUpdateBadge" hidden>0</i>
+          </button>
+        </nav>
+
+        <div id="installedScriptsView" class="script-center-view">
         <div class="scripts-layout">
           <aside class="scripts-library" aria-label="Scripts instalados">
             <div class="scripts-library-actions">
@@ -408,6 +419,27 @@
             </div>
           </div>
         </details>
+        </div>
+
+        <section id="scriptShopView" class="script-center-view script-shop" aria-labelledby="scriptShopHeading" hidden>
+          <header class="script-shop-toolbar">
+            <div>
+              <span class="eyebrow">CAT&Aacute;LOGO OFICIAL POKEGRID</span>
+              <h2 id="scriptShopHeading">Shop de scripts</h2>
+              <p>Instala y actualiza scripts publicados por DiegoT34, con verificaci&oacute;n de integridad antes de guardarlos.</p>
+            </div>
+            <div class="script-shop-tools">
+              <label class="script-shop-search">
+                <span aria-hidden="true">&#128269;</span>
+                <input id="scriptShopSearch" type="search" autocomplete="off" placeholder="Buscar por nombre, funci&oacute;n o categor&iacute;a">
+              </label>
+              <button id="refreshScriptShopButton" class="button button-secondary" type="button">&#8635; Verificar</button>
+            </div>
+          </header>
+          <div id="scriptShopSummary" class="script-shop-summary" aria-live="polite"></div>
+          <div id="scriptShopGrid" class="script-shop-grid"></div>
+          <p id="scriptShopMessage" class="modal-message script-shop-message" role="status"></p>
+        </section>
       </section>
     </div>
 

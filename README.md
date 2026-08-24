@@ -33,6 +33,7 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Modo farmeo con selección asistida de objetivos.
 - Pokédex en ventana independiente.
 - Centro de userscripts con editor, permisos, instalación por URL, importación y arrastrar/soltar.
+- Shop online de scripts con información, instalación, actualización, desinstalación y verificación SHA-256.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
 - Actualizador integrado con descarga, verificación SHA-256, reemplazo, restauración de emergencia y reinicio.
 
@@ -65,7 +66,7 @@ El menú lateral incluye **Actualizaciones**. Al pulsarlo:
 5. Cierra el launcher, sustituye la versión anterior y abre la nueva.
 6. Si la nueva versión no puede iniciar, restaura automáticamente la anterior.
 
-Consulta [cómo funcionan las actualizaciones](docs/ACTUALIZACIONES.md) y la [guía completa de funciones](docs/FUNCIONES.md).
+Consulta [cómo funcionan las actualizaciones](docs/ACTUALIZACIONES.md), la [guía completa de funciones](docs/FUNCIONES.md) y [cómo publicar scripts en la Shop](docs/SCRIPT_SHOP.md).
 
 ## Desarrollo
 
