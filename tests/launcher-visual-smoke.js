@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
     }])); })()`);
     window.webContents.reload();
     await waitFor(window, 'window.__pokeGridPreviewNotifications && document.querySelectorAll(".panel").length === 4');
-    await waitFor(window, 'document.querySelector("#updateLauncherButton .update-launcher-version")?.textContent === "v0.22.6"');
+    await waitFor(window, 'document.querySelector("#updateLauncherButton .update-launcher-version")?.textContent === "v0.22.7"');
     const migratedNotification = await window.webContents.executeJavaScript(`({
       legendaryCount: document.querySelector('#legendaryNotificationCount').textContent,
       types: JSON.parse(localStorage.getItem('pokegrid:notifications:v1'))[0].types,
@@ -86,8 +86,8 @@ app.whenReady().then(async () => {
         toolbarState.launchLabel !== 'Iniciar las cuatro cuentas' ||
         toolbarState.playIcons !== 1 || toolbarState.hamburgerLines !== 3 ||
         toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
-        !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.6') ||
-        toolbarState.updateVersion !== 'v0.22.6') {
+        !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.7') ||
+        toolbarState.updateVersion !== 'v0.22.7') {
       throw new Error(`Launcher toolbar controls failed: ${JSON.stringify(toolbarState)}`);
     }
 

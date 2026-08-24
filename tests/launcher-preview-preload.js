@@ -87,7 +87,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
     }))
   }),
   cleanupMemory: async () => ({ ok: true, cachedEntries: 3, collectedProcesses: 5, skippedProcesses: 0, beforeMb: 300, afterMb: 275, releasedMb: 25 }),
-  getAppVersion: async () => '0.22.6',
+  getAppVersion: async () => '0.22.7',
   checkForUpdates: async () => ({ ok: true, status: 'current', currentVersion: '0.21.0', latestVersion: '0.21.0' }),
   onUpdateProgress: () => () => {},
   openPokepedia: async () => ({ ok: true }),

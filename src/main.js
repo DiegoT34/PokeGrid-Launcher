@@ -1317,7 +1317,9 @@ ipcMain.handle('app:check-update', async (event) => {
     });
     if (prepared.status !== 'ready') return { ok: true, ...prepared };
     const launched = await launchPreparedUpdate({ app, prepared });
-    setTimeout(() => app.quit(), 350);
+    // El instalador ya confirmó que está ejecutándose. app.exit() cierra también
+    // webviews y procesos auxiliares que podrían mantener bloqueada la carpeta anterior.
+    setTimeout(() => app.exit(0), 800);
     return { ok: true, status: 'installing', currentVersion: app.getVersion(), latestVersion: prepared.latestVersion, ...launched };
   } catch (error) {
     return { ok: false, error: error.message || 'No se pudo completar la actualización.' };

@@ -43,6 +43,11 @@ function safeAssetName(version) {
   return `IDLE-POKE-LAUNCHER-${String(version).replace(/^v/i, '')}-portatil.zip`;
 }
 
+function safePortableDirectoryName(version) {
+  if (!normalizeVersion(version)) throw new Error('La versión publicada no tiene un formato válido.');
+  return `IDLE-POKE-LAUNCHER-${String(version).replace(/^v/i, '')}-portatil`;
+}
+
 function assertGitHubDownloadUrl(rawUrl) {
   const url = new URL(String(rawUrl || ''));
   if (url.protocol !== 'https:' || url.username || url.password || url.hostname !== 'github.com') {
@@ -168,20 +173,42 @@ async function prepareUpdate({ app, net, currentVersion, onProgress }) {
 
 function updaterPowerShell() {
   return String.raw`param(
-  [Parameter(Mandatory=$true)][int]$LauncherPid,
-  [Parameter(Mandatory=$true)][string]$ArchivePath,
-  [Parameter(Mandatory=$true)][string]$InstallDir,
-  [Parameter(Mandatory=$true)][string]$ExecutableName,
-  [Parameter(Mandatory=$true)][string]$UpdateRoot,
-  [Parameter(Mandatory=$true)][string]$StatusPath,
-  [int]$HealthCheckSeconds = 8
+  [string]$ConfigPath = '',
+  [int]$LauncherPid = 0,
+  [string]$ArchivePath = '',
+  [string]$InstallDir = '',
+  [string]$TargetDir = '',
+  [string]$ExecutableName = '',
+  [string]$UpdateRoot = '',
+  [string]$StatusPath = '',
+  [int]$HealthCheckSeconds = 8,
+  [int]$GracefulWaitSeconds = 8
 )
 $ErrorActionPreference = 'Stop'
+if ($ConfigPath) {
+  $configuration = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  $LauncherPid = [int]$configuration.LauncherPid
+  $ArchivePath = [string]$configuration.ArchivePath
+  $InstallDir = [string]$configuration.InstallDir
+  $TargetDir = [string]$configuration.TargetDir
+  $ExecutableName = [string]$configuration.ExecutableName
+  $UpdateRoot = [string]$configuration.UpdateRoot
+  $StatusPath = [string]$configuration.StatusPath
+  $HealthCheckSeconds = [int]$configuration.HealthCheckSeconds
+  $GracefulWaitSeconds = [int]$configuration.GracefulWaitSeconds
+}
+if ($LauncherPid -le 0 -or -not $ArchivePath -or -not $InstallDir -or -not $TargetDir -or -not $ExecutableName -or -not $UpdateRoot -or -not $StatusPath) {
+  throw 'La configuración del instalador está incompleta.'
+}
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
+$TargetDir = [IO.Path]::GetFullPath($TargetDir)
 $UpdateRoot = [IO.Path]::GetFullPath($UpdateRoot)
 $ArchivePath = [IO.Path]::GetFullPath($ArchivePath)
 $StatusPath = [IO.Path]::GetFullPath($StatusPath)
 if ([IO.Path]::GetPathRoot($InstallDir) -eq $InstallDir) { throw 'Ruta de instalación demasiado amplia.' }
+if ([IO.Path]::GetPathRoot($TargetDir) -eq $TargetDir) { throw 'Ruta de destino demasiado amplia.' }
+if ((Split-Path -Parent $InstallDir) -ine (Split-Path -Parent $TargetDir)) { throw 'La nueva versión debe instalarse junto a la anterior.' }
+if ($InstallDir -ieq $TargetDir) { throw 'La carpeta nueva coincide con la versión anterior.' }
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw 'No se encontró el paquete descargado.' }
 $oldExe = Join-Path $InstallDir $ExecutableName
 if (-not (Test-Path -LiteralPath $oldExe -PathType Leaf)) { throw 'No se encontró el ejecutable instalado.' }
@@ -192,6 +219,7 @@ function Write-UpdateStatus([string]$State, [string]$Message = '', [hashtable]$E
     message = $Message
     archivePath = $ArchivePath
     installDir = $InstallDir
+    targetDir = $TargetDir
     updatedAt = [DateTime]::UtcNow.ToString('o')
   }
   foreach ($key in $Extra.Keys) { $payload[$key] = $Extra[$key] }
@@ -212,9 +240,29 @@ function Write-UpdateStatus([string]$State, [string]$Message = '', [hashtable]$E
 }
 
 $stageDir = Join-Path $UpdateRoot 'extracted'
-$backupDir = Join-Path $InstallDir ".pokegrid-update-backup-$PID"
-$installedNames = [Collections.Generic.List[string]]::new()
+$oldBackupDir = "$InstallDir.pokegrid-old-$PID"
+$targetBackupDir = "$TargetDir.pokegrid-previous-$PID"
 $newProcess = $null
+$oldWasMoved = $false
+$targetWasMoved = $false
+
+function Get-OldLauncherProcesses {
+  $escapedName = $ExecutableName.Replace("'", "''")
+  return @(Get-CimInstance Win32_Process -Filter "Name='$escapedName'" -ErrorAction SilentlyContinue | Where-Object {
+    if (-not $_.ExecutablePath) { return $false }
+    try { return ([IO.Path]::GetFullPath($_.ExecutablePath) -ieq $oldExe) } catch { return $false }
+  })
+}
+
+function Remove-DirectoryWithRetry([string]$Directory, [int]$Seconds = 60) {
+  $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $Seconds))
+  while (Test-Path -LiteralPath $Directory) {
+    try { Remove-Item -LiteralPath $Directory -Recurse -Force -ErrorAction Stop } catch {
+      if ([DateTime]::UtcNow -ge $deadline) { throw }
+      Start-Sleep -Milliseconds 500
+    }
+  }
+}
 try {
   Write-UpdateStatus 'extracting' 'Descomprimiendo la nueva versión.'
   if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
@@ -234,41 +282,52 @@ try {
   }
 
   Write-UpdateStatus 'waiting' 'Esperando que la versión anterior se cierre.'
-  $deadline = [DateTime]::UtcNow.AddSeconds(60)
+  $deadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(1, $GracefulWaitSeconds))
   while ([DateTime]::UtcNow -lt $deadline) {
     if (-not (Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 250
   }
-  if (Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue) { throw 'El launcher anterior no se cerró a tiempo.' }
+  if (Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue) {
+    Write-UpdateStatus 'closing' 'Cerrando los procesos de la versión anterior.'
+    foreach ($process in @(Get-OldLauncherProcesses)) {
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+  }
+  $closeDeadline = [DateTime]::UtcNow.AddSeconds(20)
+  while ([DateTime]::UtcNow -lt $closeDeadline -and @(Get-OldLauncherProcesses).Count) {
+    Start-Sleep -Milliseconds 250
+  }
+  if (@(Get-OldLauncherProcesses).Count) { throw 'No fue posible cerrar por completo la versión anterior.' }
 
-  Write-UpdateStatus 'installing' 'Reemplazando la versión anterior.'
-  New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+  Write-UpdateStatus 'installing' 'Instalando la nueva versión en una carpeta independiente.'
+  if (Test-Path -LiteralPath $targetBackupDir) { Remove-DirectoryWithRetry $targetBackupDir 20 }
+  if (Test-Path -LiteralPath $targetDir) {
+    Move-Item -LiteralPath $targetDir -Destination $targetBackupDir -ErrorAction Stop
+    $targetWasMoved = $true
+  }
+  New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
   $packageEntries = @(Get-ChildItem -LiteralPath $packageDir -Force)
   if (-not $packageEntries.Count) { throw 'El paquete extraído está vacío.' }
   foreach ($entry in $packageEntries) {
-    $target = Join-Path $InstallDir $entry.Name
-    if (Test-Path -LiteralPath $target) {
-      $moveDeadline = [DateTime]::UtcNow.AddSeconds(45)
-      while ($true) {
-        try {
-          Move-Item -LiteralPath $target -Destination $backupDir -ErrorAction Stop
-          break
-        } catch {
-          if ([DateTime]::UtcNow -ge $moveDeadline) { throw }
-          Start-Sleep -Milliseconds 500
-        }
-      }
-    }
-    Move-Item -LiteralPath $entry.FullName -Destination $InstallDir -ErrorAction Stop
-    $installedNames.Add($entry.Name)
+    Move-Item -LiteralPath $entry.FullName -Destination $targetDir -ErrorAction Stop
   }
-  $newExe = Join-Path $InstallDir $ExecutableName
+  $newExe = Join-Path $TargetDir $ExecutableName
   Write-UpdateStatus 'launching' 'Abriendo la nueva versión.'
-  $newProcess = Start-Process -FilePath $newExe -WorkingDirectory $InstallDir -PassThru
+  $newProcess = Start-Process -FilePath $newExe -WorkingDirectory $TargetDir -PassThru
   Start-Sleep -Seconds ([Math]::Max(1, $HealthCheckSeconds))
   if ($newProcess.HasExited) { throw 'La nueva versión no pudo mantenerse abierta.' }
-  Write-UpdateStatus 'installed' 'La actualización se instaló y abrió correctamente.' @{ newProcessId = $newProcess.Id }
-  Remove-Item -LiteralPath $backupDir -Recurse -Force
+
+  Write-UpdateStatus 'cleanup' 'Eliminando la carpeta de la versión anterior.' @{ newProcessId = $newProcess.Id }
+  if (Test-Path -LiteralPath $oldBackupDir) { Remove-DirectoryWithRetry $oldBackupDir 20 }
+  Move-Item -LiteralPath $InstallDir -Destination $oldBackupDir -ErrorAction Stop
+  $oldWasMoved = $true
+  Remove-DirectoryWithRetry $oldBackupDir 60
+  $oldWasMoved = $false
+  if ($targetWasMoved -and (Test-Path -LiteralPath $targetBackupDir)) {
+    Remove-DirectoryWithRetry $targetBackupDir 30
+    $targetWasMoved = $false
+  }
+  Write-UpdateStatus 'installed' 'La actualización se instaló, abrió y eliminó la versión anterior.' @{ newProcessId = $newProcess.Id; executablePath = $newExe }
   Start-Sleep -Seconds 1
   if (Test-Path -LiteralPath $UpdateRoot) { Remove-Item -LiteralPath $UpdateRoot -Recurse -Force }
 } catch {
@@ -278,20 +337,14 @@ try {
       Stop-Process -Id $newProcess.Id -Force -ErrorAction SilentlyContinue
       Start-Sleep -Milliseconds 500
     }
-    if (Test-Path -LiteralPath $backupDir) {
-      foreach ($name in $installedNames) {
-        $installedTarget = Join-Path $InstallDir $name
-        if (Test-Path -LiteralPath $installedTarget) { Remove-Item -LiteralPath $installedTarget -Recurse -Force }
-      }
-      foreach ($entry in @(Get-ChildItem -LiteralPath $backupDir -Force)) {
-        Move-Item -LiteralPath $entry.FullName -Destination $InstallDir -Force
-      }
-      Remove-Item -LiteralPath $backupDir -Recurse -Force
-      $rollbackExe = Join-Path $InstallDir $ExecutableName
-      if (Test-Path -LiteralPath $rollbackExe -PathType Leaf) {
-        Start-Process -FilePath $rollbackExe -WorkingDirectory $InstallDir
-      }
-    } elseif (Test-Path -LiteralPath $oldExe -PathType Leaf) {
+    if (Test-Path -LiteralPath $TargetDir) { Remove-DirectoryWithRetry $TargetDir 30 }
+    if ($targetWasMoved -and (Test-Path -LiteralPath $targetBackupDir)) {
+      Move-Item -LiteralPath $targetBackupDir -Destination $TargetDir -Force
+    }
+    if ($oldWasMoved -and (Test-Path -LiteralPath $oldBackupDir) -and -not (Test-Path -LiteralPath $InstallDir)) {
+      Move-Item -LiteralPath $oldBackupDir -Destination $InstallDir -Force
+    }
+    if (Test-Path -LiteralPath $oldExe -PathType Leaf) {
       $rollbackDeadline = [DateTime]::UtcNow.AddSeconds(15)
       while ([DateTime]::UtcNow -lt $rollbackDeadline -and (Get-Process -Id $LauncherPid -ErrorAction SilentlyContinue)) {
         Start-Sleep -Milliseconds 250
@@ -308,57 +361,115 @@ try {
 }`;
 }
 
-async function launchPreparedUpdate({ app, prepared }) {
+function powerShellLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+async function launchPreparedUpdate({ app, prepared, runtime = {} }) {
   if (!app.isPackaged) throw new Error('El reemplazo automático solo se ejecuta desde la versión portátil empaquetada.');
-  const installDir = path.dirname(process.execPath);
-  const executableName = path.basename(process.execPath);
+  const installDir = path.resolve(runtime.installDir || path.dirname(process.execPath));
+  const targetDir = path.join(path.dirname(installDir), safePortableDirectoryName(prepared.latestVersion));
+  const executableName = runtime.executableName || path.basename(process.execPath);
   const scriptPath = path.join(prepared.updateRoot, 'install-update.ps1');
+  const bootstrapPath = path.join(prepared.updateRoot, 'start-update.ps1');
+  const configPath = path.join(prepared.updateRoot, 'install-update.json');
+  const logPath = path.join(prepared.updateRoot, 'start-update.log');
+  const installerOutputPath = path.join(prepared.updateRoot, 'install-update.out.log');
+  const installerErrorPath = path.join(prepared.updateRoot, 'install-update.error.log');
   fs.writeFileSync(scriptPath, updaterPowerShell(), 'utf8');
-  const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const powershell = runtime.powershell || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   if (!fs.existsSync(powershell)) throw new Error('No se encontró Windows PowerShell para instalar la actualización.');
+  fs.writeFileSync(configPath, JSON.stringify({
+    LauncherPid: runtime.launcherPid || process.pid,
+    ArchivePath: prepared.archivePath,
+    InstallDir: installDir,
+    TargetDir: targetDir,
+    ExecutableName: executableName,
+    UpdateRoot: prepared.updateRoot,
+    StatusPath: prepared.statusPath,
+    HealthCheckSeconds: runtime.healthCheckSeconds || 8,
+    GracefulWaitSeconds: runtime.gracefulWaitSeconds || 8
+  }, null, 2), 'utf8');
+  const installerArgumentLine = [
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', `"${scriptPath}"`, '-ConfigPath', `"${configPath}"`
+  ].join(' ');
+  fs.writeFileSync(bootstrapPath, String.raw`$ErrorActionPreference = 'Stop'
+$installer = Start-Process -FilePath ${powerShellLiteral(powershell)} -ArgumentList ${powerShellLiteral(installerArgumentLine)} -WindowStyle Hidden -RedirectStandardOutput ${powerShellLiteral(installerOutputPath)} -RedirectStandardError ${powerShellLiteral(installerErrorPath)} -PassThru
+[IO.File]::WriteAllText(${powerShellLiteral(path.join(prepared.updateRoot, 'installer.pid'))}, [string]$installer.Id)
+`, 'utf8');
   writeUpdateStatus(prepared.statusPath, {
     state: 'installer-starting',
     currentVersion: app.getVersion(),
     latestVersion: prepared.latestVersion,
     archivePath: prepared.archivePath,
-    installDir
+    installDir,
+    targetDir,
+    logPath,
+    installerOutputPath,
+    installerErrorPath
   });
+  const logHandle = fs.openSync(logPath, 'a');
   const child = spawn(powershell, [
     '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-File', scriptPath,
-    '-LauncherPid', String(process.pid),
-    '-ArchivePath', prepared.archivePath,
-    '-InstallDir', installDir,
-    '-ExecutableName', executableName,
-    '-UpdateRoot', prepared.updateRoot,
-    '-StatusPath', prepared.statusPath
-  ], { cwd: path.dirname(prepared.updateRoot), detached: true, stdio: 'ignore', windowsHide: true });
+    '-File', bootstrapPath
+  ], { cwd: path.dirname(prepared.updateRoot), stdio: ['ignore', logHandle, logHandle], windowsHide: true });
+  fs.closeSync(logHandle);
   await new Promise((resolve, reject) => {
     let settled = false;
+    const startedAt = Date.now();
+    const readFailure = () => {
+      let installerMessage = '';
+      try {
+        const status = JSON.parse(fs.readFileSync(prepared.statusPath, 'utf8').replace(/^\uFEFF/, ''));
+        installerMessage = String(status?.message || status?.error || '').trim();
+      } catch {}
+      if (!installerMessage) {
+        for (const candidate of [installerErrorPath, installerOutputPath, logPath]) {
+          try {
+            installerMessage = fs.readFileSync(candidate, 'utf8').trim().slice(-2000);
+            if (installerMessage) break;
+          } catch {}
+        }
+      }
+      return installerMessage;
+    };
     child.once('error', (error) => {
       if (!settled) { settled = true; reject(error); }
     });
-    child.once('spawn', () => setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      if (child.exitCode !== null) {
-        let installerMessage = '';
-        try {
-          const status = JSON.parse(fs.readFileSync(prepared.statusPath, 'utf8').replace(/^\uFEFF/, ''));
-          installerMessage = String(status?.message || status?.error || '').trim();
-        } catch {}
-        reject(new Error(installerMessage || 'El instalador de la actualización se cerró antes de iniciar.'));
-      } else resolve();
-    }, 500));
+    child.once('spawn', () => {
+      const timer = setInterval(() => {
+        if (settled) { clearInterval(timer); return; }
+        let state = '';
+        try { state = JSON.parse(fs.readFileSync(prepared.statusPath, 'utf8').replace(/^\uFEFF/, '')).state || ''; } catch {}
+        if (['extracting', 'waiting', 'closing', 'installing', 'launching', 'cleanup', 'installed'].includes(state)) {
+          settled = true;
+          clearInterval(timer);
+          resolve();
+          return;
+        }
+        if (state === 'failed' || (child.exitCode !== null && child.exitCode !== 0) || Date.now() - startedAt > 15_000) {
+          settled = true;
+          clearInterval(timer);
+          const reason = child.exitCode !== null && child.exitCode !== 0
+            ? `PowerShell terminó con código ${child.exitCode}.`
+            : Date.now() - startedAt > 15_000
+              ? 'PowerShell no confirmó el inicio en 15 segundos.'
+              : '';
+          reject(new Error(readFailure() || reason || 'El instalador de la actualización no pudo iniciar.'));
+        }
+      }, 200);
+    });
   });
   child.unref();
-  return { ok: true, version: prepared.latestVersion, archivePath: prepared.archivePath };
+  return { ok: true, version: prepared.latestVersion, archivePath: prepared.archivePath, targetDir, logPath, installerOutputPath, installerErrorPath };
 }
 
 module.exports = {
   UPDATE_REPOSITORY,
   compareVersions,
   normalizeVersion,
+  safePortableDirectoryName,
   prepareUpdate,
   launchPreparedUpdate,
   updaterPowerShell,

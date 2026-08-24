@@ -5,6 +5,7 @@ const {
   UPDATE_REPOSITORY,
   compareVersions,
   normalizeVersion,
+  safePortableDirectoryName,
   updaterPowerShell
 } = require('../src/updater');
 
@@ -14,17 +15,20 @@ assert.equal(compareVersions('0.21.0', '0.20.7'), 1);
 assert.equal(compareVersions('0.21.0', '0.21.0'), 0);
 assert.equal(compareVersions('0.20.7', '0.21.0'), -1);
 assert.equal(compareVersions('invalid', '0.21.0'), null);
+assert.equal(safePortableDirectoryName('v0.22.7'), 'IDLE-POKE-LAUNCHER-0.22.7-portatil');
 
 const installer = updaterPowerShell();
 assert.match(installer, /Expand-Archive -LiteralPath \$ArchivePath/);
-assert.match(installer, /\.pokegrid-update-backup-\$PID/);
-assert.match(installer, /Move-Item -LiteralPath \$target -Destination \$backupDir/);
+assert.match(installer, /\.pokegrid-old-\$PID/);
+assert.match(installer, /Get-OldLauncherProcesses/);
+assert.match(installer, /Stop-Process -Id \$process\.ProcessId -Force/);
 assert.match(installer, /Start-Process -FilePath \$newExe/);
-assert.match(installer, /Move-Item -LiteralPath \$entry\.FullName -Destination \$InstallDir -Force/);
+assert.match(installer, /Move-Item -LiteralPath \$entry\.FullName -Destination \$targetDir/);
+assert.match(installer, /Move-Item -LiteralPath \$InstallDir -Destination \$oldBackupDir/);
 assert.match(installer, /Write-UpdateStatus 'installed'/);
 assert.match(installer, /\[IO\.File\]::Replace\(\$temporaryStatus, \$StatusPath, \$null\)/);
 assert.match(installer, /resources\\app\.asar/);
-assert.match(installer, /\$moveDeadline/);
+assert.match(installer, /Remove-DirectoryWithRetry \$oldBackupDir/);
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
@@ -38,7 +42,11 @@ assert.match(preload, /checkForUpdates: \(\) => ipcRenderer\.invoke\('app:check-
 assert.match(main, /ipcMain\.handle\('app:version'/);
 assert.match(main, /ipcMain\.handle\('app:check-update'/);
 assert.match(main, /await launchPreparedUpdate/);
+assert.match(main, /app\.exit\(0\)/);
 assert.match(updater, /cwd: path\.dirname\(prepared\.updateRoot\)/);
 assert.match(updater, /path\.join\(app\.getPath\('userData'\), 'updates'\)/);
+assert.match(updater, /start-update\.ps1/);
+assert.match(updater, /install-update\.error\.log/);
+assert.match(updater, /Start-Process -FilePath/);
 
 console.log('Launcher updater smoke passed: version comparison, SHA-protected release flow and rollback installer are present.');
