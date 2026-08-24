@@ -1,0 +1,11 @@
+packages:
+  - .
+
+allowBuilds:
+  electron-winstaller: true
+
+blockExoticSubdeps: false
+
+onlyBuiltDependencies:
+  - electron
+  - electron-winstaller

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Panel injection regression fixture</title>
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { position: relative; background: #122; font-family: sans-serif; }
+    .game-dock { position: absolute; top: 8px; left: 500px; width: 200px; height: 80px; }
+    .player-hud { position: absolute; top: 24px; left: 20px; width: 210px; height: 58px; }
+    .team-panel { position: absolute; top: 100px; left: 20px; width: 280px; height: 260px; }
+    .team-slot { height: 90px; }
+    .team-slot img { width: 48px; height: 48px; }
+    .profile-dialog, .capture-dialog, .auto-helper-dialog { position: absolute; width: 360px; height: 260px; }
+    .profile-dialog { top: 100px; left: 330px; }
+    .capture-dialog { top: 390px; left: 330px; width: 620px; height: 300px; }
+    .auto-helper-dialog { top: 100px; right: 10px; }
+    .capture-list { width: 560px; height: 120px; }
+    .capture-row { display: grid; grid-template-columns: repeat(4, 1fr); height: 50px; }
+    canvas { width: 32px; height: 32px; }
+  </style>
+</head>
+<body>
+  <nav class="game-dock"><button class="dock-btn">Map</button></nav>
+  <div class="player-hud"><img alt="Trainer"><strong>SHOCKVINY</strong><span>Level 519 · Paras</span></div>
+
+  <aside class="team-panel">
+    <div class="trainer">Trainer · Level 30 <canvas></canvas></div>
+    <div class="team-slot"><span class="phud-ico"><canvas></canvas><span class="pk-ts-type"><img alt="Electric type"></span></span><strong>Pikachu</strong><span>HP</span><progress value="80" max="100"></progress></div>
+    <div class="team-slot"><img alt="Eevee"><strong>Eevee</strong><span>HP</span><progress value="90" max="100"></progress></div>
+  </aside>
+
+  <section class="profile-dialog" role="dialog">
+    <header><h2>Profile</h2><button aria-label="Close">x</button></header>
+    <canvas></canvas><img alt="Trainer avatar">
+    <div>Trainer Level 30 · Experience 12,400 · Region Kanto</div>
+    <button>Edit profile</button>
+  </section>
+
+  <section class="capture-dialog" role="dialog">
+    <header><h2>Capture Management</h2><p>Manage and review your captures</p><button aria-label="Close">x</button></header>
+    <canvas></canvas>
+    <button>Poké Balls Used</button><button>Balls Used on Shiny</button>
+    <div class="capture-list">
+      <div class="capture-row"><span>#25</span><span><img alt="Pikachu">Pikachu</span><span>Most recent attempts: 2</span><span>Total attempts: 8</span></div>
+      <div class="capture-row"><span>#133</span><span><img alt="Eevee">Eevee</span><span>Most recent attempts: 1</span><span>Total attempts: 4</span></div>
+    </div>
+    <footer><input type="search" placeholder="Name"><button>Reset</button></footer>
+  </section>
+  <section class="auto-helper-dialog" role="dialog">
+    <header><h2>Auto-Helper</h2><button aria-label="Close">x</button></header>
+    <label>Auto-Potion <input type="checkbox" checked></label>
+    <label>Auto-Catch <input type="checkbox"></label>
+  </section>
+</body>
+</html>

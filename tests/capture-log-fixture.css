@@ -1,0 +1,17 @@
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body {
+  font-family: "Segoe UI", sans-serif;
+  color: #dce6f1;
+  background: radial-gradient(circle at 50% 35%, #183248, #06101a 70%);
+}
+.clog-window { display: flex; flex-direction: column; position: fixed; }
+.clog-title { position: relative; }
+.clog-x { position: absolute; }
+.clog-head { display: flex; }
+.clog-tabs, .clog-totals { display: flex; }
+.clog-list { display: flex; flex: 1; flex-direction: column; overflow-y: auto; }
+.clog-row { display: grid; align-items: center; }
+.clog-ico { display: grid; place-items: center; font-size: 28px; }
+.clog-foot { display: flex; align-items: center; justify-content: space-between; }
+.clog-first { font-style: normal; }

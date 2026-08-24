@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://poke.idleworld.online https://pokexguides.com">
+    <title>IDLE POKE LAUNCHER</title>
+    <link rel="icon" href="assets/idle-poke-logo-512.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header id="appbar" class="appbar">
+      <button id="topbarToggle" class="topbar-toggle" type="button" aria-expanded="false" aria-controls="globalActions" aria-label="Abrir men&uacute; del launcher" title="Abrir men&uacute; del launcher">
+        <span class="hamburger-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+      <div class="brand" aria-label="IDLE POKE LAUNCHER">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <strong>IDLE POKE LAUNCHER</strong>
+          <small>4 sesiones · 1 launcher</small>
+        </div>
+      </div>
+
+      <div id="instanceTabbar" class="instance-tabbar" aria-label="Instancias del navegador">
+        <div id="instanceTabs" class="instance-tabs" role="tablist" aria-label="Juegos abiertos"></div>
+        <button id="addBrowserInstanceButton" class="instance-add-button" type="button" aria-label="Agregar instancia de navegador" title="Agregar otro juego">+</button>
+      </div>
+
+      <button id="topbarCollapseButton" class="topbar-collapse-button" type="button" aria-expanded="true" aria-label="Ocultar barra superior" title="Ocultar barra superior">&#8963;</button>
+
+      <nav id="globalActions" class="global-actions" aria-label="Men&uacute; principal del launcher">
+        <header class="sidebar-heading">
+          <span>MEN&Uacute; PRINCIPAL</span>
+          <small>Herramientas del launcher</small>
+        </header>
+        <button id="farmButton" class="button button-farm" type="button"><span class="top-action-icon" aria-hidden="true">&#127919;</span><span>Modo farmeo</span></button>
+        <button id="pokepediaButton" class="button button-pokepedia" type="button" title="Abrir Pokepedia en una ventana independiente"><span class="top-action-icon" aria-hidden="true">&#9672;</span><span>Pokepedia</span></button>
+        <button id="scriptsButton" class="button button-scripts" type="button"><span class="top-action-icon is-code" aria-hidden="true">&lt;/&gt;</span><span>Scripts</span></button>
+        <button id="statisticsButton" class="button button-statistics" type="button" aria-expanded="false" aria-controls="statisticsBackdrop"><span class="top-action-icon" aria-hidden="true">&#9636;</span><span>Estad&iacute;sticas</span></button>
+        <button id="notificationButton" class="notification-button" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Abrir notificaciones">
+          <span class="notification-bell top-action-icon" aria-hidden="true">&#128276;</span>
+          <span class="notification-button-label">Notificaciones</span>
+          <span id="notificationBadge" class="notification-badge" hidden>0</span>
+        </button>
+        <button id="accountsButton" class="button button-secondary button-accounts" type="button"><span class="top-action-icon" aria-hidden="true">&#128101;</span><span>Cuentas</span></button>
+        <button id="cleanupMemoryButton" class="button button-secondary memory-cleanup-button" type="button" title="Optimizar memoria sin recargar sesiones, borrar datos ni detener procesos"><span class="top-action-icon" aria-hidden="true">&#129529;</span><span>RAM</span></button>
+        <button id="loginAllButton" class="button button-primary button-launch-all" type="button" aria-label="Iniciar las cuatro cuentas" title="Iniciar las cuatro cuentas"><span class="top-action-icon launch-all-icon" aria-hidden="true"><span class="play-icon"></span></span><span>Iniciar todas</span></button>
+        <button id="reloadAllButton" class="button button-secondary button-reload" type="button"><span class="top-action-icon" aria-hidden="true">&#8635;</span><span>Recargar todas</span></button>
+        <button id="updateLauncherButton" class="button button-secondary button-update" type="button" title="Buscar y aplicar actualizaciones del launcher"><span class="top-action-icon" aria-hidden="true">&#10515;</span><span>Actualizaciones</span></button>
+        <div class="view-mode-control">
+          <button id="viewModeButton" class="button button-secondary button-view-mode" type="button" aria-expanded="false" aria-controls="viewModeMenu"><span class="top-action-icon" aria-hidden="true">&#9638;</span><span>Modo vista</span></button>
+        </div>
+      </nav>
+    </header>
+
+    <button id="sidebarScrim" class="sidebar-scrim" type="button" aria-label="Cerrar men&uacute; del launcher" hidden></button>
+    <section id="viewModeMenu" class="view-mode-menu" role="dialog" aria-label="Ventanas visibles" hidden>
+      <header><strong>Ventanas visibles</strong><button id="viewModeAllButton" type="button">Todas</button></header>
+      <div id="viewModeAccounts" class="view-mode-accounts"></div>
+    </section>
+
+    <main id="grid" class="grid instance-workspace is-active" data-instance-id="poke-idle-world" role="tabpanel" aria-label="Paneles de Poke Idle World"></main>
+
+    <div id="browserInstanceBackdrop" class="modal-backdrop browser-instance-backdrop" hidden>
+      <section class="modal browser-instance-modal" role="dialog" aria-modal="true" aria-labelledby="browserInstanceTitle">
+        <header class="modal-heading">
+          <div>
+            <span class="eyebrow">NAVEGADOR MULTIINSTANCIA</span>
+            <h1 id="browserInstanceTitle">Agregar otro juego</h1>
+          </div>
+          <button id="closeBrowserInstanceButton" class="icon-button" type="button" aria-label="Cerrar">&times;</button>
+        </header>
+        <p class="modal-copy">Cada pantalla conserva cookies, sesi&oacute;n y datos en una partici&oacute;n independiente. Las instancias guardadas vuelven a iniciarse autom&aacute;ticamente con el launcher.</p>
+        <form id="browserInstanceForm" class="browser-instance-form">
+          <label class="field">
+            <span>NOMBRE DE LA INSTANCIA</span>
+            <input id="browserInstanceName" maxlength="48" required placeholder="Ej. Otro juego">
+          </label>
+          <label class="field browser-instance-url-field">
+            <span>ENLACE HTTPS DEL JUEGO</span>
+            <input id="browserInstanceUrl" type="url" maxlength="1000" required inputmode="url" placeholder="https://juego.example/">
+          </label>
+          <label class="field">
+            <span>PANTALLAS / CUENTAS</span>
+            <select id="browserInstanceCount">
+              <option value="1">1 pantalla</option>
+              <option value="2">2 pantallas</option>
+              <option value="3">3 pantallas</option>
+              <option value="4" selected>4 pantallas</option>
+              <option value="5">5 pantallas</option>
+              <option value="6">6 pantallas</option>
+            </select>
+          </label>
+          <p id="browserInstanceMessage" class="modal-message" role="status"></p>
+          <div class="modal-actions">
+            <button id="cancelBrowserInstanceButton" class="button button-secondary" type="button">Cancelar</button>
+            <button class="button button-primary" type="submit">Crear e iniciar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="statisticsBackdrop" class="modal-backdrop statistics-backdrop" hidden>
+      <section class="modal statistics-modal" role="dialog" aria-modal="true" aria-labelledby="statisticsTitle">
+        <header class="statistics-heading">
+          <div>
+            <span class="eyebrow">RESUMEN MULTICUENTA ACTUAL</span>
+            <h1 id="statisticsTitle">Estad&iacute;sticas generales</h1>
+            <p>Totales combinados y detalle individual de las cuatro cuentas.</p>
+          </div>
+          <div class="statistics-heading-actions">
+            <button id="refreshStatisticsButton" class="button button-secondary" type="button">Actualizar</button>
+            <button id="closeStatisticsButton" class="icon-button" type="button" aria-label="Cerrar estad&iacute;sticas">&times;</button>
+          </div>
+        </header>
+        <p id="statisticsStatus" class="statistics-status" role="status">Preparando datos actuales&hellip;</p>
+        <nav class="statistics-view-tabs" aria-label="Vistas de estad&iacute;sticas">
+          <button class="statistics-view-tab is-active" type="button" data-statistics-view="summary" aria-selected="true">Resumen por cuenta</button>
+          <button class="statistics-view-tab" type="button" data-statistics-view="comparison" aria-selected="false">Comparaci&oacute;n de Hunt</button>
+        </nav>
+        <section id="statisticsSummaryView" class="statistics-view is-active" data-statistics-panel="summary">
+          <div id="statisticsTotals" class="statistics-totals" aria-label="Totales de todas las cuentas"></div>
+          <div id="statisticsAccounts" class="statistics-accounts" aria-label="Estad&iacute;sticas individuales"></div>
+        </section>
+        <section id="statisticsComparisonView" class="statistics-view statistics-comparison" data-statistics-panel="comparison" aria-label="Comparaci&oacute;n de Hunt" hidden>
+          <div id="statisticsComparisonHighlights" class="statistics-comparison-highlights"></div>
+          <div id="statisticsComparisonTable" class="statistics-comparison-table"></div>
+        </section>
+      </section>
+    </div>
+
+    <aside id="notificationPanel" class="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notificationTitle" hidden>
+      <header class="notification-panel-head">
+        <div>
+          <span class="eyebrow">ACTIVIDAD MULTICUENTA</span>
+          <h2 id="notificationTitle">Notificaciones</h2>
+          <p>Shiny derrotados, capturas legendarias y metas de capturas o drops.</p>
+        </div>
+        <div class="notification-head-actions">
+          <button id="markNotificationsButton" class="notification-text-button" type="button">Marcar le&iacute;das</button>
+          <button id="closeNotificationButton" class="icon-button" type="button" aria-label="Cerrar notificaciones">&times;</button>
+        </div>
+      </header>
+
+      <div class="notification-summary" aria-label="Resumen de notificaciones">
+        <span class="notification-summary-chip is-goal"><b id="goalNotificationCount">0</b> Metas</span>
+        <span class="notification-summary-chip is-shiny"><b id="shinyNotificationCount">0</b> Shinies</span>
+        <span class="notification-summary-chip is-legendary"><b id="legendaryNotificationCount">0</b> Legendarias</span>
+      </div>
+
+      <div class="capture-goal-launcher">
+        <button id="openGoalBuilderButton" class="notification-text-button capture-goal-open" type="button"><span aria-hidden="true">+</span> Crear meta</button>
+        <button id="openGoalManagerButton" class="notification-text-button capture-goal-manage" type="button">Gestionar metas</button>
+      </div>
+
+      <section class="notification-filters" aria-label="Filtrar notificaciones">
+        <div class="notification-filter-head"><strong>Filtros</strong><button id="resetNotificationFiltersButton" type="button">Restablecer</button></div>
+        <div class="notification-filter-grid">
+          <input id="notificationPokemonFilter" type="search" placeholder="Pokémon o drop…" autocomplete="off">
+          <select id="notificationTypeFilter">
+            <option value="all">Todos los eventos</option><option value="goal">Metas Pokémon</option>
+            <option value="drop">Metas drops</option><option value="shiny">Shinies</option><option value="legendary">Legendarios</option>
+          </select>
+          <input id="notificationDateFromFilter" type="date" title="Desde">
+          <input id="notificationDateToFilter" type="date" title="Hasta">
+          <input id="notificationIvFilter" type="number" min="0" max="192" placeholder="IV mínimo">
+          <select id="notificationTierFilter"><option value="all">Todos los tiers</option></select>
+        </div>
+      </section>
+
+      <section class="capture-goals-section" aria-labelledby="captureGoalsTitle">
+        <div class="notification-section-heading"><h3 id="captureGoalsTitle">Metas activas</h3><span id="captureGoalCount">0</span></div>
+        <div id="captureGoalList" class="capture-goal-list"></div>
+      </section>
+
+      <section class="notification-history" aria-labelledby="notificationHistoryTitle">
+        <div class="notification-section-heading"><h3 id="notificationHistoryTitle">Historial</h3><span id="notificationHistoryCount">0</span></div>
+        <div id="notificationList" class="notification-list" aria-live="polite"></div>
+      </section>
+
+      <footer class="notification-panel-foot">
+        <span>El launcher revisa derrotas y capturas de las cuatro cuentas.</span>
+        <button id="clearNotificationsButton" class="notification-text-button is-danger" type="button">Borrar historial</button>
+      </footer>
+    </aside>
+
+    <div id="goalBuilderBackdrop" class="modal-backdrop goal-builder-backdrop" hidden>
+      <section class="modal goal-builder-modal" role="dialog" aria-modal="true" aria-labelledby="goalBuilderTitle">
+        <header class="goal-builder-heading">
+          <div><span class="eyebrow">NOTIFICACIONES</span><h2 id="goalBuilderTitle">Crear meta</h2><p>Selecciona uno o varios objetivos y define sus condiciones.</p></div>
+          <button id="closeGoalBuilderButton" class="icon-button" type="button" aria-label="Cerrar crear meta">&times;</button>
+        </header>
+        <form id="captureGoalForm" class="capture-goal-form">
+          <label class="notification-field notification-field-wide">
+            <span>TIPO DE META</span>
+            <select id="goalKindSelect">
+              <option value="capture">Capturar Pok&eacute;mon</option>
+              <option value="drop">Obtener drop</option>
+            </select>
+          </label>
+          <section class="goal-filter-card notification-field-wide">
+            <div class="goal-catalog-heading">
+              <strong id="goalTargetLabel">POK&Eacute;MON PERMITIDOS (CAT&Aacute;LOGO)</strong>
+              <button id="goalSelectShinyCardsButton" type="button" hidden>Seleccionar todas las Shiny Card</button>
+            </div>
+            <input id="goalPokemonInput" type="hidden">
+            <input id="goalCatalogSearch" class="goal-catalog-search" type="search" placeholder="Buscar Pok&eacute;mon&hellip;" autocomplete="off">
+            <div id="goalCatalogList" class="goal-catalog-list" role="group" aria-label="Catálogo seleccionable"></div>
+            <small id="goalCatalogHelp">Selecciona uno o varios Pokémon para crear sus metas.</small>
+          </section>
+          <label class="notification-field">
+            <span>CUENTA</span>
+            <select id="goalAccountSelect">
+              <option value="-1">Cualquier cuenta</option>
+            </select>
+          </label>
+          <label id="goalIvField" class="notification-field">
+            <span>IV TOTAL M&Iacute;NIMO</span>
+            <input id="goalIvInput" type="number" min="0" max="192" value="0" inputmode="numeric">
+          </label>
+          <label id="goalQuantityField" class="notification-field" hidden>
+            <span>CANTIDAD M&Iacute;NIMA</span>
+            <input id="goalQuantityInput" type="number" min="1" max="999999" value="1" inputmode="numeric">
+          </label>
+          <section id="goalTierField" class="goal-tier-field notification-field-wide">
+            <span>TIERS PERMITIDOS (HAZ CLIC PARA ACTIVAR)</span>
+            <div id="goalTierButtons" class="goal-tier-buttons"></div>
+            <input id="goalTierSelect" type="hidden" value="any">
+          </section>
+          <p id="goalFormStatus" class="goal-form-status notification-field-wide" role="status"></p>
+          <button class="button button-farm capture-goal-submit" type="submit">Guardar meta</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="goalManagerBackdrop" class="modal-backdrop goal-manager-backdrop" hidden>
+      <section class="modal goal-manager-modal" role="dialog" aria-modal="true" aria-labelledby="goalManagerTitle">
+        <header class="goal-builder-heading">
+          <div><span class="eyebrow">ORGANIZACIÓN</span><h2 id="goalManagerTitle">Gestionar metas</h2><p>Busca, edita o elimina metas sin afectar el historial.</p></div>
+          <button id="closeGoalManagerButton" class="icon-button" type="button" aria-label="Cerrar gestor de metas">&times;</button>
+        </header>
+        <div class="goal-manager-tools">
+          <input id="goalManagerSearch" type="search" placeholder="Buscar meta…" autocomplete="off">
+          <select id="goalManagerKindFilter"><option value="all">Todas</option><option value="capture">Pokémon</option><option value="drop">Drops</option></select>
+          <button id="goalManagerCreateButton" class="button button-farm" type="button">+ Nueva meta</button>
+        </div>
+        <div id="goalManagerList" class="goal-manager-list"></div>
+      </section>
+    </div>
+
+    <div id="notificationToastLayer" class="notification-toast-layer" aria-live="assertive"></div>
+
+    <div id="modalBackdrop" class="modal-backdrop" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="accountsTitle">
+        <div class="modal-heading">
+          <div>
+            <span class="eyebrow">ACCESO SEGURO</span>
+            <h1 id="accountsTitle">Tus cuatro cuentas</h1>
+          </div>
+          <button id="closeModalButton" class="icon-button" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="modal-copy">Las contraseñas se cifran con la protección de Windows y cada panel conserva una sesión independiente.</p>
+        <form id="accountsForm" autocomplete="off">
+          <section class="accounts-transfer" aria-labelledby="accountsTransferTitle">
+            <div class="accounts-transfer-copy">
+              <strong id="accountsTransferTitle">Importación de las cuatro cuentas</strong>
+              <span>Descarga la plantilla, complétala e impórtala una vez. El launcher recordará su ruta absoluta y sincronizará futuros cambios.</span>
+            </div>
+            <div class="accounts-transfer-actions">
+              <button id="downloadAccountsTemplateButton" class="button button-secondary" type="button">Descargar plantilla .txt</button>
+              <button id="importAccountsButton" class="button button-secondary" type="button">Importar cuentas .txt</button>
+            </div>
+            <small>El archivo vinculado contiene contraseñas en texto plano. Guárdalo de forma privada; no se borrará mientras permanezca vinculado.</small>
+          </section>
+          <p id="accountsSourcePath" class="accounts-source-path">Ning&uacute;n archivo vinculado. Al importar un .txt, el launcher recordar&aacute; su ruta absoluta y sincronizar&aacute; futuros cambios.</p>
+          <div id="accountRows" class="account-rows"></div>
+          <p id="modalMessage" class="modal-message" role="status"></p>
+          <div class="modal-actions">
+            <button id="cancelButton" class="button button-secondary" type="button">Cancelar</button>
+            <button class="button button-primary" type="submit">Guardar cuentas</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="scriptsBackdrop" class="modal-backdrop scripts-backdrop" hidden>
+      <section class="modal scripts-modal" role="dialog" aria-modal="true" aria-labelledby="scriptsTitle">
+        <header class="scripts-heading">
+          <div>
+            <span class="eyebrow">USERSCRIPTS MULTICUENTA</span>
+            <h1 id="scriptsTitle">Centro de scripts</h1>
+            <p>Instala, edita y habilita cada script de forma independiente en las cuatro sesiones.</p>
+          </div>
+          <button id="closeScriptsButton" class="icon-button" type="button" aria-label="Cerrar centro de scripts">&times;</button>
+        </header>
+
+        <div class="scripts-security-note">
+          <span aria-hidden="true">&#9888;</span>
+          <p><strong>Los scripts pueden controlar por completo la p&aacute;gina del juego.</strong> Instala solo c&oacute;digo de confianza y revisa sus permisos antes de activarlo.</p>
+        </div>
+
+        <div class="scripts-layout">
+          <aside class="scripts-library" aria-label="Scripts instalados">
+            <div class="scripts-library-actions">
+              <button id="newScriptButton" class="button button-scripts" type="button">+ Nuevo</button>
+              <button id="importScriptButton" class="button button-secondary" type="button">Importar</button>
+              <button id="installTelegramAlertsButton" class="button button-telegram-install" type="button">
+                <span aria-hidden="true">&#9992;</span> Instalar alertas Telegram
+              </button>
+            </div>
+            <form id="scriptUrlForm" class="script-url-form">
+              <label for="scriptUrlInput">INSTALAR DESDE HTTPS</label>
+              <div>
+                <input id="scriptUrlInput" type="url" inputmode="url" autocomplete="off" placeholder="https://sitio/script.user.js">
+                <button type="submit" title="Descargar para revisar">Ir</button>
+              </div>
+            </form>
+            <div id="scriptDropZone" class="script-drop-zone" tabindex="0" role="button" aria-label="Arrastra aqu&iacute; archivos userscript para instalarlos o actualizarlos">
+              <span aria-hidden="true">&#8681;</span>
+              <strong>Arrastra scripts aqu&iacute;</strong>
+              <small>.js o .user.js &middot; instala y actualiza</small>
+            </div>
+            <div class="scripts-list-head">
+              <strong>Instalados</strong>
+              <span id="scriptCount">0</span>
+            </div>
+            <div id="scriptsList" class="scripts-list"></div>
+          </aside>
+
+          <form id="scriptEditorForm" class="script-editor">
+            <div class="script-editor-head">
+              <div>
+                <span id="scriptEditorKicker">NUEVO USERSCRIPT</span>
+                <h2 id="scriptEditorName">Script sin guardar</h2>
+                <p id="scriptEditorMeta">A&ntilde;ade el bloque ==UserScript== para completar sus datos.</p>
+              </div>
+              <label class="script-master-switch">
+                <input id="scriptEnabledInput" type="checkbox" checked>
+                <span>ACTIVO</span>
+              </label>
+            </div>
+
+            <fieldset class="script-accounts-fieldset">
+              <legend>EJECUTAR EN CUENTAS</legend>
+              <div id="scriptAccountToggles" class="script-account-toggles"></div>
+            </fieldset>
+
+            <section class="script-code-field" aria-label="Editor de c&oacute;digo">
+              <div class="script-code-toolbar">
+                <strong>C&Oacute;DIGO</strong>
+                <div class="script-editor-tools" role="toolbar" aria-label="Herramientas del editor">
+                  <button id="validateScriptButton" type="button" title="Validar sintaxis (F8)">&#10003; Validar</button>
+                  <button id="undoScriptButton" type="button" title="Deshacer (Ctrl+Z)">&#8630;</button>
+                  <button id="redoScriptButton" type="button" title="Rehacer (Ctrl+Y)">&#8631;</button>
+                  <button id="commentScriptButton" type="button" title="Comentar l&iacute;neas (Ctrl+/)">//</button>
+                  <button id="duplicateScriptLineButton" type="button" title="Duplicar l&iacute;nea (Ctrl+D)">Duplicar</button>
+                  <button id="findScriptButton" type="button" title="Buscar (Ctrl+F)">&#128269;</button>
+                </div>
+              </div>
+              <div id="scriptFindBar" class="script-find-bar" hidden>
+                <input id="scriptFindInput" type="search" autocomplete="off" placeholder="Buscar en el script">
+                <span id="scriptFindCount">0/0</span>
+                <button id="scriptFindPreviousButton" type="button" title="Coincidencia anterior">&#8593;</button>
+                <button id="scriptFindNextButton" type="button" title="Coincidencia siguiente">&#8595;</button>
+                <button id="closeScriptFindButton" type="button" title="Cerrar b&uacute;squeda">&times;</button>
+              </div>
+              <div id="scriptCodeEditor" class="script-code-editor">
+                <pre id="scriptLineNumbers" class="script-line-numbers" aria-hidden="true">1</pre>
+                <textarea id="scriptCodeInput" aria-label="C&oacute;digo del userscript" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+              </div>
+              <div class="script-editor-statusbar">
+                <span id="scriptSyntaxStatus" class="is-pending">Sin validar</span>
+                <span id="scriptCursorStatus">Ln 1, Col 1</span>
+                <span>JavaScript &middot; UTF-8 &middot; espacios: 2</span>
+              </div>
+            </section>
+
+            <div id="scriptPermissionSummary" class="script-permission-summary"></div>
+            <p id="scriptsMessage" class="modal-message scripts-message" role="status"></p>
+            <div class="script-editor-actions">
+              <button id="deleteScriptButton" class="button script-delete-button" type="button" hidden>Eliminar</button>
+              <button id="exportScriptButton" class="button button-secondary" type="button">Exportar .js</button>
+              <span></span>
+              <button id="cancelScriptChangesButton" class="button button-secondary" type="button">Deshacer</button>
+              <button class="button button-primary" type="submit">Guardar e instalar</button>
+            </div>
+          </form>
+        </div>
+
+        <details class="extension-lab">
+          <summary>Extensi&oacute;n desempaquetada <span>Experimental</span></summary>
+          <div class="extension-lab-body">
+            <div>
+              <h3>Cargar una copia local leg&iacute;tima</h3>
+              <p>Electron no admite Chrome Web Store ni archivos CRX y solo implementa parte de las APIs de Chrome. Esta opci&oacute;n no sustituye el centro nativo ni garantiza que Tampermonkey funcione.</p>
+            </div>
+            <div class="extension-path-row">
+              <output id="extensionPathOutput">Ninguna carpeta seleccionada</output>
+              <button id="pickExtensionButton" class="button button-secondary" type="button">Elegir carpeta</button>
+            </div>
+            <fieldset class="script-accounts-fieldset">
+              <legend>CARGAR EN SESIONES</legend>
+              <div id="extensionAccountToggles" class="script-account-toggles"></div>
+            </fieldset>
+            <div class="extension-actions">
+              <span id="extensionStatus" role="status"></span>
+              <button id="applyExtensionButton" class="button button-secondary" type="button">Aplicar y recargar sesiones</button>
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <div id="farmBackdrop" class="modal-backdrop farm-backdrop" hidden>
+      <section class="modal farm-modal" role="dialog" aria-modal="true" aria-labelledby="farmTitle">
+        <div class="modal-heading farm-heading">
+          <div class="farm-heading-copy">
+            <h1 id="farmTitle">Modo farmeo</h1>
+          </div>
+          <div class="farm-heading-actions">
+            <span id="farmGlobalState" class="farm-global-state">Preparando catálogo</span>
+            <button id="closeFarmButton" class="icon-button" type="button" aria-label="Cerrar">×</button>
+          </div>
+        </div>
+
+        <div class="farm-toolbar">
+          <div>
+            <strong>Configuración por cuenta</strong>
+            <span>Los Pokémon bloqueados se habilitan al alcanzar su nivel de mapa.</span>
+          </div>
+          <div class="farm-toolbar-actions">
+            <label class="farm-orre-permission" title="Autoriza al launcher a confirmar automáticamente la advertencia de Orre">
+              <input id="farmAllowOrreTravel" type="checkbox">
+              <span>Permitir viaje a Orre con o sin MT</span>
+            </label>
+            <button id="rereadFarmLeadersButton" class="button button-secondary" type="button">↻ Releer líderes</button>
+            <button id="refreshFarmButton" class="button button-secondary" type="button">Actualizar mapas</button>
+          </div>
+        </div>
+
+        <div id="farmAccountGrid" class="farm-account-grid" aria-live="polite"></div>
+        <p id="farmMessage" class="modal-message farm-message" role="status"></p>
+
+        <div class="modal-actions farm-actions">
+          <button id="stopFarmButton" class="button farm-stop" type="button">■ Desactivar modo farmeo</button>
+          <button id="cancelFarmButton" class="button button-secondary" type="button">Cancelar</button>
+          <button id="startFarmButton" class="button button-farm farm-start" type="button">Iniciar farmeo automático</button>
+        </div>
+      </section>
+
+      <div id="farmPickerLayer" class="farm-picker-layer" hidden>
+        <section class="farm-picker" role="dialog" aria-modal="true" aria-labelledby="farmPickerTitle">
+          <header class="farm-picker-head">
+            <div>
+              <span class="eyebrow">MAPAS DEL JUEGO</span>
+              <h2 id="farmPickerTitle">Seleccionar Pokémon</h2>
+              <p id="farmPickerAccount"></p>
+            </div>
+            <button id="closeFarmPickerButton" class="icon-button" type="button" aria-label="Cerrar selector">×</button>
+          </header>
+          <div class="farm-picker-tools">
+            <label class="farm-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="farmSearchInput" type="search" autocomplete="off" placeholder="Buscar Pokémon, tipo, mapa o nivel…">
+            </label>
+            <div id="farmAreaFilters" class="farm-area-filters" role="group" aria-label="Filtrar por región"></div>
+            <div class="farm-advanced-filters" aria-label="Filtros avanzados">
+              <label>
+                <span>TIPO</span>
+                <select id="farmTypeFilter"><option value="all">Todos los tipos</option></select>
+              </label>
+              <label>
+                <span>NIVEL</span>
+                <select id="farmLevelFilter">
+                  <option value="all">Todos los niveles</option>
+                  <option value="accessible">Solo accesibles</option>
+                  <option value="1-30">Nivel 1–30</option>
+                  <option value="31-60">Nivel 31–60</option>
+                  <option value="61-100">Nivel 61–100</option>
+                  <option value="101-200">Nivel 101–200</option>
+                  <option value="201+">Nivel 201+</option>
+                </select>
+              </label>
+              <label>
+                <span>COMBATE</span>
+                <select id="farmMatchupFilter">
+                  <option value="all">Todos los combates</option>
+                  <option value="recommended">Recomendados</option>
+                  <option value="advantage">Ventaja de tipo</option>
+                  <option value="safe">Nivel seguro</option>
+                </select>
+              </label>
+              <label>
+                <span>ORDEN</span>
+                <select id="farmSortSelect">
+                  <option value="recommended">Mejor compatibilidad</option>
+                  <option value="level-asc">Nivel menor primero</option>
+                  <option value="level-desc">Nivel mayor primero</option>
+                  <option value="name">Nombre A–Z</option>
+                </select>
+              </label>
+              <label class="farm-shiny-filter">
+                <span>VARIANTE</span>
+                <span class="farm-filter-check"><input id="farmShinyFilter" type="checkbox"> <b>Con forma Shiny</b></span>
+              </label>
+              <button id="resetFarmFiltersButton" class="farm-reset-filters" type="button">Restablecer</button>
+            </div>
+          </div>
+          <section id="farmRecommendedRoute" class="farm-recommended-route" aria-live="polite"></section>
+          <div id="farmPokemonGrid" class="farm-pokemon-grid"></div>
+          <p id="farmPickerEmpty" class="farm-picker-empty" hidden>No hay Pokémon que coincidan con esta búsqueda.</p>
+        </section>
+      </div>
+    </div>
+
+    <template id="panelTemplate">
+      <article class="panel">
+        <header class="panelbar" title="Mantén pulsado y arrastra para cambiar esta cuenta de posición">
+          <div class="panel-identity">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div>
+              <strong class="panel-name"></strong>
+              <span class="farm-chip" hidden></span>
+              <span class="panel-status">Preparando sesión…</span>
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="mini-button account-info-toggle" type="button" title="Ver datos de la cuenta" aria-expanded="false" aria-label="Ver datos de la cuenta">&#128100;</button>
+            <button class="mini-button capture-log-toggle" type="button" title="Abrir Capture Log" aria-expanded="false">
+              <span class="capture-pokeball-icon" aria-hidden="true"></span><span class="capture-log-toggle-label">Capturas</span>
+            </button>
+            <button class="mini-button hunt-toggle" type="button" title="Abrir Hunt Analyzer" aria-expanded="false">
+              <span class="hunt-coin-sword-icon" aria-hidden="true"><i></i></span><span class="hunt-toggle-label">Hunt</span>
+            </button>
+            <button class="mini-button zoom-out" type="button" title="Alejar">−</button>
+            <output class="zoom-label">100%</output>
+            <button class="mini-button zoom-in" type="button" title="Acercar">+</button>
+            <button class="mini-button reload" type="button" title="Recargar panel">↻</button>
+            <button class="mini-button expand" type="button" title="Agrandar panel">⛶</button>
+          </div>
+        </header>
+        <aside class="account-info-card" aria-label="Datos de la cuenta" hidden>
+          <header><span>DATOS EN TIEMPO REAL</span><button class="account-info-close" type="button" aria-label="Cerrar datos de cuenta">&times;</button></header>
+          <div class="account-info-state">Leyendo perfil del jugador&hellip;</div>
+          <div class="account-info-content"></div>
+        </aside>
+        <aside class="hunt-float-panel" aria-label="Hunt Analyzer" hidden>
+          <header class="hunt-float-head">
+            <div>
+              <span class="hunt-float-kicker">SESIÓN EN TIEMPO REAL</span>
+              <strong>Hunt Analyzer</strong>
+            </div>
+            <div class="hunt-float-actions">
+              <button class="float-geometry-action hunt-float-position-reset" type="button" title="Restablecer tamaño y posición" aria-label="Restablecer tamaño y posición">↺</button>
+              <button class="float-geometry-action hunt-float-pin" type="button" title="Fijar tamaño y posición" aria-label="Fijar tamaño y posición" aria-pressed="false">📌</button>
+              <button class="hunt-float-action hunt-float-reset" type="button" title="Reiniciar la lectura en vivo">
+                <span aria-hidden="true">↻</span><span>Reset</span>
+              </button>
+              <button class="hunt-float-action hunt-float-delete" type="button" title="Eliminar la sesión actual">
+                <span aria-hidden="true">⌫</span><span>Eliminar</span>
+              </button>
+              <button class="hunt-float-close" type="button" aria-label="Cerrar Hunt Analyzer">×</button>
+            </div>
+          </header>
+          <div class="hunt-float-state" role="status">Conectando con la sesión…</div>
+          <div class="hunt-float-content"></div>
+        </aside>
+        <aside class="capture-float-panel" aria-label="Capture Log" hidden>
+          <header class="capture-float-head">
+            <div>
+              <span class="capture-float-kicker">CAPTURAS EN TIEMPO REAL</span>
+              <strong>Capture Log</strong>
+            </div>
+            <div class="capture-float-actions">
+              <button class="float-geometry-action capture-float-position-reset" type="button" title="Restablecer tamaño y posición" aria-label="Restablecer tamaño y posición">↺</button>
+              <button class="float-geometry-action capture-float-pin" type="button" title="Fijar tamaño y posición" aria-label="Fijar tamaño y posición" aria-pressed="false">📌</button>
+              <button class="capture-float-delete" type="button" title="Eliminar todo el registro de capturas">
+                <span aria-hidden="true">⌫</span><span>Eliminar</span>
+              </button>
+              <button class="capture-float-close" type="button" aria-label="Cerrar Capture Log">×</button>
+            </div>
+          </header>
+          <div class="capture-float-tools">
+            <span class="capture-float-count">0 capturas</span>
+            <label>
+              <span>Ordenar</span>
+              <select class="capture-float-sort">
+                <option value="recent">Más recientes</option>
+                <option value="level-desc">Mayor nivel</option>
+                <option value="level-asc">Menor nivel</option>
+                <option value="iv-desc">Mayor IV</option>
+                <option value="iv-asc">Menor IV</option>
+                <option value="tier-desc">Mayor tier</option>
+                <option value="tier-asc">Menor tier</option>
+                <option value="name">Nombre A–Z</option>
+                <option value="capture">N.º de captura</option>
+              </select>
+            </label>
+          </div>
+          <details class="capture-advanced-filters">
+            <summary>Filtros avanzados <span class="capture-filter-badge" hidden>Activos</span></summary>
+            <div class="capture-filter-grid">
+              <label><span>Días</span><select class="capture-filter-days"><option value="">Todos</option><option value="1">Hoy</option><option value="3">3 días</option><option value="7">7 días</option><option value="15">15 días</option><option value="30">30 días</option></select></label>
+              <label><span>N.º captura</span><input class="capture-filter-number" type="number" min="1" step="1" placeholder="Cualquiera"></label>
+              <label class="capture-filter-names-label"><span>Pokémon (clic para acumular)</span><select class="capture-filter-names" multiple size="3" aria-label="Filtrar uno o varios Pokémon"></select></label>
+              <label><span>IV mínimo</span><input class="capture-filter-iv-min" type="number" min="0" max="192" placeholder="0"></label>
+              <label><span>IV máximo</span><input class="capture-filter-iv-max" type="number" min="0" max="192" placeholder="192"></label>
+              <label><span>Power mínimo</span><input class="capture-filter-power-min" type="number" min="0" placeholder="0"></label>
+              <label><span>Power máximo</span><input class="capture-filter-power-max" type="number" min="0" placeholder="Sin límite"></label>
+              <label><span>Ball</span><select class="capture-filter-ball"><option value="">Todas</option></select></label>
+              <label><span>Variante</span><select class="capture-filter-shiny"><option value="">Todas</option><option value="shiny">Sólo Shiny</option><option value="normal">No Shiny</option></select></label>
+              <button class="capture-filter-reset" type="button">Restablecer filtros</button>
+            </div>
+          </details>
+          <div class="capture-float-state" role="status">Conectando con Capture Log…</div>
+          <div class="capture-float-list"></div>
+          <div class="capture-detail-popover" role="tooltip" hidden></div>
+        </aside>
+        <div class="webview-host"></div>
+      </article>
+    </template>
+
+    <script src="game-theme.js"></script>
+    <script src="userscripts.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>

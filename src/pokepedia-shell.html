@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; frame-src https://poke.idleworld.online; child-src https://poke.idleworld.online">
+    <title>Pokepedia · IDLE POKE LAUNCHER</title>
+    <link rel="stylesheet" href="pokepedia-shell.css">
+  </head>
+  <body>
+    <header class="pokepedia-chrome">
+      <div class="pokepedia-identity">
+        <span class="pokepedia-mark" aria-hidden="true">◈</span>
+        <strong>POKEPEDIA</strong>
+        <small>IDLE POKE LAUNCHER</small>
+      </div>
+      <div class="pokepedia-window-actions" role="group" aria-label="Controles de la ventana Pokepedia">
+        <button id="pokepediaMinimizeButton" class="pokepedia-window-button" type="button" aria-label="Minimizar Pokepedia" title="Minimizar Pokepedia">−</button>
+        <button id="pokepediaCloseButton" class="pokepedia-window-button is-close" type="button" aria-label="Cerrar Pokepedia" title="Cerrar Pokepedia">×</button>
+      </div>
+    </header>
+    <webview
+      id="pokepediaWebview"
+      src="https://poke.idleworld.online/pokepedia"
+      partition="persist:pokegrid-pokepedia"
+      aria-label="Pokepedia"
+    ></webview>
+  </body>
+</html>

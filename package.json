@@ -1,0 +1,78 @@
+{
+  "name": "pokegrid-launcher",
+  "version": "0.21.0",
+  "description": "IDLE POKE LAUNCHER con cuatro sesiones independientes para Poke Idle World",
+  "main": "src/main.js",
+  "author": "PokeGrid",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DiegoT34/PokeGrid-Launcher.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/guest-preload.js && node --check src/game-theme.js && node --check src/userscripts.js && node --check src/userscript-network.js && node --check src/renderer.js",
+    "test:injection": "electron tests/panel-injection-smoke.js",
+    "test:hunt-reader": "electron tests/hunt-analyzer-reader-smoke.js",
+    "test:hunt-ui": "electron tests/hunt-account-redesign-smoke.js",
+    "test:capture-reader": "electron tests/capture-log-reader-smoke.js",
+    "test:account-events": "electron tests/account-events-and-farm-smoke.js",
+    "test:pokepedia": "electron tests/pokepedia-preload-smoke.js",
+    "test:visual": "electron tests/launcher-visual-smoke.js",
+    "test:instances": "electron tests/browser-instances-and-connectivity-smoke.js",
+    "test:userscripts": "electron tests/userscripts-manager-smoke.js",
+    "test:statistics": "electron tests/statistics-and-dragdrop-smoke.js",
+    "test:better-market": "node tests/better-market-no-alerts-smoke.js",
+    "test:better-market-hunt-sale": "node tests/better-market-hunt-sale-smoke.js",
+    "test:better-market-iv": "electron tests/better-market-iv-calculator-smoke.js",
+    "test:better-market-scales": "electron tests/better-market-window-scales-smoke.js",
+    "test:custom-card": "electron tests/custom-card-responsive-settings-smoke.js",
+    "test:breeding": "node tests/breeding-second-parent-smoke.js",
+    "test:chat-translator": "electron tests/chat-translator-smoke.js",
+    "test:memory-cleanup": "node tests/memory-cleanup-safety-smoke.js",
+    "test:userscript-network": "node tests/userscript-network-smoke.js",
+    "test:telegram": "electron tests/telegram-alerts-smoke.js",
+    "test:telegram-assets": "electron tests/telegram-game-assets-smoke.js",
+    "test:account-transfer": "node tests/account-transfer-smoke.js",
+    "test:accounts-modal": "electron tests/accounts-modal-smoke.js",
+    "test:account-profile": "electron tests/account-profile-reader-smoke.js",
+    "test:updater": "node tests/launcher-updater-smoke.js",
+    "dist": "electron-builder --win zip"
+  },
+  "devDependencies": {
+    "electron": "43.1.1",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "online.idleworld.pokegrid",
+    "productName": "IDLE POKE LAUNCHER",
+    "asar": true,
+    "compression": "store",
+    "files": [
+      "src/**/*",
+      "build/icon.ico",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "userscripts",
+        "to": "userscripts",
+        "filter": ["**/*"]
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "IDLE-POKE-LAUNCHER-${version}-portatil.${ext}"
+    }
+  }
+}

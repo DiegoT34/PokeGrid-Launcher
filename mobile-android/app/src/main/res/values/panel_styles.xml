@@ -1,0 +1,19 @@
+<resources>
+    <style name="PanelButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">30dp</item>
+        <item name="android:layout_marginStart">3dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingHorizontal">7dp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">7sp</item>
+        <item name="strokeColor">#52595D</item>
+        <item name="backgroundTint">#303438</item>
+        <item name="cornerRadius">7dp</item>
+    </style>
+    <style name="PanelIconButton" parent="PanelButton">
+        <item name="android:layout_width">30dp</item>
+        <item name="android:paddingHorizontal">0dp</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+</resources>

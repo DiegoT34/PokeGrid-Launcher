@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_margin="2dp"
+    android:background="@drawable/panel_background"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/panelBar"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:background="#292D30"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="7dp">
+
+        <View android:id="@+id/statusDot" android:layout_width="8dp" android:layout_height="8dp" android:background="@drawable/status_dot" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginStart="7dp" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/accountName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:textColor="#FFFFFF" android:textSize="11sp" android:textStyle="bold" />
+            <TextView android:id="@+id/accountStatus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:text="Sesión disponible" android:textColor="#AEB7BD" android:textSize="8sp" />
+        </LinearLayout>
+        <Button android:id="@+id/profileButton" style="@style/PanelIconButton" android:text="👤" />
+        <Button android:id="@+id/captureButton" style="@style/PanelButton" android:text="◉ CAPTURAS" />
+        <Button android:id="@+id/huntButton" style="@style/PanelButton" android:text="⚔ HUNT" />
+        <Button android:id="@+id/reloadPanelButton" style="@style/PanelIconButton" android:text="↻" />
+        <Button android:id="@+id/expandButton" style="@style/PanelIconButton" android:text="⛶" />
+    </LinearLayout>
+
+    <WebView
+        android:id="@+id/gameWebView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#111315" />
+</LinearLayout>

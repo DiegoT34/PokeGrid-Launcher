@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "PokeGrid Extension Smoke",
+  "version": "1.0.0",
+  "content_scripts": [
+    {
+      "matches": ["https://poke.idleworld.online/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

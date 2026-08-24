@@ -1,0 +1,32 @@
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body {
+  font-family: "Segoe UI", sans-serif;
+  color: #dce6f1;
+  background: radial-gradient(circle at 50% 35%, #173047, #06101a 72%);
+}
+.hunt-analyzer-dialog {
+  position: fixed;
+  width: 700px;
+  height: 620px;
+  padding: 12px;
+  overflow: auto;
+  background: #07111d;
+}
+.hunt-header { position: relative; }
+.hunt-header h2 { margin: 0; }
+.hunt-header button { position: absolute; top: 0; right: 0; }
+.hunt-stats, .hunt-money, .hunt-rates { display: flex; gap: 8px; }
+.hunt-stats article, .hunt-money article, .hunt-rates article, .hunt-balance {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+.hunt-money, .hunt-rates { margin-top: 8px; }
+.hunt-balance { margin-top: 8px; }
+.hunt-market { display: flex; align-items: center; gap: 6px; }
+.hunt-drops h3 { margin: 0 0 6px; }
+.hunt-drops table { width: 100%; }
+.hunt-log { width: 100%; }
+.hunt-note { display: block; }

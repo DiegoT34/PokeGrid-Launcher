@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hunt Analyzer PokeGrid</title>
+  <link rel="stylesheet" href="hunt-analyzer-fixture.css">
+</head>
+<body>
+  <section class="hunt-analyzer-dialog ha-window" role="dialog" aria-modal="true" aria-label="Hunt Analyzer">
+    <header class="hunt-header">
+      <h2>Hunt Analyzer</h2>
+      <button class="ha-clear" type="button" title="Clear the current session">Clear</button>
+      <button type="button" aria-label="Close">X</button>
+    </header>
+
+    <div class="hunt-stats ha-grid">
+      <article class="ha-card"><span>Defeated</span><strong>1,303</strong></article>
+      <article class="ha-card"><span>Time in hunt</span><strong>2h 53m 01s</strong></article>
+      <article class="ha-card ha-xp"><span>XP gained</span><strong>11,742,636</strong></article>
+      <article class="ha-card ha-catch"><span>Captured (+$216,000)</span><strong>12</strong></article>
+    </div>
+
+    <div class="hunt-money">
+      <article class="ha-card ha-loot"><span>Loot (20,303 items)</span><strong>$156,402</strong></article>
+      <article class="ha-card ha-supply"><span>Supply (1,303 balls · 15 potions)</span><strong>-$172,225</strong></article>
+    </div>
+
+    <article class="hunt-balance ha-balance"><span>Balance</span><strong>+$245,991</strong></article>
+
+    <div class="hunt-rates ha-rates">
+      <article class="ha-rate">+$85,134/h</article>
+      <article class="ha-rate xp">4,063,977 XP/h</article>
+      <article class="ha-rate">451/h</article>
+    </div>
+
+    <label class="hunt-market ha-market-toggle"><input type="checkbox" checked> Consider market prices for items</label>
+
+    <h3 class="ha-drops-head">Session drops</h3>
+    <section class="hunt-drops ha-drops">
+      <div class="ha-drop"><span class="ha-drop-name">Rare Pokemon Picture</span><span class="ha-drop-qty">x1</span><strong class="ha-drop-gold">$45,814</strong></div>
+      <div class="ha-drop"><span class="ha-drop-name">Venom Stone</span><span class="ha-drop-qty">x12</span><strong class="ha-drop-gold">$60,000</strong></div>
+      <div class="ha-drop"><span class="ha-drop-name">Darkness Stone</span><span class="ha-drop-qty">x11</span><strong class="ha-drop-gold">$55,000</strong></div>
+      <div class="ha-drop"><span class="ha-drop-name">Ultra Ball</span><span class="ha-drop-qty">x36</span><strong class="ha-drop-gold">$11,520</strong></div>
+    </section>
+
+    <button class="hunt-log ha-clog-btn" type="button">View Capture Log</button>
+    <small class="hunt-note ha-note">Values at NPC price. Counters reset when changing hunt.</small>
+  </section>
+
+  <script src="../src/game-theme.js"></script>
+  <script src="hunt-analyzer-fixture.js"></script>
+</body>
+</html>

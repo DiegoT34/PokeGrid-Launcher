@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prueba del menú PokeGrid</title>
+  <link rel="stylesheet" href="dock-fixture.css">
+</head>
+<body>
+  <main>
+    <p>Vista de prueba del juego</p>
+  </main>
+  <nav class="game-dock">
+    <button class="dock-btn" title="Capturar"><img alt="Capturar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='27' fill='%23f5f5f5' stroke='%2310151f' stroke-width='6'/%3E%3Cpath d='M5 32a27 27 0 0 1 54 0' fill='%23ef493d'/%3E%3Cpath d='M5 29h54v7H5z' fill='%2310151f'/%3E%3Ccircle cx='32' cy='32' r='9' fill='white' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Entrenador"><img alt="Entrenador" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='22' r='14' fill='%23f0bc8d'/%3E%3Cpath d='M12 59c2-18 12-24 20-24s18 6 20 24' fill='%233f75b5'/%3E%3Cpath d='M17 18c7-16 27-16 31 0' fill='%23ef493d'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Inventario"><span class="dock-badge">3</span><img alt="Inventario" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='10' y='14' width='44' height='43' rx='9' fill='%23d94f42' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='M22 16c0-12 20-12 20 0M14 35h36' fill='none' stroke='%23f1c35d' stroke-width='6'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Pokémon"><img alt="Pokémon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M9 49 17 12l15 14 15-14 8 37-23 11z' fill='%23ef4d55' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Gimnasios"><img alt="Gimnasios" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='22' fill='%239ba7b6' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='m32 4 7 13-7 9-7-9z' fill='%23e3a82f'/%3E%3Ccircle cx='32' cy='34' r='9' fill='%23596573'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Región"><img alt="Región" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m8 50 11-34 13 13 13-13 11 34-24 9z' fill='%23db9d32' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Hogar"><img alt="Hogar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m7 30 25-21 25 21-5 5v23H12V35z' fill='%23c56d4e' stroke='%2310151f' stroke-width='5'/%3E%3Crect x='26' y='40' width='12' height='18' fill='%23e3a82f'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Mapa"><img alt="Mapa" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m7 13 16-6 18 7 16-7v44l-16 6-18-7-16 7z' fill='%2358a99a' stroke='%2310151f' stroke-width='4'/%3E%3Cpath d='M23 7v43m18-36v43' stroke='%23f0d265' stroke-width='4'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Misiones"><span class="dock-badge">!</span><img alt="Misiones" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 5 60 57H4z' fill='%23f4f4f4' stroke='%23ef493d' stroke-width='6'/%3E%3Cpath d='M32 21v19m0 7v3' stroke='%2310151f' stroke-width='6'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Logros"><img alt="Logros" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m8 12 8 37 16 10 16-10 8-37-15 8-9-14-9 14z' fill='%23e3a82f' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Clanes"><img alt="Clanes" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m32 4 18 17-6 34-12 6-12-6-6-34z' fill='%236d88a3' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Eventos"><img alt="Eventos" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M10 14h44v40H10z' fill='%233b88bc' stroke='%2310151f' stroke-width='5'/%3E%3Ccircle cx='32' cy='35' r='13' fill='%237dd8f2'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Tienda"><span class="dock-badge">2</span><img alt="Tienda" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M13 18h38l-4 40H17z' fill='%23ece4d8' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='M21 19c0-18 22-18 22 0' fill='none' stroke='%23d65345' stroke-width='6'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Pase"><img alt="Pase" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='10' width='48' height='44' rx='8' fill='%23282e39' stroke='%2310151f' stroke-width='5'/%3E%3Ctext x='32' y='35' text-anchor='middle' font-size='15' fill='%23f0be37'%3EPASE%3C/text%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Ranking"><img alt="Ranking" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='m32 4 9 12 15 3-7 13 2 17-19 11-19-11 2-17-7-13 15-3z' fill='%23dca62f' stroke='%2310151f' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Mazmorras"><img alt="Mazmorras" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='24' fill='%235e2c75' stroke='%2310151f' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%23bb6dd8'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="AFK"><img alt="AFK" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='9' y='48' font-size='35' font-weight='bold' fill='%23edcf8a'%3EZ%3C/text%3E%3Ctext x='38' y='27' font-size='20' fill='%23edcf8a'%3Ez%3C/text%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Diario"><span class="dock-badge">1</span><img alt="Diario" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='11' y='14' width='42' height='42' rx='5' fill='%23e8e3db' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='M19 8v13m26-13v13M14 28h36' stroke='%23d94f42' stroke-width='5'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Compañeros"><img alt="Compañeros" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='24' cy='22' r='12' fill='%23eda55d'/%3E%3Ccircle cx='44' cy='26' r='10' fill='%235c94d6'/%3E%3Cpath d='M7 58c2-17 12-23 20-23s18 6 20 23' fill='%23ef5c51'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Premium"><img alt="Premium" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4 58 25 32 60 6 25z' fill='%2385d8ef' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='M6 25h52M20 8l12 52L45 9' fill='none' stroke='%23d9f6ff' stroke-width='4'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Amigos"><img alt="Amigos" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='22' cy='22' r='12' fill='%235fbded'/%3E%3Ccircle cx='45' cy='22' r='12' fill='%235fbded'/%3E%3Cpath d='M3 58c2-17 10-23 19-23s17 6 19 23m-7 0c2-17 10-23 19-23 5 0 8 3 10 8' fill='%235fbded'/%3E%3C/svg%3E"></button>
+    <button class="dock-btn" title="Salir"><img alt="Salir" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='25' fill='%238b939e' stroke='%2310151f' stroke-width='5'/%3E%3Cpath d='M32 10v24m-12-13a18 18 0 1 0 24 0' fill='none' stroke='white' stroke-width='6'/%3E%3C/svg%3E"></button>
+  </nav>
+  <aside class="ah-panel" aria-label="Auto-Helper">
+    <button class="ah-head" type="button">AUTO-HELPER</button>
+  </aside>
+  <section class="auto-helper-dialog" role="dialog" aria-label="Auto-Helper configuration" hidden>
+    <header><h2>AUTO-HELPER</h2><button class="ah-close" type="button">Close</button></header>
+    <div class="auto-cards">
+      <article><h3>Auto-Potion</h3><label>Potion <select><option>Automatic (best)</option></select></label><label>Heal when HP <input type="number" value="40"></label></article>
+      <article><h3>Auto-Revive</h3><label><input type="checkbox"> Uses Revive when fainted</label></article>
+      <article><h3>Auto-Catch</h3><label>Pokéball <select><option>Ultra Ball</option></select></label><button type="button" aria-pressed="true">600</button><button type="button" aria-pressed="false">400</button></article>
+      <article><h3>Auto-Catch Shiny</h3><label>Pokéball shiny <select><option>Master Ball</option></select></label><button type="button" aria-pressed="false">300</button><button type="button" aria-pressed="true">5</button></article>
+    </div>
+    <article><h3>Names (comma-separated)</h3><input placeholder="charizard, gyarados, pikachu"></article>
+    <button type="button">Guardar configuración</button>
+  </section>
+  <script src="../src/game-theme.js"></script>
+  <script src="dock-fixture.js"></script>
+</body>
+</html>

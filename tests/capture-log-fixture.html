@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capture Log PokeGrid</title>
+  <link rel="stylesheet" href="capture-log-fixture.css">
+</head>
+<body>
+  <div class="game-root"></div>
+  <section class="clog-window">
+    <div class="clog-title">Capture Log <small>· últimas 100 capturas</small></div>
+    <button class="clog-x" type="button">×</button>
+    <div class="clog-head">
+      <div class="clog-totals"><span>Total: <b>176</b></span><span class="clog-t-shiny">Shiny: <b>2</b></span><span>Normal: <b>174</b></span></div>
+      <div class="clog-tabs">
+        <button class="clog-tab on" type="button">Todos</button>
+        <button class="clog-tab" type="button">✨ Shiny</button>
+        <button class="clog-tab" type="button">Normal</button>
+      </div>
+    </div>
+    <div class="clog-list">
+      <div class="clog-row shiny" data-capture-id="poke-gengar-1"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♀ <i class="clog-first">1ª</i></span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Rara · IV 102/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">21/07, 02:24</span></div>
+      <div class="clog-row" data-capture-id="poke-magnemite-2"><span class="clog-ico">🧲</span><span class="clog-name">Magnemite</span><span class="clog-lvl">Lv.10</span><span class="clog-meta">Épica · IV 150/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">28/07, 02:14</span></div>
+      <div class="clog-row"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♀</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Incomún · IV 128/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">21/07, 01:40</span></div>
+      <div class="clog-row shiny"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♂</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Rara · IV 94/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">21/07, 01:23</span></div>
+      <div class="clog-row"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♀</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Épica · IV 106/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">21/07, 01:15</span></div>
+      <div class="clog-row"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♂</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Común · IV 81/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">20/07, 22:31</span></div>
+      <div class="clog-row"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♀</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Épica · IV 96/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">20/07, 22:28</span></div>
+      <div class="clog-row"><span class="clog-ico">👻</span><span class="clog-name">Gengar ♂</span><span class="clog-lvl">Lv.100</span><span class="clog-meta">Común · IV 111/192</span><span class="clog-ball">🟡 Ultra Ball</span><span class="clog-when">20/07, 22:17</span></div>
+    </div>
+    <div class="clog-foot">
+      <span class="clog-note">✨ Los shiny están resaltados.<br>Se actualiza en tiempo real.</span>
+      <button class="clog-clear" type="button">🗑 Limpiar historial</button>
+    </div>
+  </section>
+  <script src="../src/game-theme.js"></script>
+  <script src="capture-log-fixture.js"></script>
+</body>
+</html>

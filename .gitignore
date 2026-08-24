@@ -1,0 +1,28 @@
+node_modules/
+dist/
+.build-diagnostics/
+smoke.png
+.env
+.env.*
+accounts.enc
+accounts-source.json
+
+# Userscripts personales de la carpeta raíz: no pertenecen al launcher público.
+/Better Market and More.user.js
+/Breeding Center - Breeding calculator.user.js
+/calculadora ivs.js
+/Poke Idle World - Chat Translator.user.js
+/Poke Idle World - Custom Card Ultimate v3.80 (Toast Mini 50%).user.js
+
+# Pruebas específicas de esos scripts privados.
+/tests/better-market-*.js
+/tests/breeding-second-parent-smoke.js
+/tests/chat-translator-smoke.js
+/tests/custom-card-*.js
+
+# Salidas, capturas de pruebas y binarios locales; las imágenes públicas están en docs/assets.
+/artifacts/
+/tests/*.png
+/mobile-android/*.apk
+/mobile-android/*.png
+/mobile-android/.kotlin/

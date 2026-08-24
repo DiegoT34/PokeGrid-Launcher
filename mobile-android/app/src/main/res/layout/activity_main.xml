@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/launcher_black"
+    android:orientation="vertical">
+
+    <HorizontalScrollView
+        android:id="@+id/toolbarScroll"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:background="#1D2022"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/toolbar"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:contentDescription="Logo"
+                android:src="@drawable/ic_launcher_pokeball" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="8dp"
+                android:text="IDLE POKE LAUNCHER"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button android:id="@+id/farmButton" style="@style/ToolbarButton" android:text="🎯 FARMEO" />
+            <Button android:id="@+id/notificationsButton" style="@style/ToolbarButton" android:text="🔔 ALERTAS" />
+            <Button android:id="@+id/accountsButton" style="@style/ToolbarButton" android:text="👥 CUENTAS" />
+            <Button android:id="@+id/viewModeButton" style="@style/ToolbarButton" android:text="▦ MODO VISTA" />
+            <Button android:id="@+id/reloadButton" style="@style/ToolbarButton" android:text="↻ RECARGAR" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <GridLayout
+        android:id="@+id/sessionGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:alignmentMode="alignMargins"
+        android:columnCount="2"
+        android:padding="3dp"
+        android:rowCount="2"
+        android:useDefaultMargins="false" />
+</LinearLayout>
