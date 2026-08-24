@@ -10,6 +10,8 @@ const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'src', 'styles.css'), 'utf8');
 
 assert.match(main, /PokeGrid-Script-Shop\/main\/catalog\.json/);
+assert.match(main, /redirect: 'error'/);
+assert.match(main, /if \(response\.url && response\.url !== SCRIPT_SHOP_CATALOG_URL\)/);
 assert.match(main, /userscripts:shop-catalog/);
 assert.match(main, /userscripts:shop-install/);
 assert.match(main, /userscripts:shop-uninstall/);

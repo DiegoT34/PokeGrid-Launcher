@@ -635,9 +635,7 @@ function assertScriptShopDownloadUrl(rawUrl) {
   }
   const rawFile = target.hostname === 'raw.githubusercontent.com' &&
     /^\/DiegoT34\/PokeGrid-Script-Shop\/(?:main|[a-f0-9]{40})\/scripts\/[a-z0-9][a-z0-9._-]{0,99}\.user\.js$/i.test(target.pathname);
-  const releaseFile = target.hostname === 'github.com' &&
-    /^\/DiegoT34\/PokeGrid-Script-Shop\/releases\/download\/[^/]+\/[a-z0-9][a-z0-9._-]{0,99}\.user\.js$/i.test(target.pathname);
-  if (target.protocol !== 'https:' || target.username || target.password || target.search || target.hash || (!rawFile && !releaseFile)) {
+  if (target.protocol !== 'https:' || target.username || target.password || target.search || target.hash || !rawFile) {
     throw new Error('La descarga no pertenece al repositorio oficial de la Shop.');
   }
   return target.href;
@@ -689,11 +687,14 @@ async function loadScriptShopCatalog(refresh = false) {
   if (!refresh && scriptShopCache && now - scriptShopCache.fetchedAt < SCRIPT_SHOP_CACHE_MS) return scriptShopCache.catalog;
   try {
     const response = await net.fetch(SCRIPT_SHOP_CATALOG_URL, {
-      redirect: 'follow', cache: refresh ? 'no-store' : 'default',
+      redirect: 'error', cache: refresh ? 'no-store' : 'default',
       headers: { Accept: 'application/json', 'User-Agent': `PokeGrid-Launcher/${app.getVersion()}` }
     });
     if (!response.ok) throw new Error(`GitHub no respondió correctamente (HTTP ${response.status}).`);
-    if (response.url !== SCRIPT_SHOP_CATALOG_URL) throw new Error('El catálogo fue redirigido a un origen no permitido.');
+    // Electron puede dejar Response.url vacío incluso en una respuesta directa 200 de
+    // raw.githubusercontent.com. Las redirecciones ya se bloquean arriba con "error";
+    // si Chromium sí informa una URL final, exigimos que siga siendo la oficial exacta.
+    if (response.url && response.url !== SCRIPT_SHOP_CATALOG_URL) throw new Error('El catálogo respondió desde un origen no permitido.');
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 512 KB.');
     const catalog = normalizeScriptShopCatalog(JSON.parse(bytes.toString('utf8')));
@@ -708,7 +709,7 @@ async function loadScriptShopCatalog(refresh = false) {
 async function downloadScriptShopCode(item) {
   const target = assertScriptShopDownloadUrl(item.downloadUrl);
   const response = await net.fetch(target, {
-    redirect: 'follow', cache: 'no-store',
+    redirect: 'error', cache: 'no-store',
     headers: { Accept: 'text/javascript, text/plain;q=0.9', 'User-Agent': `PokeGrid-Launcher/${app.getVersion()}` }
   });
   if (!response.ok) throw new Error(`No se pudo descargar el script (HTTP ${response.status}).`);

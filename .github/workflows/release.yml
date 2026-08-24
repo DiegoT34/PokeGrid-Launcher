@@ -42,6 +42,7 @@ jobs:
           pnpm check
           pnpm test:updater
           pnpm test:script-shop
+          pnpm test:script-shop-live
 
       - name: Construir ZIP portátil
         run: pnpm dist
