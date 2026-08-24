@@ -735,12 +735,13 @@ async function installScriptShopItem(value) {
   const metadata = metadataFromUserScript(downloaded.code);
   const publishedVersion = String(metadata.version?.[0] || '').trim().replace(/^v/i, '');
   const publishedNamespace = String(metadata.namespace?.[0] || '').trim();
+  const publishedName = String(metadata.name?.[0] || '').trim();
   if (publishedVersion !== item.version) throw new Error('La versión del archivo no coincide con el catálogo.');
   if (item.namespace && publishedNamespace !== item.namespace) throw new Error('El namespace del archivo no coincide con el catálogo.');
 
   const scripts = readUserScripts();
   const existing = scripts.find((script) => script.shopId === item.id) ||
-    scripts.find((script) => item.namespace && script.namespace === item.namespace);
+    scripts.find((script) => item.namespace && publishedName && script.namespace === item.namespace && script.name === publishedName);
   const accounts = existing?.accounts || Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false);
   const script = saveUserScript({
     id: existing?.id,

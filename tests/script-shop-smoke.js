@@ -21,6 +21,7 @@ assert.match(main, /SCRIPT_SHOP_CATALOG_LIMIT = 512_000/);
 assert.match(main, /USER_SCRIPT_CODE_LIMIT/);
 assert.match(main, /existing\?\.accounts/);
 assert.match(main, /existing\?\.enabled !== false/);
+assert.match(main, /script\.namespace === item\.namespace && script\.name === publishedName/);
 
 assert.match(preload, /loadScriptShop/);
 assert.match(preload, /installScriptShopItem/);
