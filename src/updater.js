@@ -199,7 +199,16 @@ function Write-UpdateStatus([string]$State, [string]$Message = '', [hashtable]$E
   New-Item -ItemType Directory -Path $statusDirectory -Force | Out-Null
   $temporaryStatus = "$StatusPath.$PID.tmp"
   $payload | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $temporaryStatus -Encoding UTF8
-  Move-Item -LiteralPath $temporaryStatus -Destination $StatusPath -Force
+  if (Test-Path -LiteralPath $StatusPath -PathType Leaf) {
+    try {
+      [IO.File]::Replace($temporaryStatus, $StatusPath, $null)
+    } catch {
+      Remove-Item -LiteralPath $StatusPath -Force -ErrorAction SilentlyContinue
+      Move-Item -LiteralPath $temporaryStatus -Destination $StatusPath -Force
+    }
+  } else {
+    Move-Item -LiteralPath $temporaryStatus -Destination $StatusPath
+  }
 }
 
 $stageDir = Join-Path $UpdateRoot 'extracted'
@@ -332,8 +341,14 @@ async function launchPreparedUpdate({ app, prepared }) {
     child.once('spawn', () => setTimeout(() => {
       if (settled) return;
       settled = true;
-      if (child.exitCode !== null) reject(new Error('El instalador de la actualización se cerró antes de iniciar.'));
-      else resolve();
+      if (child.exitCode !== null) {
+        let installerMessage = '';
+        try {
+          const status = JSON.parse(fs.readFileSync(prepared.statusPath, 'utf8').replace(/^\uFEFF/, ''));
+          installerMessage = String(status?.message || status?.error || '').trim();
+        } catch {}
+        reject(new Error(installerMessage || 'El instalador de la actualización se cerró antes de iniciar.'));
+      } else resolve();
     }, 500));
   });
   child.unref();

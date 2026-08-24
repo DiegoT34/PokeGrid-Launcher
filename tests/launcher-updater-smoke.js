@@ -22,6 +22,7 @@ assert.match(installer, /Move-Item -LiteralPath \$target -Destination \$backupDi
 assert.match(installer, /Start-Process -FilePath \$newExe/);
 assert.match(installer, /Move-Item -LiteralPath \$entry\.FullName -Destination \$InstallDir -Force/);
 assert.match(installer, /Write-UpdateStatus 'installed'/);
+assert.match(installer, /\[IO\.File\]::Replace\(\$temporaryStatus, \$StatusPath, \$null\)/);
 assert.match(installer, /resources\\app\.asar/);
 assert.match(installer, /\$moveDeadline/);
 

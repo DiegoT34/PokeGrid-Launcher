@@ -37,6 +37,7 @@ try {
   fs.writeFileSync(path.join(installDir, 'user-file-must-survive.txt'), 'preserved');
   fs.writeFileSync(path.join(packageDir, 'new-version.txt'), 'new');
   fs.writeFileSync(path.join(packageDir, 'resources', 'app.asar'), 'smoke');
+  fs.writeFileSync(statusPath, JSON.stringify({ state: 'installer-starting', message: 'estado anterior' }), 'utf8');
 
   const sourcePath = path.join(root, 'UpdaterSmoke.cs');
   fs.writeFileSync(sourcePath, [
