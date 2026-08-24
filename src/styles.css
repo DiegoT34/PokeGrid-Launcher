@@ -224,6 +224,9 @@ input:focus-visible {
 .button-update { border-color:#33546a !important;background:linear-gradient(145deg,#142532,#0e1921) !important;color:#9ee8ff !important; }
 .button-update:hover:not(:disabled) { border-color:#52b9d5 !important;color:#e7fbff !important;background:linear-gradient(145deg,#183344,#10212b) !important; }
 .button-update:disabled { cursor:wait;opacity:.78; }
+.update-launcher-copy { min-width:0; display:flex; align-items:flex-start; justify-content:center; flex-direction:column; gap:2px; line-height:1; }
+.update-launcher-version { color:#6fcbe5; font-size:8px; font-weight:800; letter-spacing:.06em; line-height:1; }
+.button-update:hover:not(:disabled) .update-launcher-version { color:#bcefff; }
 
 .global-actions > .button,
 .global-actions > .notification-button,

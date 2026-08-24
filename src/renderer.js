@@ -125,6 +125,39 @@ const shinyNotificationCount = document.querySelector('#shinyNotificationCount')
 const legendaryNotificationCount = document.querySelector('#legendaryNotificationCount');
 const cleanupMemoryButton = document.querySelector('#cleanupMemoryButton');
 const updateLauncherButton = document.querySelector('#updateLauncherButton');
+let currentLauncherVersion = '';
+let updateLauncherState = { icon: '⇩', label: 'Actualizar', spinning: false };
+
+function renderUpdateLauncherButton() {
+  const icon = document.createElement('span');
+  icon.className = updateLauncherState.spinning ? 'memory-spinner' : 'top-action-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = updateLauncherState.icon;
+
+  const copy = document.createElement('span');
+  copy.className = 'update-launcher-copy';
+  const label = document.createElement('span');
+  label.textContent = updateLauncherState.label;
+  const version = document.createElement('small');
+  version.className = 'update-launcher-version';
+  version.setAttribute('aria-label', 'Versión actual');
+  version.textContent = currentLauncherVersion ? `v${currentLauncherVersion}` : 'Cargando versión…';
+  copy.append(label, version);
+  updateLauncherButton.replaceChildren(icon, copy);
+}
+
+function setUpdateLauncherState(icon, label, spinning = false) {
+  updateLauncherState = { icon, label, spinning };
+  renderUpdateLauncherButton();
+}
+
+Promise.resolve(window.pokeGrid.getAppVersion?.())
+  .then((version) => {
+    currentLauncherVersion = String(version || '').trim();
+    renderUpdateLauncherButton();
+    if (currentLauncherVersion) updateLauncherButton.title = `Buscar actualizaciones · Versión actual ${currentLauncherVersion}`;
+  })
+  .catch(() => renderUpdateLauncherButton());
 const statisticsButton = document.querySelector('#statisticsButton');
 const statisticsBackdrop = document.querySelector('#statisticsBackdrop');
 const statisticsTotals = document.querySelector('#statisticsTotals');
@@ -8520,32 +8553,33 @@ if (window.pokeGrid.onUpdateProgress) {
   window.pokeGrid.onUpdateProgress((progress = {}) => {
     if (!updateLauncherButton.disabled) updateLauncherButton.disabled = true;
     if (progress.phase === 'download') {
-      updateLauncherButton.innerHTML = `<span class="top-action-icon" aria-hidden="true">⇩</span><span>Descargando ${Number(progress.percent) || 0}%</span>`;
+      setUpdateLauncherState('⇩', `Descargando ${Number(progress.percent) || 0}%`);
     } else if (progress.phase === 'verify') {
-      updateLauncherButton.innerHTML = '<span class="top-action-icon" aria-hidden="true">✓</span><span>Verificando</span>';
+      setUpdateLauncherState('✓', 'Verificando');
     }
   });
 }
 updateLauncherButton.addEventListener('click', async () => {
   updateLauncherButton.disabled = true;
   updateLauncherButton.setAttribute('aria-busy', 'true');
-  updateLauncherButton.innerHTML = '<span class="memory-spinner" aria-hidden="true">◌</span><span>Buscando</span>';
+  setUpdateLauncherState('◌', 'Buscando', true);
   try {
     const result = await window.pokeGrid.checkForUpdates();
     if (!result.ok) throw new Error(result.error || 'No se pudo buscar la actualización.');
+    currentLauncherVersion = String(result.currentVersion || currentLauncherVersion || '').trim();
     if (result.status === 'current') {
-      updateLauncherButton.innerHTML = '<span class="top-action-icon" aria-hidden="true">✓</span><span>Está actualizado</span>';
+      setUpdateLauncherState('✓', 'Está actualizado');
       updateLauncherButton.title = `Versión actual ${result.currentVersion}`;
     } else if (result.status === 'development') {
-      updateLauncherButton.innerHTML = '<span class="top-action-icon" aria-hidden="true">⌘</span><span>Modo desarrollo</span>';
+      setUpdateLauncherState('⌘', 'Modo desarrollo');
       updateLauncherButton.title = 'La instalación automática se comprueba desde el paquete portátil.';
     } else if (result.status === 'installing') {
-      updateLauncherButton.innerHTML = '<span class="memory-spinner" aria-hidden="true">◌</span><span>Reiniciando</span>';
+      setUpdateLauncherState('◌', 'Reiniciando', true);
       updateLauncherButton.title = `Instalando ${result.latestVersion}`;
       return;
     }
   } catch (error) {
-    updateLauncherButton.innerHTML = '<span class="top-action-icon" aria-hidden="true">!</span><span>Error de actualización</span>';
+    setUpdateLauncherState('!', 'Error de actualización');
     updateLauncherButton.title = error.message;
   } finally {
     if (!updateLauncherButton.textContent.includes('Reiniciando')) {

@@ -1292,6 +1292,10 @@ ipcMain.handle('accounts:import-file', async () => {
 });
 
 ipcMain.handle('assets:image-data-url', (_event, url) => loadAllowedImageDataUrl(url));
+ipcMain.handle('app:version', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return '';
+  return app.getVersion();
+});
 ipcMain.handle('app:check-update', async (event) => {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
     return { ok: false, error: 'Solicitud de actualización no autorizada.' };

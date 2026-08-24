@@ -56,6 +56,7 @@ app.whenReady().then(async () => {
     }])); })()`);
     window.webContents.reload();
     await waitFor(window, 'window.__pokeGridPreviewNotifications && document.querySelectorAll(".panel").length === 4');
+    await waitFor(window, 'document.querySelector("#updateLauncherButton .update-launcher-version")?.textContent === "v0.22.4"');
     const migratedNotification = await window.webContents.executeJavaScript(`({
       legendaryCount: document.querySelector('#legendaryNotificationCount').textContent,
       types: JSON.parse(localStorage.getItem('pokegrid:notifications:v1'))[0].types,
@@ -75,14 +76,18 @@ app.whenReady().then(async () => {
       hamburgerLines: document.querySelectorAll('#topbarToggle .hamburger-icon i').length,
       sidebarExpanded: document.querySelector('#topbarToggle')?.getAttribute('aria-expanded'),
       sidebarHidden: document.querySelector('#globalActions')?.getAttribute('aria-hidden'),
-      updateButton: Boolean(document.querySelector('#updateLauncherButton'))
+      updateButton: Boolean(document.querySelector('#updateLauncherButton')),
+      updateText: document.querySelector('#updateLauncherButton')?.textContent.replace(/\s+/g, ' ').trim(),
+      updateVersion: document.querySelector('#updateLauncherButton .update-launcher-version')?.textContent
     })`);
     if (!toolbarState.pokepediaText.endsWith('Pokepedia') ||
         !toolbarState.pokepediaClass.includes('button-pokepedia') ||
         toolbarState.launchText !== 'Iniciar todas' ||
         toolbarState.launchLabel !== 'Iniciar las cuatro cuentas' ||
         toolbarState.playIcons !== 1 || toolbarState.hamburgerLines !== 3 ||
-        toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton) {
+        toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
+        !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.4') ||
+        toolbarState.updateVersion !== 'v0.22.4') {
       throw new Error(`Launcher toolbar controls failed: ${JSON.stringify(toolbarState)}`);
     }
 
