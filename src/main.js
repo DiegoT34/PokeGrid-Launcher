@@ -1308,7 +1308,7 @@ ipcMain.handle('app:check-update', async (event) => {
       }
     });
     if (prepared.status !== 'ready') return { ok: true, ...prepared };
-    const launched = launchPreparedUpdate({ app, prepared });
+    const launched = await launchPreparedUpdate({ app, prepared });
     setTimeout(() => app.quit(), 350);
     return { ok: true, status: 'installing', currentVersion: app.getVersion(), latestVersion: prepared.latestVersion, ...launched };
   } catch (error) {
