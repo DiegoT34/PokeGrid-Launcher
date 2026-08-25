@@ -32,7 +32,9 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Comparación de hunts con clasificación por rendimiento.
 - Modo farmeo con selección asistida de objetivos.
 - Pokédex en ventana independiente.
-- Centro de userscripts con editor, permisos, instalación por URL, importación y arrastrar/soltar.
+- Centro de userscripts multijuego con editor, permisos, instalación por URL, importación y arrastrar/soltar.
+- Detección automática por `@match`/`@include`: cada script se aplica y actualiza en las pantallas compatibles de su instancia, mientras Poke Idle World conserva la selección individual por cuenta.
+- Etiquetas de juego inferidas por dominio o declaradas con la directiva opcional `@game`.
 - Shop online de scripts con información, instalación, actualización, desinstalación y verificación SHA-256.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
 - Actualizador integrado con descarga, verificación SHA-256, reemplazo, restauración de emergencia y reinicio.

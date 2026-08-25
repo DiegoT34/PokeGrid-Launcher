@@ -1,6 +1,6 @@
 {
   "name": "pokegrid-launcher",
-  "version": "0.22.8",
+  "version": "0.22.9",
   "description": "IDLE POKE LAUNCHER con cuatro sesiones independientes para Poke Idle World",
   "main": "src/main.js",
   "author": "PokeGrid",
@@ -21,6 +21,7 @@
     "test:visual": "electron tests/launcher-visual-smoke.js",
     "test:instances": "electron tests/browser-instances-and-connectivity-smoke.js",
     "test:userscripts": "electron tests/userscripts-manager-smoke.js",
+    "test:userscripts-multigame": "node tests/multi-game-userscripts-static-smoke.js && electron tests/multi-game-userscripts-smoke.js",
     "test:statistics": "electron tests/statistics-and-dragdrop-smoke.js",
     "test:better-market": "node tests/better-market-no-alerts-smoke.js",
     "test:better-market-hunt-sale": "node tests/better-market-hunt-sale-smoke.js",

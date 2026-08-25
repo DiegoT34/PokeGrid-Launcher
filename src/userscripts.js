@@ -1,5 +1,6 @@
 (function createPokeGridUserScriptManager() {
   const GAME_ORIGIN = 'https://poke.idleworld.online';
+  const PRIMARY_INSTANCE_ID = 'poke-idle-world';
   const ACCOUNT_COUNT = 4;
   const UNSUPPORTED_DIRECTIVES = ['require', 'resource', 'antifeature', 'downloadurl', 'updateurl'];
   const DEFAULT_SOURCE = `// ==UserScript==
@@ -7,6 +8,7 @@
 // @namespace    pokegrid.local
 // @version      1.0.0
 // @description  Describe aquí lo que hace el script
+// @game         Poke Idle World
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-end
@@ -36,6 +38,7 @@
   const editorMeta = document.querySelector('#scriptEditorMeta');
   const enabledInput = document.querySelector('#scriptEnabledInput');
   const accountToggles = document.querySelector('#scriptAccountToggles');
+  const accountTargetsLegend = accountToggles?.closest('fieldset')?.querySelector('legend');
   const codeInput = document.querySelector('#scriptCodeInput');
   const codeEditor = document.querySelector('#scriptCodeEditor');
   const lineNumbers = document.querySelector('#scriptLineNumbers');
@@ -128,6 +131,81 @@
     return 0;
   }
 
+  function panelInstanceId(panel) {
+    return String(panel?.instanceId || PRIMARY_INSTANCE_ID);
+  }
+
+  function currentPanelUrl(panel) {
+    try {
+      const current = panel?.webview?.getURL?.();
+      if (current && current !== 'about:blank') return current;
+    } catch {}
+    return String(panel?.lastUrl || panel?.startUrl || '');
+  }
+
+  function customGameDescriptors() {
+    const games = new Map();
+    for (const panel of panelRows) {
+      const id = panelInstanceId(panel);
+      if (id === PRIMARY_INSTANCE_ID || games.has(id)) continue;
+      games.set(id, {
+        id,
+        name: String(panel.instanceName || id),
+        url: String(panel.startUrl || currentPanelUrl(panel)),
+        count: panelRows.filter((candidate) => panelInstanceId(candidate) === id).length
+      });
+    }
+    return [...games.values()];
+  }
+
+  function gameLabelFromMatch(pattern) {
+    const source = String(pattern || '').trim();
+    if (source === '<all_urls>') return 'Todos los juegos';
+    const rawHost = source.match(/^(?:\*|https?):\/\/([^/]+)/i)?.[1]?.toLowerCase();
+    if (!rawHost || rawHost === '*') return '';
+    const host = rawHost.replace(/^\*\./, '').replace(/^www\./, '');
+    if (host === 'poke.idleworld.online') return 'Poke Idle World';
+    return host;
+  }
+
+  function scriptGameLabels(script) {
+    const labels = [];
+    const add = (value) => {
+      const label = String(value || '').trim();
+      if (label && !labels.some((row) => row.toLowerCase() === label.toLowerCase())) labels.push(label);
+    };
+    const matches = script?.matches?.length ? script.matches : (script?.games?.length ? [] : [`${GAME_ORIGIN}/*`]);
+    if (matches.some((pattern) => urlMatchesPattern(`${GAME_ORIGIN}/`, pattern))) add('Poke Idle World');
+    const customGames = customGameDescriptors();
+    for (const game of customGames) {
+      if (matches.some((pattern) => urlMatchesPattern(game.url, pattern))) add(game.name);
+    }
+    (script?.games || []).forEach(add);
+    matches.map(gameLabelFromMatch).forEach((label) => {
+      const representedByInstance = customGames.some((game) => {
+        try { return new URL(game.url).hostname.replace(/^www\./i, '').toLowerCase() === String(label).toLowerCase(); }
+        catch { return false; }
+      });
+      if (!representedByInstance) add(label);
+    });
+    return labels.length ? labels.slice(0, 8) : ['Juego sin identificar'];
+  }
+
+  function scriptScope(code) {
+    const metadata = parseMetadata(code);
+    const matches = unique([...(metadata.match || []), ...(metadata.include || [])]);
+    const normalizedMatches = matches.length ? matches : [`${GAME_ORIGIN}/*`];
+    const primary = normalizedMatches.some((pattern) => urlMatchesPattern(`${GAME_ORIGIN}/`, pattern));
+    const customGames = customGameDescriptors().filter((game) =>
+      normalizedMatches.some((pattern) => urlMatchesPattern(game.url, pattern)));
+    const external = normalizedMatches.some((pattern) => {
+      if (pattern === '<all_urls>') return true;
+      const label = gameLabelFromMatch(pattern);
+      return label && label !== 'Poke Idle World';
+    });
+    return { matches: normalizedMatches, primary, customGames, external };
+  }
+
   async function updateBundledTelegramScript(rows) {
     const existing = rows.find((script) => script.namespace === 'pokegrid.telegram-alerts');
     if (!existing) return rows;
@@ -162,12 +240,35 @@
     });
   }
 
+  function renderScriptTargetControls(code, selectedAccounts = []) {
+    const scope = scriptScope(code);
+    accountToggles.replaceChildren();
+    if (scope.primary) createAccountToggles(accountToggles, selectedAccounts);
+    for (const game of scope.customGames) {
+      const target = document.createElement('span');
+      target.className = 'script-auto-target';
+      target.innerHTML = `<b>${escapeHtml(game.name)}</b><small>${game.count} pantalla${game.count === 1 ? '' : 's'} · automático por @match</small>`;
+      accountToggles.appendChild(target);
+    }
+    if (!scope.primary && !scope.customGames.length) {
+      const target = document.createElement('span');
+      target.className = 'script-auto-target is-pending';
+      const declared = unique(scope.matches.map(gameLabelFromMatch)).filter(Boolean).join(', ');
+      target.innerHTML = `<b>${escapeHtml(declared || 'Sin juego compatible')}</b><small>${scope.external ? 'Se activará automáticamente cuando abras una instancia compatible.' : 'Revisa las reglas @match o @include.'}</small>`;
+      accountToggles.appendChild(target);
+    }
+    if (accountTargetsLegend) accountTargetsLegend.textContent = scope.customGames.length || scope.external
+      ? 'EJECUTAR EN JUEGOS E INSTANCIAS'
+      : 'EJECUTAR EN CUENTAS DE POKE IDLE WORLD';
+  }
+
   function setMessage(text, kind = '') {
     message.textContent = text;
     message.classList.toggle('is-ok', kind === 'ok');
   }
 
   function displayMetadata(code) {
+    const selectedAccounts = currentAccountSelection();
     const metadata = parseMetadata(code);
     const name = metadata.name?.[0]?.trim() || 'Script sin nombre';
     const version = metadata.version?.[0]?.trim() || 'sin versión';
@@ -177,6 +278,7 @@
     const connects = unique(metadata.connect);
     const unsupported = UNSUPPORTED_DIRECTIVES.filter((directive) => metadata[directive]?.length);
     const runAt = metadata['run-at']?.[0]?.trim() || 'document-end';
+    renderScriptTargetControls(code, selectedAccounts);
 
     editorName.textContent = name;
     editorMeta.textContent = `${namespace} · v${version} · ${runAt}`;
@@ -184,6 +286,12 @@
     const label = document.createElement('b');
     label.textContent = 'Alcance:';
     permissionSummary.appendChild(label);
+    for (const game of scriptGameLabels({ matches, games: unique(metadata.game) })) {
+      const chip = document.createElement('span');
+      chip.className = 'script-permission-chip is-game';
+      chip.textContent = `Juego: ${game}`;
+      permissionSummary.appendChild(chip);
+    }
     for (const value of matches.length ? matches : [`${GAME_ORIGIN}/* (predeterminado)`]) {
       const chip = document.createElement('span');
       chip.className = 'script-permission-chip';
@@ -370,11 +478,13 @@
       const accountBadges = script.accounts.map((enabled, index) =>
         `<i class="${enabled ? 'is-on' : ''}" title="${escapeHtml(accountRows[index]?.label || `Cuenta ${index + 1}`)}">${index + 1}</i>`
       ).join('');
+      const gameBadges = scriptGameLabels(script).map((game) => `<em>${escapeHtml(game)}</em>`).join('');
       button.innerHTML = `
         <span class="script-list-state" aria-hidden="true"></span>
         <span class="script-list-copy">
           <strong>${escapeHtml(script.name)}</strong>
           <small>v${escapeHtml(script.version)} · ${escapeHtml(script.runAt)} · ${script.matches.length} regla(s)</small>
+          <span class="script-list-games">${gameBadges}</span>
         </span>
         <span class="script-list-accounts">${accountBadges}</span>`;
       button.addEventListener('click', () => selectScript(script.id));
@@ -422,7 +532,7 @@
 
     const query = String(scriptShopSearch.value || '').trim().toLowerCase();
     const rows = (scriptShopCatalog.scripts || []).filter((item) => !query || [
-      item.name, item.summary, item.description, item.category, item.author, ...(item.tags || [])
+      item.name, item.summary, item.description, item.category, item.author, ...(item.tags || []), ...(item.games || [])
     ].join(' ').toLowerCase().includes(query));
     const installedCount = scriptShopCatalog.scripts.filter((item) => Boolean(installedShopScript(item.id))).length;
     const updateCount = scriptShopCatalog.scripts.filter((item) => scriptShopState(item).key === 'update').length;
@@ -448,6 +558,7 @@
       const card = document.createElement('article');
       card.className = `script-shop-card is-${state.key}${item.featured ? ' is-featured' : ''}`;
       const tags = (item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join('');
+      const gameTags = scriptGameLabels(state.installed || item).map((game) => `<span class="is-game">🎮 ${escapeHtml(game)}</span>`).join('');
       const permissions = (item.permissions || []).map((permission) => `<li>${escapeHtml(permission)}</li>`).join('');
       const actionLabel = state.key === 'update' || state.key === 'modified' ? 'Actualizar' : 'Instalar';
       const busy = scriptShopBusyId === item.id;
@@ -459,7 +570,7 @@
             <strong class="script-shop-status">${escapeHtml(state.label)}</strong>
           </div>
           <p>${escapeHtml(item.summary || item.description || 'Sin descripción.')}</p>
-          <div class="script-shop-tags">${tags}</div>
+          <div class="script-shop-tags">${gameTags}${tags}</div>
           <dl>
             <div><dt>Versión</dt><dd>${escapeHtml(item.version)}</dd></div>
             <div><dt>Autor</dt><dd>${escapeHtml(item.author)}</dd></div>
@@ -521,12 +632,9 @@
       const result = await window.pokeGrid.installScriptShopItem({ shopId: item.id });
       if (!result?.ok) throw new Error(result?.error || 'No se pudo instalar el script.');
       scripts = result.scripts || scripts;
-      const affected = Array.from({ length: ACCOUNT_COUNT }, (_, index) =>
-        Boolean(previous?.accounts?.[index] || result.script?.accounts?.[index])
-      );
-      reloadAccounts(affected);
+      const reloaded = reloadScriptPanels(previous, result.script);
       renderList();
-      setScriptShopMessage(`${item.name} ${previous ? 'fue actualizado' : 'quedó instalado'} y se aplicó en las cuentas seleccionadas.`, 'ok');
+      setScriptShopMessage(`${item.name} ${previous ? 'fue actualizado' : 'quedó instalado'} y se aplicó en ${reloaded} pantalla${reloaded === 1 ? '' : 's'} compatible${reloaded === 1 ? '' : 's'}.`, 'ok');
     } catch (error) {
       setScriptShopMessage(error.message || 'No se pudo completar la instalación.');
     } finally {
@@ -545,7 +653,7 @@
       const result = await window.pokeGrid.uninstallScriptShopItem(item.id);
       if (!result?.ok) throw new Error(result?.error || 'No se pudo desinstalar el script.');
       scripts = result.scripts || scripts;
-      reloadAccounts(installed.accounts || []);
+      reloadScriptPanels(installed);
       renderList();
       setScriptShopMessage(`${item.name} fue desinstalado.`, 'ok');
     } catch (error) {
@@ -593,10 +701,33 @@
   }
 
   function reloadAccounts(accountFlags) {
-    panelRows.forEach((panel, index) => {
-      if (!accountFlags[index]) return;
+    panelRows.forEach((panel) => {
+      if (panelInstanceId(panel) !== PRIMARY_INSTANCE_ID) return;
+      if (!accountFlags[panel.index]) return;
       try { panel.webview.reload(); } catch {}
     });
+  }
+
+  function scriptAppliesToPanel(script, panel) {
+    if (!script?.enabled) return false;
+    const url = currentPanelUrl(panel);
+    if (!url || !scriptMatchesUrl(script, url)) return false;
+    if (panelInstanceId(panel) !== PRIMARY_INSTANCE_ID) return true;
+    return script.accounts?.[panel.index] === true;
+  }
+
+  function reloadScriptPanels(...changedScripts) {
+    const candidates = changedScripts.flat().filter(Boolean);
+    if (!candidates.length) return 0;
+    let reloaded = 0;
+    for (const panel of panelRows) {
+      if (!candidates.some((script) => scriptAppliesToPanel(script, panel))) continue;
+      try {
+        if (currentPanelUrl(panel) && currentPanelUrl(panel) !== 'about:blank') panel.webview.reload();
+        reloaded += 1;
+      } catch {}
+    }
+    return reloaded;
   }
 
   async function loadScripts() {
@@ -625,8 +756,9 @@
     if (!validation.ok) return;
     const previous = scripts.find((script) => script.id === selectedId);
     const nextAccounts = currentAccountSelection();
-    if (!nextAccounts.some(Boolean)) {
-      setMessage('Selecciona al menos una cuenta.');
+    const scope = scriptScope(codeInput.value);
+    if (!nextAccounts.some(Boolean) && !scope.external && !scope.customGames.length) {
+      setMessage('Selecciona al menos una cuenta o declara un @match compatible con otra instancia.');
       return;
     }
     setMessage('Validando e instalando…');
@@ -643,12 +775,9 @@
     }
     scripts = result.scripts || [];
     selectedId = result.script.id;
-    const affected = Array.from({ length: ACCOUNT_COUNT }, (_, index) =>
-      Boolean(previous?.accounts?.[index] || result.script.accounts[index])
-    );
     showDraft(result.script);
-    setMessage('Script guardado. Recargando las sesiones afectadas para aplicar los cambios.', 'ok');
-    reloadAccounts(affected);
+    const reloaded = reloadScriptPanels(previous, result.script);
+    setMessage(`Script guardado. ${reloaded} pantalla${reloaded === 1 ? '' : 's'} compatible${reloaded === 1 ? '' : 's'} recargada${reloaded === 1 ? '' : 's'} para aplicar los cambios.`, 'ok');
   }
 
   async function deleteSelected() {
@@ -661,7 +790,7 @@
       return;
     }
     scripts = result.scripts || [];
-    reloadAccounts(script.accounts);
+    reloadScriptPanels(script);
     if (scripts.length) showDraft(scripts[0]);
     else showDraft();
     setMessage('Script eliminado y sesiones afectadas recargadas.', 'ok');
@@ -695,7 +824,7 @@
       window.setTimeout(() => dropZone.classList.remove('is-rejected'), 900);
       return;
     }
-    const affectedAccounts = Array(ACCOUNT_COUNT).fill(false);
+    const changedScripts = [];
     const failures = [];
     let installed = 0;
     let updated = 0;
@@ -727,9 +856,7 @@
         if (!result?.ok) throw new Error(result?.error || 'no se pudo guardar');
         scripts = result.scripts || scripts;
         lastScript = result.script;
-        accountFlags.forEach((enabled, index) => {
-          if (enabled || existing?.accounts?.[index]) affectedAccounts[index] = true;
-        });
+        changedScripts.push(existing, result.script);
         if (existing) updated += 1;
         else installed += 1;
       } catch (error) {
@@ -740,7 +867,7 @@
     if (lastScript) {
       selectedId = lastScript.id;
       showDraft(lastScript);
-      reloadAccounts(affectedAccounts);
+      reloadScriptPanels(changedScripts);
     } else {
       renderList();
     }
@@ -884,6 +1011,11 @@
       account: {
         index: Number(runtimeContext.accountIndex ?? -1),
         label: String(runtimeContext.accountLabel || '')
+      },
+      instance: {
+        id: String(runtimeContext.instanceId || PRIMARY_INSTANCE_ID),
+        name: String(runtimeContext.instanceName || 'Poke Idle World'),
+        index: Number(runtimeContext.instanceIndex ?? runtimeContext.accountIndex ?? -1)
       }
     }).replaceAll('</', '<\\/');
     const safeId = JSON.stringify(script.id);
@@ -1039,15 +1171,20 @@ ${script.code}
   async function installIntoPanel(panel) {
     let url = '';
     try { url = panel.webview.getURL(); } catch { return; }
-    if (!url.startsWith(GAME_ORIGIN)) return;
-    const candidates = scripts.filter((script) =>
-      script.enabled && script.accounts?.[panel.index] && scriptMatchesUrl(script, url)
-    );
+    if (!/^https?:\/\//i.test(url)) return;
+    const candidates = scripts.filter((script) => scriptAppliesToPanel(script, panel));
     for (const script of candidates) {
       try {
+        const primary = panelInstanceId(panel) === PRIMARY_INSTANCE_ID;
+        const slotIndex = primary ? panel.index : panel.instanceIndex;
         await panel.webview.executeJavaScript(buildRuntimeSource(script, {
-          accountIndex: panel.index,
-          accountLabel: accountRows[panel.index]?.label || `Cuenta ${panel.index + 1}`
+          accountIndex: slotIndex,
+          accountLabel: primary
+            ? (accountRows[panel.index]?.label || `Cuenta ${panel.index + 1}`)
+            : `${panel.instanceName || 'Juego'} · ${Number(slotIndex) + 1}`,
+          instanceId: panelInstanceId(panel),
+          instanceName: primary ? 'Poke Idle World' : (panel.instanceName || panelInstanceId(panel)),
+          instanceIndex: slotIndex
         }));
       } catch (error) {
         console.error(`[PokeGrid Userscripts] No se pudo inyectar ${script.name}:`, error);
@@ -1239,11 +1376,15 @@ ${script.code}
       }));
       const selected = currentAccountSelection();
       const extensionSelected = currentAccountSelection(extensionAccountToggles);
-      createAccountToggles(accountToggles, selected);
+      renderScriptTargetControls(codeInput.value, selected);
       createAccountToggles(extensionAccountToggles, extensionSelected);
       renderList();
     },
-    setPanels(value) { panelRows = value || []; },
+    setPanels(value) {
+      panelRows = value || [];
+      if (selectedId || codeInput.value) displayMetadata(codeInput.value);
+      renderList();
+    },
     refresh: loadScripts
   });
 })();

@@ -25,6 +25,8 @@ assert.match(main, /USER_SCRIPT_CODE_LIMIT/);
 assert.match(main, /existing\?\.accounts/);
 assert.match(main, /existing\?\.enabled !== false/);
 assert.match(main, /script\.namespace === item\.namespace && script\.name === publishedName/);
+assert.match(main, /const declaredGames = cleanMetadataList/);
+assert.match(main, /games,/);
 
 assert.match(preload, /loadScriptShop/);
 assert.match(preload, /installScriptShopItem/);
@@ -37,6 +39,8 @@ assert.match(renderer, /function renderScriptShop/);
 assert.match(renderer, /function installFromScriptShop/);
 assert.match(renderer, /function uninstallFromScriptShop/);
 assert.match(renderer, /function switchScriptsView/);
+assert.match(renderer, /item\.games/);
+assert.match(renderer, /<span class="is-game">/);
 assert.match(css, /\.script-shop-grid/);
 assert.match(css, /@media \(max-width: 620px\)/);
 

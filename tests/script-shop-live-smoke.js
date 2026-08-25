@@ -15,7 +15,8 @@ app.whenReady().then(async () => {
     assert.ok(!response.url || response.url === catalogUrl, `Origen inesperado: ${response.url}`);
     const catalog = JSON.parse(Buffer.from(await response.arrayBuffer()).toString('utf8'));
     assert.equal(catalog.schemaVersion, 1);
-    assert.equal(catalog.scripts.length, 6);
+    assert.ok(Array.isArray(catalog.scripts) && catalog.scripts.length > 0, 'El catálogo no contiene scripts.');
+    assert.equal(new Set(catalog.scripts.map((item) => item.id)).size, catalog.scripts.length, 'El catálogo contiene IDs duplicados.');
 
     for (const item of catalog.scripts) {
       assert.match(item.downloadUrl, /^https:\/\/raw\.githubusercontent\.com\/DiegoT34\/PokeGrid-Script-Shop\/main\/scripts\/[a-z0-9._-]+\.user\.js$/i);

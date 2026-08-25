@@ -7515,6 +7515,10 @@ function allConnectionPanels() {
   ];
 }
 
+function syncUserScriptPanels() {
+  window.pokeGridUserScriptManager?.setPanels(allConnectionPanels());
+}
+
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
@@ -7632,6 +7636,8 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   const host = document.createElement('div');
   host.className = 'browser-instance-webview-host';
   const webview = document.createElement('webview');
+  const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
+  if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
   webview.setAttribute('partition', browserInstancePartition(instance.id, index));
   webview.setAttribute('src', 'about:blank');
   webview.setAttribute('allowpopups', 'false');
@@ -7641,6 +7647,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   workspace.appendChild(element);
   const panel = {
     instanceId: instance.id,
+    instanceName: instance.name,
     instanceIndex: index,
     element,
     status,
@@ -7653,7 +7660,14 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     isLoading: false,
     destroyed: false
   };
-  attachResilientWebview(panel);
+  attachResilientWebview(panel, {
+    onReady: async () => {
+      await window.pokeGridUserScriptManager?.installIntoPanel(panel);
+    },
+    onNavigate: async (event) => {
+      if (event?.type === 'did-navigate-in-page') await window.pokeGridUserScriptManager?.installIntoPanel(panel);
+    }
+  });
   homeButton.addEventListener('click', () => {
     panel.connectionFailures = 0;
     loadConnectionPanel(panel, instance.url, { reason: 'Abriendo inicio' });
@@ -7689,6 +7703,7 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
     createBrowserInstancePanel(instance, workspace, index, 5_000 + ordinal * 4_500 + index * 850));
   const view = { instance, workspace, panels: panelsForInstance };
   browserInstanceViews.set(instance.id, view);
+  syncUserScriptPanels();
   return view;
 }
 
@@ -7705,6 +7720,7 @@ function removeBrowserInstance(instanceId) {
   browserInstanceViews.delete(instanceId);
   browserInstances = browserInstances.filter((row) => row.id !== instanceId);
   saveBrowserInstances();
+  syncUserScriptPanels();
   if (activeBrowserInstanceId === instanceId) activateBrowserInstance(PRIMARY_BROWSER_INSTANCE_ID);
   renderBrowserInstanceTabs();
 }
@@ -7727,6 +7743,7 @@ function initializeBrowserInstances() {
   browserInstances = loadBrowserInstances();
   browserInstanceViews.set(PRIMARY_BROWSER_INSTANCE_ID, { workspace: grid, panels });
   browserInstances.forEach((instance, ordinal) => createBrowserInstanceWorkspace(instance, ordinal));
+  syncUserScriptPanels();
   renderBrowserInstanceTabs();
   const savedActive = localStorage.getItem(ACTIVE_BROWSER_INSTANCE_KEY) || PRIMARY_BROWSER_INSTANCE_ID;
   activateBrowserInstance(savedActive, { persist: false });
@@ -7790,6 +7807,8 @@ function createPanel(index) {
   grid.appendChild(fragment);
 
   const panel = {
+    instanceId: PRIMARY_BROWSER_INSTANCE_ID,
+    instanceName: 'Poke Idle World',
     index,
     element,
     name,
@@ -8884,7 +8903,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   for (let index = 0; index < ACCOUNT_COUNT; index += 1) createPanel(index);
   initializeBrowserInstances();
   applyGridView(null, { persist: false });
-  window.pokeGridUserScriptManager?.setPanels(panels);
+  syncUserScriptPanels();
   window.setInterval(pollCaptureNotifications, 3500);
   window.setInterval(pollCaptureLogs, 4000);
   window.setInterval(pollHuntAnalyzers, 1500);

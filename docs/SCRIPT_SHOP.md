@@ -15,6 +15,7 @@ El archivo debe:
 - contener un bloque `==UserScript==` válido;
 - declarar `@name`, `@namespace` y una versión semántica `@version` con formato `X.Y.Z`;
 - declarar sus `@match`, `@grant` y `@connect` reales;
+- declarar opcionalmente `@game` para mostrar un nombre amigable del juego; si se omite, se infiere desde `@match`/`@include`;
 - utilizar un `@namespace` estable y exclusivo;
 - coincidir en versión y namespace con la entrada de `catalog.json`.
 
@@ -27,6 +28,7 @@ Ejemplo mínimo:
 // @version      1.0.0
 // @description  Explica exactamente qué hace.
 // @author       DiegoT34
+// @game         Poke Idle World
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-end
@@ -69,6 +71,7 @@ Ejemplo mínimo:
   "description": "Explicación completa de funciones, límites y comportamiento.",
   "category": "Utilidades",
   "tags": ["interfaz", "calidad de vida"],
+  "games": ["Poke Idle World"],
   "permissions": ["Lee elementos visibles de la página del juego"],
   "minLauncherVersion": "0.22.0",
   "downloadUrl": "https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/scripts/mi-herramienta.user.js",
@@ -82,6 +85,25 @@ Ejemplo mínimo:
 ```
 
 `id`, `namespace` y el nombre del archivo deben mantenerse estables entre versiones. Esto permite que el launcher reconozca una actualización y conserve las cuentas seleccionadas y el estado activo.
+
+## Scripts para varios juegos e instancias
+
+El alcance real de ejecución siempre se decide con `@match`, `@include`, `@exclude` y `@exclude-match`. La etiqueta `@game` es únicamente informativa.
+
+- Un script para Poke Idle World mantiene sus casillas por cuenta.
+- Un script para otro dominio se instala automáticamente en todas las pantallas compatibles de las instancias abiertas.
+- Al instalar, actualizar, habilitar, deshabilitar o eliminar un script, el launcher recarga únicamente las pantallas cuyo URL coincide con sus reglas.
+- Las instancias creadas después también reciben los scripts compatibles cuando su webview termina de cargar.
+
+Ejemplo para otro juego:
+
+```javascript
+// @game         Mi juego web
+// @match        https://juego.example.com/*
+// @exclude      https://juego.example.com/logout*
+```
+
+Para que un mismo script opere en varios juegos, declara una línea `@match` por dominio y, si lo deseas, una línea `@game` por nombre visible. Evita `<all_urls>` salvo que el script realmente necesite ejecutarse en cualquier sitio.
 
 ## Publicar una actualización
 

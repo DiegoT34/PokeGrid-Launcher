@@ -244,6 +244,23 @@ function cleanMetadataList(value, limit = 50) {
     .slice(0, limit);
 }
 
+function userScriptGameLabels(patterns) {
+  const labels = [];
+  const add = (value) => {
+    const label = String(value || '').trim();
+    if (label && !labels.some((row) => row.toLowerCase() === label.toLowerCase())) labels.push(label.slice(0, 80));
+  };
+  for (const pattern of cleanMetadataList(patterns, 50)) {
+    if (pattern === '<all_urls>') { add('Todos los juegos'); continue; }
+    const host = pattern.match(/^(?:\*|https?):\/\/([^/]+)/i)?.[1]?.toLowerCase();
+    if (!host || host === '*') continue;
+    const normalizedHost = host.replace(/^\*\./, '').replace(/^www\./, '');
+    if (normalizedHost === 'poke.idleworld.online') add('Poke Idle World');
+    else add(normalizedHost);
+  }
+  return labels.slice(0, 8);
+}
+
 function normalizeUserScript(value, existing = null) {
   const code = String(value?.code || '');
   if (!code.trim()) throw new Error('El script no puede estar vacío.');
@@ -258,6 +275,7 @@ function normalizeUserScript(value, existing = null) {
 
   const metadata = metadataFromUserScript(code);
   const matches = cleanMetadataList([...(metadata.match || []), ...(metadata.include || [])]);
+  const normalizedMatches = matches.length ? matches : [`${GAME_ORIGIN}/*`];
   const now = new Date().toISOString();
   const runAtValue = String(metadata['run-at']?.[0] || 'document-end').toLowerCase();
   const runAt = ['document-start', 'document-end', 'document-idle'].includes(runAtValue)
@@ -286,7 +304,10 @@ function normalizeUserScript(value, existing = null) {
     code,
     enabled: value?.enabled !== false,
     accounts: Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false),
-    matches: matches.length ? matches : [`${GAME_ORIGIN}/*`],
+    matches: normalizedMatches,
+    games: cleanMetadataList(metadata.game, 8).length
+      ? cleanMetadataList(metadata.game, 8).map((entry) => entry.slice(0, 80))
+      : userScriptGameLabels(normalizedMatches),
     excludes: cleanMetadataList(metadata.exclude),
     grants: cleanMetadataList(metadata.grant),
     connects: cleanMetadataList(metadata.connect),
@@ -650,6 +671,10 @@ function normalizeScriptShopCatalog(value) {
     const id = String(row?.id || '').trim().toLowerCase();
     const version = String(row?.version || '').trim().replace(/^v/i, '');
     const sha256 = String(row?.sha256 || '').trim().toLowerCase();
+    const declaredGames = cleanMetadataList([...(Array.isArray(row?.games) ? row.games : []), row?.game], 8)
+      .map((entry) => entry.slice(0, 80));
+    const catalogIdentity = `${row?.name || ''} ${row?.namespace || ''} ${(row?.tags || []).join(' ')}`;
+    const games = declaredGames.length ? declaredGames : (/poke(?:idle| idle world|grid)/i.test(catalogIdentity) ? ['Poke Idle World'] : []);
     if (!/^[a-z0-9][a-z0-9._-]{1,79}$/.test(id) || ids.has(id)) throw new Error('El catálogo contiene un ID de script inválido o duplicado.');
     if (compareScriptShopVersions(version, version) !== 0) throw new Error(`La versión publicada para ${id} no es válida.`);
     if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`La firma SHA-256 de ${id} no es válida.`);
@@ -664,6 +689,7 @@ function normalizeScriptShopCatalog(value) {
       description: String(row?.description || row?.summary || '').trim().slice(0, 2_000),
       category: String(row?.category || 'Utilidades').trim().slice(0, 60),
       tags: cleanMetadataList(row?.tags, 12).map((tag) => tag.slice(0, 40)),
+      games,
       permissions: cleanMetadataList(row?.permissions, 30).map((entry) => entry.slice(0, 160)),
       minLauncherVersion: String(row?.minLauncherVersion || '0.22.0').trim().replace(/^v/i, '').slice(0, 40),
       downloadUrl: assertScriptShopDownloadUrl(row?.downloadUrl),
