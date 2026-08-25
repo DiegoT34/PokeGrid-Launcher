@@ -1,6 +1,6 @@
 # IDLE POKE LAUNCHER
 
-Launcher de escritorio para Windows diseñado para jugar **Poke Idle World con varias cuentas independientes** y mantener herramientas de seguimiento, administración y navegación en una sola aplicación.
+Launcher portátil para Windows diseñado para administrar **Poke Idle World y otros juegos de navegador** con sesiones independientes, herramientas de seguimiento en tiempo real, userscripts multijuego y actualización automática.
 
 [![Última versión](https://img.shields.io/github/v/release/DiegoT34/PokeGrid-Launcher?display_name=tag&label=versi%C3%B3n)](https://github.com/DiegoT34/PokeGrid-Launcher/releases/latest)
 [![Descargas](https://img.shields.io/github/downloads/DiegoT34/PokeGrid-Launcher/total?label=descargas)](https://github.com/DiegoT34/PokeGrid-Launcher/releases)
@@ -17,27 +17,27 @@ Launcher de escritorio para Windows diseñado para jugar **Poke Idle World con v
 
 No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el perfil de usuario de Windows, fuera de la carpeta del programa.
 
-![Cuadrícula principal del launcher](docs/assets/launcher-grid.png)
+![Cuadrícula principal con menú flotante](docs/assets/launcher-grid.png)
 
 ## Funciones principales
 
-- Cuatro sesiones independientes de Poke Idle World en cuadrícula, con cookies y almacenamiento separados.
-- Instancias adicionales para abrir otros juegos web sin cerrar Poke Idle World.
-- Elección de una a seis pantallas por instancia adicional.
-- Barra superior ocultable y menú lateral desplegable.
-- Zoom y expansión individual de cada cuenta.
-- Inicio, recarga escalonada y recuperación de conexiones por cuenta.
+- Cuatro sesiones independientes de Poke Idle World en cuadrícula, con cookies, almacenamiento y conexión separados.
+- Pestañas de instancias para abrir otros juegos web sin cerrar las sesiones existentes.
+- De una a seis pantallas independientes por cada instancia adicional, con restauración automática al iniciar.
+- Menú lateral flotante con botones flat diferenciados; se superpone sin reducir ni desplazar las ventanas del juego.
+- Barra superior ocultable, selector de paneles visibles, zoom y expansión individual por cuenta.
+- Inicio conjunto, recarga escalonada, diagnóstico y recuperación de conexiones por pantalla.
 - Credenciales cifradas con la protección de Windows mediante Electron `safeStorage`.
-- Hunt Analyzer individual, Capture Log y estadísticas generales multicuentas.
-- Comparación de hunts con clasificación por rendimiento.
-- Modo farmeo con selección asistida de objetivos.
+- Datos de perfil en tiempo real, Hunt Analyzer individual, Capture Log y estadísticas generales multicuentas.
+- Comparación de hunts ordenada por rendimiento, con colores independientes para cada cuenta.
+- Modo farmeo con filtros por nombre, región, tipo, nivel, combate y variante shiny.
 - Pokédex en ventana independiente.
 - Centro de userscripts multijuego con editor, permisos, instalación por URL, importación y arrastrar/soltar.
-- Detección automática por `@match`/`@include`: cada script se aplica y actualiza en las pantallas compatibles de su instancia, mientras Poke Idle World conserva la selección individual por cuenta.
+- Detección automática por `@match`/`@include`: cada script se instala, actualiza y recarga en las pantallas compatibles de su juego.
 - Etiquetas de juego inferidas por dominio o declaradas con la directiva opcional `@game`.
-- Shop online de scripts con información, instalación, actualización, desinstalación y verificación SHA-256.
+- Shop online con catálogo actualizado desde GitHub, información, instalación, actualización, desinstalación y verificación SHA-256.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
-- Actualizador integrado que guarda el paquete verificado en Descargas, confirma el arranque de la versión nueva y restaura la anterior si algo falla.
+- Actualizador integrado que guarda ZIP y firma en Descargas, reintenta el arranque, confirma la ventana nueva y restaura la versión anterior si algo falla.
 
 ## Hunt Analyzer
 
@@ -63,10 +63,11 @@ El menú lateral incluye **Actualizaciones**. Al pulsarlo:
 
 1. Consulta la Release estable más reciente de este repositorio.
 2. Compara la versión instalada.
-3. Descarga el ZIP cuando existe una versión superior.
-4. Verifica su archivo `.sha256` antes de ejecutarlo.
-5. Cierra el launcher, sustituye la versión anterior y abre la nueva.
-6. Si la nueva versión no puede iniciar, restaura automáticamente la anterior.
+3. Descarga el ZIP cuando existe una versión superior y lo conserva en **Descargas**.
+4. Verifica su archivo `.sha256` antes de descomprimirlo.
+5. Cierra el launcher y abre la nueva versión en una carpeta portátil independiente.
+6. Confirma que la nueva ventana está preparada antes de retirar la versión anterior.
+7. Si el arranque no se confirma, reintenta y restaura automáticamente la versión anterior.
 
 Consulta [cómo funcionan las actualizaciones](docs/ACTUALIZACIONES.md), la [guía completa de funciones](docs/FUNCIONES.md) y [cómo publicar scripts en la Shop](docs/SCRIPT_SHOP.md).
 
@@ -102,3 +103,7 @@ Consulta [SECURITY.md](SECURITY.md) para informar problemas de seguridad.
 ## Licencia
 
 Código del launcher publicado bajo la licencia [MIT](LICENSE).
+
+## Créditos
+
+Creado y mantenido por **[DiegoT34](https://github.com/DiegoT34)**, autor y responsable principal de PokeGrid Launcher.

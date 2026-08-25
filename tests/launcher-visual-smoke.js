@@ -94,11 +94,13 @@ app.whenReady().then(async () => {
     const sidebarState = await window.webContents.executeJavaScript(`(async () => {
       document.querySelector('#globalActions').style.transition = 'none';
       document.querySelector('#grid').style.transition = 'none';
+      const gridLeftBefore = Math.round(document.querySelector('#grid').getBoundingClientRect().left);
       document.querySelector('#topbarToggle').click();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const sidebar = document.querySelector('#globalActions');
       const sidebarRect = sidebar.getBoundingClientRect();
       const gridRect = document.querySelector('#grid').getBoundingClientRect();
+      const actionButtons = [...sidebar.querySelectorAll(':scope > button, :scope > .view-mode-control > button')];
       document.querySelector('#viewModeButton').click();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const viewMenu = document.querySelector('#viewModeMenu');
@@ -107,10 +109,19 @@ app.whenReady().then(async () => {
         expanded: document.querySelector('#topbarToggle').getAttribute('aria-expanded'),
         visible: getComputedStyle(sidebar).visibility,
         direction: getComputedStyle(sidebar).flexDirection,
+        position: getComputedStyle(sidebar).position,
         width: Math.round(sidebarRect.width),
         left: Math.round(sidebarRect.left),
+        top: Math.round(sidebarRect.top),
+        bottomGap: Math.round(innerHeight - sidebarRect.bottom),
+        borderRadius: parseFloat(getComputedStyle(sidebar).borderRadius),
+        backgroundImage: getComputedStyle(sidebar).backgroundImage,
+        gridLeftBefore,
         gridLeft: Math.round(gridRect.left),
+        overlaysGrid: sidebarRect.right > gridRect.left,
         actionCount: sidebar.querySelectorAll(':scope > button, :scope > .view-mode-control').length,
+        uniqueAccentCount: new Set(actionButtons.map(button => getComputedStyle(button).getPropertyValue('--toolbar-accent').trim())).size,
+        flatButtonCount: actionButtons.filter(button => getComputedStyle(button).backgroundImage === 'none').length,
         persisted: localStorage.getItem('launcherSidebarOpen'),
         viewMenu: {
           parent: viewMenu.parentElement.tagName,
@@ -131,8 +142,12 @@ app.whenReady().then(async () => {
       }};
     })()`);
     if (sidebarState.open.expanded !== 'true' || sidebarState.open.visible !== 'visible' ||
-        sidebarState.open.direction !== 'column' || sidebarState.open.width < 220 || sidebarState.open.left !== 0 ||
-        sidebarState.open.gridLeft < 230 || sidebarState.open.actionCount !== 11 || sidebarState.open.persisted !== '1' ||
+        sidebarState.open.direction !== 'column' || sidebarState.open.position !== 'fixed' ||
+        sidebarState.open.width < 220 || sidebarState.open.left < 6 || sidebarState.open.top < 54 ||
+        sidebarState.open.bottomGap < 6 || sidebarState.open.borderRadius < 12 || sidebarState.open.backgroundImage !== 'none' ||
+        sidebarState.open.gridLeft !== sidebarState.open.gridLeftBefore || !sidebarState.open.overlaysGrid ||
+        sidebarState.open.actionCount !== 11 || sidebarState.open.uniqueAccentCount !== 11 ||
+        sidebarState.open.flatButtonCount !== 11 || sidebarState.open.persisted !== '1' ||
         sidebarState.open.viewMenu.parent !== 'BODY' || sidebarState.open.viewMenu.position !== 'fixed' ||
         !sidebarState.open.viewMenu.visible || sidebarState.open.viewMenu.left <= sidebarState.open.viewMenu.sidebarRight ||
         !sidebarState.open.viewMenu.insideViewport ||

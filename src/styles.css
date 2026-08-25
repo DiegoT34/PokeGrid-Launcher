@@ -182,21 +182,24 @@ input:focus-visible {
 
 .global-actions {
   width: 238px;
-  padding: 12px 10px 14px;
+  max-height: calc(100vh - 68px);
+  padding: 10px;
   position: fixed;
   z-index: 210;
-  top: 48px;
-  bottom: 0;
-  left: 0;
+  top: 56px;
+  bottom: auto;
+  left: 8px;
   display: flex;
   align-items: stretch;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
   overflow-x: visible;
   overflow-y: auto;
-  border-right: 1px solid rgba(112, 139, 160, .25);
-  background: linear-gradient(180deg, rgba(25, 29, 33, .995), rgba(14, 17, 20, .995));
-  box-shadow: 18px 0 42px rgba(0, 0, 0, .38);
+  border: 1px solid rgba(112, 139, 160, .3);
+  border-radius: 14px;
+  background: rgba(24, 29, 34, .97);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .48), inset 0 1px rgba(255, 255, 255, .035);
+  backdrop-filter: blur(14px);
   transform: translateX(calc(-100% - 20px));
   visibility: hidden;
   pointer-events: none;
@@ -211,7 +214,7 @@ input:focus-visible {
   transition: transform 190ms ease, visibility 0s;
 }
 .sidebar-heading {
-  min-height: 48px;
+  min-height: 42px;
   margin: -2px 1px 3px;
   padding: 6px 9px 9px;
   display: flex;
@@ -221,8 +224,8 @@ input:focus-visible {
 }
 .sidebar-heading span { color: #f0f4f8; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
 .sidebar-heading small { margin-top: 4px; color: #788795; font-size: 8px; }
-.button-update { border-color:#33546a !important;background:linear-gradient(145deg,#142532,#0e1921) !important;color:#9ee8ff !important; }
-.button-update:hover:not(:disabled) { border-color:#52b9d5 !important;color:#e7fbff !important;background:linear-gradient(145deg,#183344,#10212b) !important; }
+.button-update { --toolbar-accent:#55d7f1 !important;color:#d8f8ff !important; }
+.button-update:hover:not(:disabled) { border-color:var(--toolbar-accent) !important;color:#fff !important; }
 .button-update:disabled { cursor:wait;opacity:.78; }
 .update-launcher-copy { min-width:0; display:flex; align-items:flex-start; justify-content:center; flex-direction:column; gap:2px; line-height:1; }
 .update-launcher-version { color:#6fcbe5; font-size:8px; font-weight:800; letter-spacing:.06em; line-height:1; }
@@ -234,27 +237,27 @@ input:focus-visible {
   --toolbar-accent: #83909a;
   width: 100%;
   min-width: 0;
-  min-height: 40px;
-  height: 40px;
+  min-height: 36px;
+  height: 36px;
   padding: 0 11px 0 8px;
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
-  border: 1px solid color-mix(in srgb, var(--toolbar-accent) 46%, #35393d);
+  border: 1px solid color-mix(in srgb, var(--toolbar-accent) 38%, #343b40);
   border-radius: 8px;
-  background: #24272a;
+  background: color-mix(in srgb, var(--toolbar-accent) 9%, #20262b);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.035), 0 4px 12px rgba(0,0,0,.16);
+  box-shadow: inset 3px 0 var(--toolbar-accent);
 }
 .global-actions > .button:hover,
 .global-actions > .notification-button:hover,
 .global-actions > .view-mode-control > .button:hover,
 .global-actions > .notification-button[aria-expanded="true"] {
   border-color: var(--toolbar-accent);
-  background: #2d3033;
+  background: color-mix(in srgb, var(--toolbar-accent) 17%, #232a30);
   color: #fff;
-  transform: translateY(-1px);
+  transform: translateX(2px);
 }
 .global-actions .top-action-icon {
   width: 21px;
@@ -262,24 +265,23 @@ input:focus-visible {
   display: inline-grid;
   place-items: center;
   flex: 0 0 21px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--toolbar-accent) 18%, #202326);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--toolbar-accent) 20%, #1b2227);
   color: var(--toolbar-accent);
   font-size: 12px;
   line-height: 1;
 }
 .global-actions .top-action-icon.is-code { width: auto; min-width: 28px; padding: 0 4px; font: 800 9px/1 monospace; }
-.global-actions > .button-farm { --toolbar-accent: #f3c63d; background: #2b2920; color: #fff; }
-.global-actions > .button-pokepedia { --toolbar-accent: #7fb8e8; }
-.global-actions > .button-scripts { --toolbar-accent: #aa8cff; }
-.global-actions > .button-statistics { --toolbar-accent: #55d8d0; }
-.global-actions > .notification-button { --toolbar-accent: #f0ba42; }
-.global-actions > .button-accounts { --toolbar-accent: #9da9b2; }
-.global-actions > .memory-cleanup-button { --toolbar-accent: #58d7a8; }
-.global-actions > .button-launch-all { --toolbar-accent: #ff6258; width: 100%; min-width: 0; padding: 0 11px 0 8px; background: #392321; }
-.global-actions > .button-launch-all:hover { background: #492725; }
-.global-actions > .button-reload { --toolbar-accent: #79c4e8; }
-.global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #84a6d8; }
+.global-actions > .button-farm { --toolbar-accent: #42d88f; color: #fff; }
+.global-actions > .button-pokepedia { --toolbar-accent: #69aef4; }
+.global-actions > .button-scripts { --toolbar-accent: #a485f4; }
+.global-actions > .button-statistics { --toolbar-accent: #45cbc5; }
+.global-actions > .notification-button { --toolbar-accent: #efbd4e; }
+.global-actions > .button-accounts { --toolbar-accent: #aab5bf; }
+.global-actions > .memory-cleanup-button { --toolbar-accent: #4fd0a2; }
+.global-actions > .button-launch-all { --toolbar-accent: #ff6b62; width: 100%; min-width: 0; padding: 0 11px 0 8px; }
+.global-actions > .button-reload { --toolbar-accent: #57b9e2; }
+.global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #7e96df; }
 .global-actions .notification-bell { font-size: 12px; }
 
 .notification-button,
@@ -726,7 +728,7 @@ input:focus-visible {
   transition: margin-left 190ms ease;
 }
 
-body.sidebar-open .instance-workspace.is-active { margin-left: 238px; }
+body.sidebar-open .instance-workspace.is-active { margin-left: 0; }
 
 .instance-workspace {
   margin-left: 0;
@@ -4058,8 +4060,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   .global-actions > .button,
   .global-actions > .notification-button,
   .global-actions > .view-mode-control > .button {
-    min-height: 40px;
-    height: 40px;
+    min-height: 38px;
+    height: 38px;
     padding: 0 11px 0 8px;
     font-size: 10px;
   }

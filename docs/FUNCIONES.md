@@ -6,7 +6,7 @@ La instancia principal abre cuatro webviews persistentes. Cada panel tiene sesi�
 
 ## Menú lateral y barra superior
 
-El botón hamburguesa abre las herramientas del launcher. La barra completa puede ocultarse para evitar que cubra paneles y ventanas. Su estado se conserva al reiniciar.
+El botón hamburguesa abre un panel lateral flotante. El panel se superpone a la cuadrícula, por lo que no reduce ni desplaza las ventanas del juego, y cada acción utiliza un color identificativo con estilo flat. La barra superior completa también puede ocultarse y ambos estados se conservan al reiniciar.
 
 El menú contiene:
 
@@ -75,4 +75,4 @@ Las recargas múltiples se escalonan. Cada panel cuenta con límites de reintent
 
 ## Actualizador
 
-El actualizador consulta GitHub únicamente cuando se pulsa el botón. Descarga la versión superior, valida SHA-256, prepara el reemplazo fuera de la carpeta instalada, cierra el proceso actual y reinicia. Mantiene una copia temporal de la versión anterior hasta confirmar que la nueva permanece abierta.
+El actualizador consulta GitHub únicamente cuando se pulsa el botón. Descarga la versión superior, guarda el ZIP y su firma en Descargas, valida SHA-256 y descomprime la nueva carpeta portátil. Después cierra el proceso actual, intenta abrir la nueva versión hasta tres veces y espera una confirmación de su ventana. Mantiene una copia temporal de la versión anterior y solo la elimina después de confirmar el arranque; si falla, restaura y abre la versión anterior.
