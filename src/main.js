@@ -37,6 +37,29 @@ const loadedUnpackedExtensions = Array.from({ length: ACCOUNT_COUNT }, () => nul
 const browserInstanceSessions = new WeakSet();
 let scriptShopCache = null;
 
+function writeUpdateLaunchHandshake() {
+  const prefix = '--pokegrid-update-handshake=';
+  const argument = process.argv.find((value) => String(value).startsWith(prefix));
+  if (!argument) return;
+  try {
+    const requested = String(argument).slice(prefix.length).replace(/^"|"$/g, '');
+    const handshakePath = path.resolve(requested);
+    const updatesRoot = `${path.resolve(app.getPath('userData'), 'updates')}${path.sep}`;
+    if (!handshakePath.toLowerCase().startsWith(updatesRoot.toLowerCase())) throw new Error('Ruta de confirmación fuera del directorio de actualizaciones.');
+    fs.mkdirSync(path.dirname(handshakePath), { recursive: true });
+    const temporary = `${handshakePath}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify({
+      processId: process.pid,
+      executablePath: path.resolve(process.execPath),
+      version: app.getVersion(),
+      readyAt: new Date().toISOString()
+    }), 'utf8');
+    fs.renameSync(temporary, handshakePath);
+  } catch (error) {
+    console.error(`[PokeGrid Updater] No se pudo confirmar el arranque: ${error.message}`);
+  }
+}
+
 function readLruCache(cache, key) {
   if (!cache.has(key)) return undefined;
   const value = cache.get(key);
@@ -712,15 +735,21 @@ async function loadScriptShopCatalog(refresh = false) {
   const now = Date.now();
   if (!refresh && scriptShopCache && now - scriptShopCache.fetchedAt < SCRIPT_SHOP_CACHE_MS) return scriptShopCache.catalog;
   try {
-    const response = await net.fetch(SCRIPT_SHOP_CATALOG_URL, {
+    const requestUrl = refresh ? `${SCRIPT_SHOP_CATALOG_URL}?v=${now}` : SCRIPT_SHOP_CATALOG_URL;
+    const response = await net.fetch(requestUrl, {
       redirect: 'error', cache: refresh ? 'no-store' : 'default',
-      headers: { Accept: 'application/json', 'User-Agent': `PokeGrid-Launcher/${app.getVersion()}` }
+      headers: {
+        Accept: 'application/json',
+        'Cache-Control': refresh ? 'no-cache, no-store, must-revalidate' : 'max-age=300',
+        Pragma: refresh ? 'no-cache' : '',
+        'User-Agent': `PokeGrid-Launcher/${app.getVersion()}`
+      }
     });
     if (!response.ok) throw new Error(`GitHub no respondió correctamente (HTTP ${response.status}).`);
     // Electron puede dejar Response.url vacío incluso en una respuesta directa 200 de
     // raw.githubusercontent.com. Las redirecciones ya se bloquean arriba con "error";
     // si Chromium sí informa una URL final, exigimos que siga siendo la oficial exacta.
-    if (response.url && response.url !== SCRIPT_SHOP_CATALOG_URL) throw new Error('El catálogo respondió desde un origen no permitido.');
+    if (response.url && response.url !== requestUrl) throw new Error('El catálogo respondió desde un origen no permitido.');
     const bytes = Buffer.from(await response.arrayBuffer());
     if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 512 KB.');
     // Windows PowerShell 5 puede anteponer BOM (EF BB BF) a archivos UTF-8.
@@ -931,6 +960,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.maximize();
     mainWindow.show();
+    writeUpdateLaunchHandshake();
 
     if (process.env.POKEGRID_SMOKE_SCREENSHOT) {
       setTimeout(async () => {

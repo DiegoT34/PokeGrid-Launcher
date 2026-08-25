@@ -37,7 +37,7 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Etiquetas de juego inferidas por dominio o declaradas con la directiva opcional `@game`.
 - Shop online de scripts con información, instalación, actualización, desinstalación y verificación SHA-256.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
-- Actualizador integrado con descarga, verificación SHA-256, reemplazo, restauración de emergencia y reinicio.
+- Actualizador integrado que guarda el paquete verificado en Descargas, confirma el arranque de la versión nueva y restaura la anterior si algo falla.
 
 ## Hunt Analyzer
 

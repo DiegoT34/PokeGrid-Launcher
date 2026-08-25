@@ -21,7 +21,8 @@ assert.ok(compiler, 'No se encontró el compilador de prueba de .NET Framework.'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-updater-integration-'));
 const installDir = path.join(root, 'IDLE POKE LAUNCHER');
-const targetDir = path.join(root, 'IDLE-POKE-LAUNCHER-99.0.0-portatil');
+const downloadsDir = path.join(root, 'Downloads');
+const targetDir = path.join(downloadsDir, 'IDLE-POKE-LAUNCHER-99.0.0-portatil');
 const updateRoot = path.join(root, 'updates', 'v99.0.0');
 const packageDir = path.join(root, 'new-package');
 const executableName = 'IDLE POKE LAUNCHER.exe';
@@ -32,6 +33,7 @@ let oldPid = 0;
 
 try {
   fs.mkdirSync(installDir, { recursive: true });
+  fs.mkdirSync(downloadsDir, { recursive: true });
   fs.mkdirSync(path.join(packageDir, 'resources'), { recursive: true });
   fs.mkdirSync(updateRoot, { recursive: true });
   fs.writeFileSync(path.join(installDir, 'old-version.txt'), 'old');
@@ -48,6 +50,13 @@ try {
     'using System.Threading;',
     'public static class Program {',
     '  [STAThread] public static void Main() {',
+    '    foreach (string argument in Environment.GetCommandLineArgs()) {',
+    '      const string prefix = "--pokegrid-update-handshake=";',
+    '      if (!argument.StartsWith(prefix)) continue;',
+    '      string handshake = argument.Substring(prefix.Length).Trim(\'"\');',
+    '      string executable = Process.GetCurrentProcess().MainModule.FileName.Replace("\\\\", "\\\\\\\\");',
+    '      File.WriteAllText(handshake, "{\\"processId\\":" + Process.GetCurrentProcess().Id + ",\\"executablePath\\":\\"" + executable + "\\"}");',
+    '    }',
     '    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "launched.ok"), Process.GetCurrentProcess().Id.ToString());',
     '    Thread.Sleep(30000);',
     '  }',
@@ -87,6 +96,7 @@ try {
     '-LauncherPid', String(oldPid),
     '-ArchivePath', archivePath,
     '-InstallDir', installDir,
+    '-DownloadsDir', downloadsDir,
     '-TargetDir', targetDir,
     '-ExecutableName', executableName,
     '-UpdateRoot', updateRoot,

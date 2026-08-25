@@ -27,4 +27,10 @@ Las Releases marcadas como borrador o pre-release no se instalan automáticament
 
 ## Recuperación
 
-Durante la instalación, la carpeta anterior se mueve temporalmente a `*.pokegrid-old`. Si el nuevo ejecutable termina durante los primeros cinco segundos, el instalador elimina la copia fallida, restaura la anterior y vuelve a abrirla.
+Después de validar el SHA-256, el launcher conserva en la carpeta **Descargas** tanto el ZIP como su archivo `.sha256`. La versión nueva se descomprime allí en una carpeta independiente con este formato:
+
+`IDLE-POKE-LAUNCHER-x.y.z-portatil`
+
+Durante la instalación, la carpeta anterior se mueve temporalmente a `*.pokegrid-old`. El instalador intenta abrir la versión nueva hasta tres veces y espera una confirmación emitida cuando su ventana ya está preparada. La versión anterior solo se elimina después de recibir esa confirmación.
+
+Si la aplicación nueva se cierra, no confirma el arranque o falla la instalación, el instalador elimina la copia incompleta, restaura la versión anterior y vuelve a abrirla. El ZIP verificado permanece en **Descargas** para diagnóstico o instalación manual.

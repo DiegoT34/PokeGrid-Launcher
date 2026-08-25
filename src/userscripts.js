@@ -636,7 +636,17 @@
       renderList();
       setScriptShopMessage(`${item.name} ${previous ? 'fue actualizado' : 'quedó instalado'} y se aplicó en ${reloaded} pantalla${reloaded === 1 ? '' : 's'} compatible${reloaded === 1 ? '' : 's'}.`, 'ok');
     } catch (error) {
-      setScriptShopMessage(error.message || 'No se pudo completar la instalación.');
+      const failure = error.message || 'No se pudo completar la instalación.';
+      if (/HTTP\s+404\b/i.test(failure) && scriptShopCatalog?.scripts) {
+        try {
+          const refreshed = await window.pokeGrid.loadScriptShop(true);
+          if (refreshed?.ok && refreshed.catalog) scriptShopCatalog = refreshed.catalog;
+        } catch {}
+        scriptShopCatalog.scripts = scriptShopCatalog.scripts.filter((candidate) => candidate.id !== item.id);
+        setScriptShopMessage(`${item.name} fue retirado de la Shop y ya no se mostrará en el catálogo.`, 'ok');
+      } else {
+        setScriptShopMessage(failure);
+      }
     } finally {
       scriptShopBusyId = '';
       renderScriptShop();

@@ -11,7 +11,9 @@ const css = fs.readFileSync(path.join(root, 'src', 'styles.css'), 'utf8');
 
 assert.match(main, /PokeGrid-Script-Shop\/main\/catalog\.json/);
 assert.match(main, /redirect: 'error'/);
-assert.match(main, /if \(response\.url && response\.url !== SCRIPT_SHOP_CATALOG_URL\)/);
+assert.match(main, /const requestUrl = refresh \? `\$\{SCRIPT_SHOP_CATALOG_URL\}\?v=\$\{now\}`/);
+assert.match(main, /response\.url !== requestUrl/);
+assert.match(main, /no-cache, no-store, must-revalidate/);
 assert.match(main, /userscripts:shop-catalog/);
 assert.match(main, /userscripts:shop-install/);
 assert.match(main, /userscripts:shop-uninstall/);
@@ -41,6 +43,8 @@ assert.match(renderer, /function uninstallFromScriptShop/);
 assert.match(renderer, /function switchScriptsView/);
 assert.match(renderer, /item\.games/);
 assert.match(renderer, /<span class="is-game">/);
+assert.match(renderer, /fue retirado de la Shop/);
+assert.match(renderer, /candidate\.id !== item\.id/);
 assert.match(css, /\.script-shop-grid/);
 assert.match(css, /@media \(max-width: 620px\)/);
 

@@ -23,7 +23,8 @@ async function run() {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-updater-detached-'));
   const installDir = path.join(root, 'IDLE-POKE-LAUNCHER-98.0.0-portatil');
-  const targetDir = path.join(root, 'IDLE-POKE-LAUNCHER-99.0.0-portatil');
+  const downloadsDir = path.join(root, 'Downloads');
+  const targetDir = path.join(downloadsDir, 'IDLE-POKE-LAUNCHER-99.0.0-portatil');
   const updateRoot = path.join(root, 'updates', 'v99.0.0');
   const packageDir = path.join(root, 'package');
   const executableName = 'IDLE POKE LAUNCHER.exe';
@@ -35,6 +36,7 @@ async function run() {
   try {
     fs.mkdirSync(path.join(packageDir, 'resources'), { recursive: true });
     fs.mkdirSync(installDir, { recursive: true });
+    fs.mkdirSync(downloadsDir, { recursive: true });
     fs.mkdirSync(updateRoot, { recursive: true });
     fs.writeFileSync(path.join(packageDir, 'resources', 'app.asar'), 'new resources');
     fs.writeFileSync(path.join(packageDir, 'new-version.txt'), '99.0.0');
@@ -45,6 +47,15 @@ async function run() {
       'using System;', 'using System.Diagnostics;', 'using System.IO;', 'using System.Threading;',
       'public static class Program {',
       '  [STAThread] public static void Main() {',
+      '    string firstAttempt = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "first-launch.failed");',
+      '    if (!File.Exists(firstAttempt)) { File.WriteAllText(firstAttempt, "retry required"); return; }',
+      '    foreach (string argument in Environment.GetCommandLineArgs()) {',
+      '      const string prefix = "--pokegrid-update-handshake=";',
+      '      if (!argument.StartsWith(prefix)) continue;',
+      '      string handshake = argument.Substring(prefix.Length).Trim(\'"\');',
+      '      string executable = Process.GetCurrentProcess().MainModule.FileName.Replace("\\\\", "\\\\\\\\");',
+      '      File.WriteAllText(handshake, "{\\"processId\\":" + Process.GetCurrentProcess().Id + ",\\"executablePath\\":\\"" + executable + "\\"}");',
+      '    }',
       '    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "launched.ok"), Process.GetCurrentProcess().Id.ToString());',
       '    Thread.Sleep(30000);',
       '  }',
@@ -83,7 +94,7 @@ async function run() {
         `  const result = await launchPreparedUpdate({`,
         `    app: { isPackaged: true, getVersion: () => '98.0.0' },`,
         `    prepared: ${JSON.stringify({ latestVersion: '99.0.0', archivePath, updateRoot, statusPath })},`,
-        `    runtime: ${JSON.stringify({ installDir, executableName, launcherPid: oldPid, powershell, healthCheckSeconds: 1, gracefulWaitSeconds: 1 })}`,
+        `    runtime: ${JSON.stringify({ installDir, downloadsDir, executableName, launcherPid: oldPid, powershell, healthCheckSeconds: 5, gracefulWaitSeconds: 1 })}`,
         '  });',
         '  console.log(JSON.stringify(result));',
         '  process.exit(0);',
@@ -115,11 +126,12 @@ async function run() {
     }
     assert.equal(status?.state, 'installed');
     assert.equal(fs.existsSync(installDir), false);
+    assert.equal(fs.existsSync(path.join(targetDir, 'first-launch.failed')), true);
     assert.equal(fs.existsSync(path.join(targetDir, 'launched.ok')), true);
     assert.equal(fs.readFileSync(path.join(targetDir, 'new-version.txt'), 'utf8'), '99.0.0');
     newPid = Number(status.newProcessId) || 0;
     assert.ok(newPid > 0);
-    console.log('Launcher detached updater integration passed: handshake, forced old-process close, side-by-side install, cleanup and relaunch work.');
+    console.log('Launcher detached updater integration passed: Downloads target, failed-first-launch retry, handshake, cleanup and relaunch work.');
   } finally {
     if (oldPid > 0) spawnSync('taskkill.exe', ['/PID', String(oldPid), '/T', '/F'], { windowsHide: true });
     if (newPid > 0) spawnSync('taskkill.exe', ['/PID', String(newPid), '/T', '/F'], { windowsHide: true });

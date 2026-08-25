@@ -70,7 +70,16 @@ app.whenReady().then(async () => {
         mobile.card.left < mobile.modal.left || mobile.card.right > mobile.modal.right || mobile.card.width < 300) {
       throw new Error(`Mobile Shop layout failed: ${JSON.stringify(mobile)}`);
     }
-    console.log(JSON.stringify({ desktop, mobile }));
+    await window.webContents.executeJavaScript(`document.querySelector('.script-shop-card [data-action="install"]').click()`);
+    await waitFor(window, 'document.querySelectorAll(".script-shop-card").length === 0');
+    const retired = await window.webContents.executeJavaScript(`({
+      cards: document.querySelectorAll('.script-shop-card').length,
+      message: document.querySelector('#scriptShopMessage').textContent
+    })`);
+    if (retired.cards !== 0 || !retired.message.includes('retirado de la Shop')) {
+      throw new Error(`Retired Shop item was not removed locally: ${JSON.stringify(retired)}`);
+    }
+    console.log(JSON.stringify({ desktop, mobile, retired }));
   } catch (error) {
     console.error(error.stack || error);
     process.exitCode = 1;

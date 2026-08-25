@@ -146,7 +146,7 @@ window.__telegramPreview = true;`,
       changelog: 'Nueva tarjeta informativa.', icon: '🛒', featured: true, publishedAt: '2026-08-24T00:00:00Z'
     }] }
   }),
-  installScriptShopItem: async () => ({ ok: false, error: 'No disponible en preview.' }),
+  installScriptShopItem: async () => ({ ok: false, error: 'No se pudo descargar el script (HTTP 404).' }),
   uninstallScriptShopItem: async () => ({ ok: false, error: 'No disponible en preview.' }),
   getGuestPreloadUrl: async () => '',
   pickUnpackedExtension: async () => ({ ok: false, canceled: true }),

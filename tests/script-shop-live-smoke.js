@@ -2,10 +2,11 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { app, net } = require('electron');
 
-const catalogUrl = 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/catalog.json';
+const catalogBaseUrl = 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/catalog.json';
 
 app.whenReady().then(async () => {
   try {
+    const catalogUrl = `${catalogBaseUrl}?v=${Date.now()}`;
     const response = await net.fetch(catalogUrl, {
       redirect: 'error',
       cache: 'no-store',

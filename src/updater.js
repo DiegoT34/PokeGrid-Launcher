@@ -121,6 +121,32 @@ async function sha256File(file) {
   return hash.digest('hex');
 }
 
+function replaceFileAtomically(source, destination) {
+  const directory = path.dirname(destination);
+  fs.mkdirSync(directory, { recursive: true });
+  const temporary = path.join(directory, `.${path.basename(destination)}.${process.pid}.${Date.now()}.tmp`);
+  fs.copyFileSync(source, temporary, fs.constants.COPYFILE_EXCL);
+  try {
+    fs.rmSync(destination, { force: true });
+    fs.renameSync(temporary, destination);
+  } catch (error) {
+    try { fs.rmSync(temporary, { force: true }); } catch {}
+    throw error;
+  }
+}
+
+function persistVerifiedRelease({ app, archivePath, checksumPath, archiveName }) {
+  const downloadsDirectory = path.resolve(app.getPath('downloads'));
+  if (path.parse(downloadsDirectory).root === downloadsDirectory) {
+    throw new Error('La carpeta de Descargas configurada no es segura.');
+  }
+  const savedArchivePath = path.join(downloadsDirectory, archiveName);
+  const savedChecksumPath = `${savedArchivePath}.sha256`;
+  replaceFileAtomically(archivePath, savedArchivePath);
+  replaceFileAtomically(checksumPath, savedChecksumPath);
+  return { downloadsDirectory, savedArchivePath, savedChecksumPath };
+}
+
 async function prepareUpdate({ app, net, currentVersion, onProgress }) {
   if (process.platform !== 'win32') throw new Error('La actualización automática está disponible para Windows.');
   const release = await readLatestRelease(net, currentVersion);
@@ -151,14 +177,26 @@ async function prepareUpdate({ app, net, currentVersion, onProgress }) {
     onProgress?.({ phase: 'verify', percent: 100, version: release.latestVersion });
     const actualHash = await sha256File(archivePath);
     if (actualHash !== expectedHash) throw new Error('La firma SHA-256 no coincide; la actualización fue descartada.');
+    const persisted = persistVerifiedRelease({ app, archivePath, checksumPath, archiveName: release.archive.name });
     writeUpdateStatus(statusPath, {
       state: 'ready',
       currentVersion,
       latestVersion: release.latestVersion,
-      archivePath,
+      archivePath: persisted.savedArchivePath,
+      savedChecksumPath: persisted.savedChecksumPath,
       sha256: actualHash
     });
-    return { ...release, status: 'ready', archivePath, updateRoot, statusPath, sha256: actualHash };
+    return {
+      ...release,
+      status: 'ready',
+      archivePath: persisted.savedArchivePath,
+      savedArchivePath: persisted.savedArchivePath,
+      savedChecksumPath: persisted.savedChecksumPath,
+      downloadsDirectory: persisted.downloadsDirectory,
+      updateRoot,
+      statusPath,
+      sha256: actualHash
+    };
   } catch (error) {
     writeUpdateStatus(statusPath, {
       state: 'download-failed',
@@ -177,11 +215,12 @@ function updaterPowerShell() {
   [int]$LauncherPid = 0,
   [string]$ArchivePath = '',
   [string]$InstallDir = '',
+  [string]$DownloadsDir = '',
   [string]$TargetDir = '',
   [string]$ExecutableName = '',
   [string]$UpdateRoot = '',
   [string]$StatusPath = '',
-  [int]$HealthCheckSeconds = 8,
+  [int]$HealthCheckSeconds = 30,
   [int]$GracefulWaitSeconds = 8
 )
 $ErrorActionPreference = 'Stop'
@@ -190,6 +229,7 @@ if ($ConfigPath) {
   $LauncherPid = [int]$configuration.LauncherPid
   $ArchivePath = [string]$configuration.ArchivePath
   $InstallDir = [string]$configuration.InstallDir
+  $DownloadsDir = [string]$configuration.DownloadsDir
   $TargetDir = [string]$configuration.TargetDir
   $ExecutableName = [string]$configuration.ExecutableName
   $UpdateRoot = [string]$configuration.UpdateRoot
@@ -197,17 +237,19 @@ if ($ConfigPath) {
   $HealthCheckSeconds = [int]$configuration.HealthCheckSeconds
   $GracefulWaitSeconds = [int]$configuration.GracefulWaitSeconds
 }
-if ($LauncherPid -le 0 -or -not $ArchivePath -or -not $InstallDir -or -not $TargetDir -or -not $ExecutableName -or -not $UpdateRoot -or -not $StatusPath) {
+if ($LauncherPid -le 0 -or -not $ArchivePath -or -not $InstallDir -or -not $DownloadsDir -or -not $TargetDir -or -not $ExecutableName -or -not $UpdateRoot -or -not $StatusPath) {
   throw 'La configuración del instalador está incompleta.'
 }
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
+$DownloadsDir = [IO.Path]::GetFullPath($DownloadsDir)
 $TargetDir = [IO.Path]::GetFullPath($TargetDir)
 $UpdateRoot = [IO.Path]::GetFullPath($UpdateRoot)
 $ArchivePath = [IO.Path]::GetFullPath($ArchivePath)
 $StatusPath = [IO.Path]::GetFullPath($StatusPath)
 if ([IO.Path]::GetPathRoot($InstallDir) -eq $InstallDir) { throw 'Ruta de instalación demasiado amplia.' }
+if ([IO.Path]::GetPathRoot($DownloadsDir) -eq $DownloadsDir) { throw 'Ruta de Descargas demasiado amplia.' }
 if ([IO.Path]::GetPathRoot($TargetDir) -eq $TargetDir) { throw 'Ruta de destino demasiado amplia.' }
-if ((Split-Path -Parent $InstallDir) -ine (Split-Path -Parent $TargetDir)) { throw 'La nueva versión debe instalarse junto a la anterior.' }
+if ((Split-Path -Parent $TargetDir) -ine $DownloadsDir) { throw 'La nueva versión debe instalarse directamente en la carpeta de Descargas.' }
 if ($InstallDir -ieq $TargetDir) { throw 'La carpeta nueva coincide con la versión anterior.' }
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw 'No se encontró el paquete descargado.' }
 $oldExe = Join-Path $InstallDir $ExecutableName
@@ -240,6 +282,7 @@ function Write-UpdateStatus([string]$State, [string]$Message = '', [hashtable]$E
 }
 
 $stageDir = Join-Path $UpdateRoot 'extracted'
+$handshakePath = Join-Path $UpdateRoot 'launcher-ready.json'
 $oldBackupDir = "$InstallDir.pokegrid-old-$PID"
 $targetBackupDir = "$TargetDir.pokegrid-previous-$PID"
 $newProcess = $null
@@ -312,10 +355,35 @@ try {
     Move-Item -LiteralPath $entry.FullName -Destination $targetDir -ErrorAction Stop
   }
   $newExe = Join-Path $TargetDir $ExecutableName
-  Write-UpdateStatus 'launching' 'Abriendo la nueva versión.'
-  $newProcess = Start-Process -FilePath $newExe -WorkingDirectory $TargetDir -PassThru
-  Start-Sleep -Seconds ([Math]::Max(1, $HealthCheckSeconds))
-  if ($newProcess.HasExited) { throw 'La nueva versión no pudo mantenerse abierta.' }
+  $launchConfirmed = $false
+  $launchFailure = ''
+  for ($attempt = 1; $attempt -le 3 -and -not $launchConfirmed; $attempt += 1) {
+    if (Test-Path -LiteralPath $handshakePath -PathType Leaf) { Remove-Item -LiteralPath $handshakePath -Force }
+    Write-UpdateStatus 'launching' "Abriendo la nueva versión (intento $attempt de 3)."
+    $handshakeArgument = '--pokegrid-update-handshake="' + $handshakePath.Replace('"', '') + '"'
+    $newProcess = Start-Process -FilePath $newExe -WorkingDirectory $TargetDir -ArgumentList $handshakeArgument -PassThru
+    $healthDeadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(5, $HealthCheckSeconds))
+    while ([DateTime]::UtcNow -lt $healthDeadline) {
+      $newProcess.Refresh()
+      if ($newProcess.HasExited) { $launchFailure = "El proceso terminó con código $($newProcess.ExitCode)."; break }
+      if (Test-Path -LiteralPath $handshakePath -PathType Leaf) {
+        try {
+          $handshake = Get-Content -LiteralPath $handshakePath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ([int]$handshake.processId -eq $newProcess.Id -and [string]$handshake.executablePath -ieq $newExe) {
+            $launchConfirmed = $true
+            break
+          }
+        } catch { $launchFailure = "Handshake inválido: $($_.Exception.Message)" }
+      }
+      Start-Sleep -Milliseconds 250
+    }
+    if (-not $launchConfirmed) {
+      if (-not $newProcess.HasExited) { Stop-Process -Id $newProcess.Id -Force -ErrorAction SilentlyContinue }
+      if (-not $launchFailure) { $launchFailure = 'La nueva versión no confirmó que su ventana estuviera preparada.' }
+      if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+    }
+  }
+  if (-not $launchConfirmed) { throw "La nueva versión no pudo iniciar después de tres intentos. $launchFailure" }
 
   Write-UpdateStatus 'cleanup' 'Eliminando la carpeta de la versión anterior.' @{ newProcessId = $newProcess.Id }
   if (Test-Path -LiteralPath $oldBackupDir) { Remove-DirectoryWithRetry $oldBackupDir 20 }
@@ -368,7 +436,8 @@ function powerShellLiteral(value) {
 async function launchPreparedUpdate({ app, prepared, runtime = {} }) {
   if (!app.isPackaged) throw new Error('El reemplazo automático solo se ejecuta desde la versión portátil empaquetada.');
   const installDir = path.resolve(runtime.installDir || path.dirname(process.execPath));
-  const targetDir = path.join(path.dirname(installDir), safePortableDirectoryName(prepared.latestVersion));
+  const downloadsDirectory = path.resolve(runtime.downloadsDir || prepared.downloadsDirectory || app.getPath('downloads'));
+  const targetDir = path.join(downloadsDirectory, safePortableDirectoryName(prepared.latestVersion));
   const executableName = runtime.executableName || path.basename(process.execPath);
   const scriptPath = path.join(prepared.updateRoot, 'install-update.ps1');
   const bootstrapPath = path.join(prepared.updateRoot, 'start-update.ps1');
@@ -383,11 +452,12 @@ async function launchPreparedUpdate({ app, prepared, runtime = {} }) {
     LauncherPid: runtime.launcherPid || process.pid,
     ArchivePath: prepared.archivePath,
     InstallDir: installDir,
+    DownloadsDir: downloadsDirectory,
     TargetDir: targetDir,
     ExecutableName: executableName,
     UpdateRoot: prepared.updateRoot,
     StatusPath: prepared.statusPath,
-    HealthCheckSeconds: runtime.healthCheckSeconds || 8,
+    HealthCheckSeconds: runtime.healthCheckSeconds || 30,
     GracefulWaitSeconds: runtime.gracefulWaitSeconds || 8
   }, null, 2), 'utf8');
   const installerArgumentLine = [
@@ -404,6 +474,7 @@ $installer = Start-Process -FilePath ${powerShellLiteral(powershell)} -ArgumentL
     latestVersion: prepared.latestVersion,
     archivePath: prepared.archivePath,
     installDir,
+    downloadsDirectory,
     targetDir,
     logPath,
     installerOutputPath,
@@ -462,7 +533,7 @@ $installer = Start-Process -FilePath ${powerShellLiteral(powershell)} -ArgumentL
     });
   });
   child.unref();
-  return { ok: true, version: prepared.latestVersion, archivePath: prepared.archivePath, targetDir, logPath, installerOutputPath, installerErrorPath };
+  return { ok: true, version: prepared.latestVersion, archivePath: prepared.archivePath, downloadsDirectory, targetDir, logPath, installerOutputPath, installerErrorPath };
 }
 
 module.exports = {
@@ -470,6 +541,7 @@ module.exports = {
   compareVersions,
   normalizeVersion,
   safePortableDirectoryName,
+  persistVerifiedRelease,
   prepareUpdate,
   launchPreparedUpdate,
   updaterPowerShell,
