@@ -370,19 +370,58 @@ function farmTierMultiplier(value, label = '') {
 
 function normalizeFarmTarget(value) {
   if (!value || typeof value !== 'object') return null;
-  const slug = String(value.slug || '').trim();
-  const name = String(value.name || '').trim();
+  const nestedPokemon = value.pokemon && typeof value.pokemon === 'object' ? value.pokemon : {};
+  const nestedCreature = value.creature && typeof value.creature === 'object' ? value.creature : {};
+  const nestedTeleport = value.teleport && typeof value.teleport === 'object' ? value.teleport : {};
+  const name = String(
+    value.pokemonName || value.pokemon_name || value.huntName || value.hunt_name ||
+    value.creatureName || value.creature_name || value.speciesName || value.species_name ||
+    nestedPokemon.name || nestedCreature.name || value.name || value.label || value.title || ''
+  ).trim();
+  const rawSlug = String(
+    value.teleportSlug || value.teleport_slug || value.fieldTeleportSlug || value.field_teleport_slug ||
+    value.huntSlug || value.hunt_slug || value.targetSlug || value.target_slug ||
+    value.destinationSlug || value.destination_slug || nestedTeleport.slug || nestedTeleport.targetSlug || value.slug || ''
+  ).trim();
+  const slug = rawSlug || normalizeSearchText(name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!slug || !name) return null;
+  const numberFrom = (...values) => {
+    for (const candidate of values) {
+      const match = String(candidate ?? '').replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+      const number = Number(match?.[0]);
+      if (Number.isFinite(number)) return number;
+    }
+    return 0;
+  };
   const positiveStat = (...values) => {
     const number = values.map(Number).find((candidate) => Number.isFinite(candidate) && candidate > 0);
     return number || null;
   };
   const sourceStats = value.baseStats || value.stats || {};
+  const nestedMap = value.map && typeof value.map === 'object' ? value.map : {};
+  const nestedWorld = value.world && typeof value.world === 'object' ? value.world : {};
+  const nestedArea = value.area && typeof value.area === 'object' ? value.area : {};
+  const nestedRegion = value.region && typeof value.region === 'object' ? value.region : {};
+  const map = String(
+    value.mapSlug || value.map_slug || nestedMap.slug || nestedMap.id || value.mapName || nestedMap.name ||
+    value.worldSlug || value.world_slug || nestedWorld.slug || value.worldName || nestedWorld.name ||
+    (typeof value.map === 'string' ? value.map : '') || (typeof value.world === 'string' ? value.world : '') ||
+    value.continentSlug || value.continent || value._map || ''
+  ).trim().toLowerCase();
+  const area = String(
+    value.areaSlug || value.area_slug || nestedArea.slug || nestedArea.id || value.areaName || nestedArea.name ||
+    value.regionSlug || value.region_slug || nestedRegion.slug || value.regionName || nestedRegion.name ||
+    (typeof value.area === 'string' ? value.area : '') || (typeof value.region === 'string' ? value.region : '') ||
+    value.zoneSlug || value.zoneName || value.zone || value._area || map || 'kanto'
+  ).trim().toLowerCase();
   return {
     slug: slug.slice(0, 80),
     name: name.slice(0, 80),
-    area: String(value.area || 'kanto').slice(0, 30),
-    level: Math.max(0, Number(value.level) || 0),
+    area: area.slice(0, 80),
+    map: map.slice(0, 80),
+    mapName: String(value.mapName || nestedMap.name || value.worldName || nestedWorld.name || value.continent || value._mapName || map).trim().slice(0, 80),
+    areaName: String(value.areaName || nestedArea.name || value.regionName || nestedRegion.name || value.zoneName || value._areaName || area).trim().slice(0, 80),
+    level: Math.max(0, numberFrom(value.huntLevel, value.hunt_level, value.requiredLevel, value.required_level, value.minLevel, value.min_level, value.level)),
     looktype: Math.max(0, Number(value.looktype) || 0),
     speciesId: Math.max(0, Number(value.speciesId || value.pokeId || value.dexId) || 0),
     spriteSpeciesId: Math.max(0, Number(value.spriteSpeciesId || value.baseSpeciesId || value.speciesId || value.pokeId || value.dexId) || 0),
@@ -550,7 +589,7 @@ function evaluateFarmTarget(target, context) {
   }
   if (!targetTypes.length) reasons.push('compatibilidad de tipo no disponible');
   if (!trainerAccessible) reasons.unshift(`requiere nivel de entrenador ${target.level}`);
-  if (target.area === 'orre' && !orreCheck.ok) reasons.unshift(orreCheck.message);
+  if (isOrreFarmTarget(target) && !orreCheck.ok) reasons.unshift(orreCheck.message);
 
   let label = 'Combate exigente';
   if (!trainerAccessible) label = 'Bloqueado';
@@ -572,8 +611,14 @@ function evaluateFarmTarget(target, context) {
   };
 }
 
+function isOrreFarmTarget(target) {
+  return normalizeSearchText([target?.map, target?.mapName, target?.area, target?.areaName].filter(Boolean).join(' '))
+    .split(/[^a-z0-9]+/)
+    .includes('orre');
+}
+
 function validateOrreTarget(target, context, seed = {}) {
-  if (target?.area !== 'orre') return { ok: true, required: 0, equipped: 0, penalty: 0, message: '' };
+  if (!isOrreFarmTarget(target)) return { ok: true, required: 0, equipped: 0, penalty: 0, message: '' };
   const leader = context?.leader;
   if (!leader) return { ok: false, required: 1, equipped: 0, penalty: 35, message: 'Orre: no se detectó el Pokémon equipado' };
   const targetTypes = normalizePokemonTypes(target.types);
@@ -3741,7 +3786,18 @@ function farmAreaLabel(area) {
     orre: 'Orre',
     nightmare: 'Nightmare'
   };
-  return labels[area] || String(area || 'Mapa');
+  return labels[area] || String(area || 'Mapa')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function farmTargetLocationLabel(target) {
+  const map = String(target?.mapName || target?.map || '').trim();
+  const area = String(target?.areaName || target?.area || '').trim();
+  if (map && area && normalizeSearchText(map) !== normalizeSearchText(area)) {
+    return `${farmAreaLabel(map)} · ${farmAreaLabel(area)}`;
+  }
+  return farmAreaLabel(area || map);
 }
 
 function setFarmGlobalState(text, state = '') {
@@ -5118,9 +5174,104 @@ function farmEnhancedCatalogScript() {
       requestJson('/game/creatures.json')
     ]);
     if (!markers) throw new Error('No se pudo leer el catálogo de mapas.');
-    const hunts = Array.isArray(markers) ? markers
-      : markers.hunts || markers.markers || markers.data?.hunts || markers.data?.markers || [];
-    return { hunts: Array.isArray(hunts) ? hunts : [], pokedex, allPokes, creatures };
+    const clean = (value) => value === null || value === undefined || typeof value === 'object'
+      ? ''
+      : String(value).trim();
+    const first = (...values) => values.map(clean).find(Boolean) || '';
+    const numberFrom = (...values) => {
+      for (const value of values) {
+        const match = clean(value).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+        const number = Number(match?.[0]);
+        if (Number.isFinite(number)) return number;
+      }
+      return 0;
+    };
+    const hunts = [];
+    const seenObjects = new WeakSet();
+    const collectionRole = (key) => {
+      if (/^(maps?|worlds?|continents?)$/i.test(key)) return 'map';
+      if (/^(areas?|regions?|zones?|islands?|tabs?|groups?)$/i.test(key)) return 'area';
+      return '';
+    };
+    const visit = (entry, context = {}, relation = '', depth = 0) => {
+      if (!entry || typeof entry !== 'object' || depth > 12 || seenObjects.has(entry)) return;
+      seenObjects.add(entry);
+      if (Array.isArray(entry)) {
+        entry.forEach((child) => visit(child, context, relation, depth + 1));
+        return;
+      }
+      const pokemon = entry.pokemon && typeof entry.pokemon === 'object' ? entry.pokemon : {};
+      const creature = entry.creature && typeof entry.creature === 'object' ? entry.creature : {};
+      const teleport = entry.teleport && typeof entry.teleport === 'object' ? entry.teleport : {};
+      const ownName = first(entry.name, entry.label, entry.title);
+      const ownSlug = first(entry.slug, entry.id, entry.key);
+      const nextContext = { ...context };
+      if (relation === 'map') {
+        nextContext.map = ownSlug || ownName || context.map || '';
+        nextContext.mapName = ownName || ownSlug || context.mapName || '';
+      } else if (relation === 'area') {
+        nextContext.area = ownSlug || ownName || context.area || '';
+        nextContext.areaName = ownName || ownSlug || context.areaName || '';
+      }
+      nextContext.map = first(
+        entry.mapSlug, entry.map_slug, entry.map?.slug, entry.map?.id,
+        entry.worldSlug, entry.world_slug, entry.world?.slug,
+        entry.continentSlug, entry.continent?.slug, entry.map, entry.world, entry.continent, nextContext.map
+      );
+      nextContext.mapName = first(entry.mapName, entry.map?.name, entry.worldName, entry.world?.name, entry.continentName, entry.continent?.name, nextContext.mapName, nextContext.map);
+      nextContext.area = first(
+        entry.areaSlug, entry.area_slug, entry.area?.slug, entry.area?.id,
+        entry.regionSlug, entry.region_slug, entry.region?.slug,
+        entry.zoneSlug, entry.zone?.slug, entry.area, entry.region, entry.zone, nextContext.area
+      );
+      nextContext.areaName = first(entry.areaName, entry.area?.name, entry.regionName, entry.region?.name, entry.zoneName, entry.zone?.name, nextContext.areaName, nextContext.area);
+
+      const level = numberFrom(entry.huntLevel, entry.hunt_level, entry.requiredLevel, entry.required_level, entry.minLevel, entry.min_level, entry.level);
+      const name = first(
+        entry.pokemonName, entry.pokemon_name, entry.huntName, entry.hunt_name,
+        entry.creatureName, entry.creature_name, entry.speciesName, entry.species_name,
+        pokemon.name, creature.name,
+        entry.hunt === true || entry.markerType === 'hunt' || entry.type === 'hunt' || (level > 0 && ownSlug) ? ownName : ''
+      );
+      const slug = first(
+        entry.teleportSlug, entry.teleport_slug, entry.fieldTeleportSlug, entry.field_teleport_slug,
+        entry.huntSlug, entry.hunt_slug, entry.targetSlug, entry.target_slug, entry.destinationSlug, entry.destination_slug,
+        teleport.slug, teleport.targetSlug, teleport.target_slug,
+        entry.hunt === true || entry.markerType === 'hunt' || entry.type === 'hunt' ? ownSlug : '',
+        numberFrom(entry.huntLevel, entry.requiredLevel, entry.minLevel, entry.level) > 0 && name ? ownSlug : ''
+      );
+      const guide = first(entry.guide, entry.dataGuide, entry.markerId);
+      const huntSignal = Boolean(
+        name && (slug || /^hunt[-_:]/i.test(guide)) &&
+        (level > 0 || entry.hunt === true || entry.markerType === 'hunt' || entry.type === 'hunt' ||
+          entry.teleportSlug || entry.teleport_slug || entry.fieldTeleportSlug || entry.field_teleport_slug ||
+          entry.huntSlug || entry.hunt_slug || entry.targetSlug || entry.target_slug)
+      );
+      if (huntSignal) {
+        hunts.push({
+          ...entry,
+          name,
+          slug: slug || guide.replace(/^hunt[-_:]/i, ''),
+          level,
+          map: first(entry.mapSlug, entry.map_slug, entry.map?.slug, entry.worldSlug, entry.world_slug, entry.world?.slug, entry.continentSlug, nextContext.map),
+          mapName: first(entry.mapName, entry.map?.name, entry.worldName, entry.world?.name, entry.continentName, nextContext.mapName),
+          area: first(entry.areaSlug, entry.area_slug, entry.area?.slug, entry.regionSlug, entry.region_slug, entry.region?.slug, entry.zoneSlug, nextContext.area, nextContext.map),
+          areaName: first(entry.areaName, entry.area?.name, entry.regionName, entry.region?.name, entry.zoneName, nextContext.areaName, nextContext.mapName),
+          guide
+        });
+      }
+      Object.entries(entry).forEach(([key, child]) => {
+        if (!child || typeof child !== 'object' || child === pokemon || child === creature || child === teleport) return;
+        visit(child, nextContext, collectionRole(key), depth + 1);
+      });
+    };
+    visit(markers);
+    const unique = new Map();
+    hunts.forEach((hunt) => {
+      const key = [hunt.map, hunt.area, hunt.slug, hunt.name].map((value) => clean(value).toLowerCase()).join('|');
+      if (!unique.has(key)) unique.set(key, hunt);
+    });
+    return { hunts: [...unique.values()], pokedex, allPokes, creatures };
   };
   return '(' + readCatalog.toString() + ')()';
 }
@@ -5297,11 +5448,14 @@ async function loadFarmCatalogFromGame() {
         baseSpeciesByLooktype.get(Number(hunt.looktype) || 0) || 0
     });
     if (!target || target.level <= 0) return;
-    if (!unique.has(target.slug)) unique.set(target.slug, target);
+    const targetKey = [target.map, target.area, target.slug].map((value) => normalizeSearchText(value)).join('|');
+    if (!unique.has(targetKey)) unique.set(targetKey, target);
   });
   const areaOrder = new Map(['kanto', 'outland', 'johto', 'orre', 'nightmare'].map((area, index) => [area, index]));
   farmCatalog = [...unique.values()].sort((left, right) =>
-    (areaOrder.get(left.area) ?? 99) - (areaOrder.get(right.area) ?? 99) ||
+    (areaOrder.get(left.map || left.area) ?? 99) - (areaOrder.get(right.map || right.area) ?? 99) ||
+    String(left.map || '').localeCompare(String(right.map || '')) ||
+    String(left.area || '').localeCompare(String(right.area || '')) ||
     left.level - right.level ||
     left.name.localeCompare(right.name)
   );
@@ -5525,7 +5679,7 @@ function renderFarmAccounts() {
     const targetMeta = document.createElement('small');
     const selectedMatchup = config.target ? evaluateFarmTarget(config.target, context) : null;
     targetMeta.textContent = config.target
-      ? `${farmAreaLabel(config.target.area)} · Nivel ${config.target.level}${selectedMatchup ? ` · ${selectedMatchup.label} ${selectedMatchup.score}%` : ''}`
+      ? `${farmTargetLocationLabel(config.target)} · Nivel ${config.target.level}${selectedMatchup ? ` · ${selectedMatchup.label} ${selectedMatchup.score}%` : ''}`
       : farmCatalog.length ? `${farmCatalog.length} zonas de caza disponibles` : 'Actualiza el catálogo del juego';
     targetCopy.append(targetName, targetMeta);
     const targetArrow = document.createElement('span');
@@ -5687,7 +5841,7 @@ function renderFarmPickerLegacy() {
   const filtered = farmCatalog.filter((target) => {
     if (farmPickerArea !== 'all' && target.area !== farmPickerArea) return false;
     if (!search) return true;
-    return normalizeSearchText(`${target.name} ${target.slug} ${farmAreaLabel(target.area)} nivel ${target.level}`).includes(search);
+    return normalizeSearchText(`${target.name} ${target.slug} ${farmTargetLocationLabel(target)} nivel ${target.level}`).includes(search);
   });
   farmPokemonGrid.replaceChildren();
   filtered.forEach((target) => {
@@ -5702,7 +5856,7 @@ function renderFarmPickerLegacy() {
     const name = document.createElement('strong');
     name.textContent = target.name;
     const meta = document.createElement('small');
-    meta.textContent = `${farmAreaLabel(target.area)} · Nivel ${target.level}`;
+    meta.textContent = `${farmTargetLocationLabel(target)} · Nivel ${target.level}`;
     copy.append(name, meta);
     if (locked) {
       const lock = document.createElement('small');
@@ -5788,7 +5942,7 @@ function renderFarmPicker() {
       target.name,
       baseName,
       target.slug,
-      farmAreaLabel(target.area),
+      farmTargetLocationLabel(target),
       target.area,
       `nivel ${target.level}`,
       target.tier,
@@ -5847,7 +6001,7 @@ function renderFarmPicker() {
       typeRow.appendChild(unknown);
     }
     const meta = document.createElement('small');
-    meta.textContent = `${farmAreaLabel(target.area)} · Nivel ${target.level}${target.tier ? ` · Tier ${target.tier}` : ''}`;
+    meta.textContent = `${farmTargetLocationLabel(target)} · Nivel ${target.level}${target.tier ? ` · Tier ${target.tier}` : ''}`;
     const reason = document.createElement('small');
     reason.className = 'farm-smart-reason';
     reason.textContent = matchup.reasons.join(' · ') || 'Comparación basada en nivel disponible';
@@ -5921,6 +6075,18 @@ function buildFarmAutomationScript(config, options = {}) {
       .trim();
     const buttonDescriptor = (button) => normalize([
       button.dataset?.pgLabel,
+      button.dataset?.guide,
+      button.dataset?.slug,
+      button.dataset?.huntSlug,
+      button.dataset?.teleportSlug,
+      button.dataset?.fieldTeleportSlug,
+      button.dataset?.map,
+      button.dataset?.mapSlug,
+      button.dataset?.world,
+      button.dataset?.region,
+      button.dataset?.area,
+      button.getAttribute('data-target'),
+      button.getAttribute('data-marker-id'),
       button.getAttribute('aria-label'),
       button.getAttribute('title'),
       button.textContent,
@@ -5940,48 +6106,133 @@ function buildFarmAutomationScript(config, options = {}) {
       return true;
     };
 
-    if (!visible(document.querySelector('.map-window'))) {
+    const findMapWindow = () => {
+      const direct = [
+        '.map-window', '[data-map-window]', '[data-guide="map-window"]',
+        '.map-overlay', '.map-modal', '[class*="map-window"]'
+      ].flatMap((selector) => [...document.querySelectorAll(selector)])
+        .find((element) => visible(element));
+      if (direct) return direct;
+      const mapControl = document.querySelector('.map-viewport, .map-inner, .hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug]');
+      let parent = mapControl?.parentElement || null;
+      for (let depth = 0; parent && depth < 8; depth += 1, parent = parent.parentElement) {
+        if (visible(parent) && parent.querySelector('button, [role="button"], .hunt-marker')) return parent;
+      }
+      return null;
+    };
+    if (!findMapWindow()) {
       if (!clickDockAction('map')) throw new Error('No se encontró el botón Map de esta cuenta.');
     }
     const mapWindow = await waitFor(() => {
-      const element = document.querySelector('.map-window');
+      const element = findMapWindow();
       return visible(element) ? element : null;
-    }, 6500);
+    }, 8500);
     if (!mapWindow) throw new Error('El mapa del juego no abrió a tiempo.');
 
-    const targetArea = normalize(target.area);
-    const areaButton = [...mapWindow.querySelectorAll('.map-area')].find((button) =>
-      normalize(button.textContent).includes(targetArea)
+    const isSelected = (element) => Boolean(
+      element?.classList?.contains('on') || element?.classList?.contains('active') ||
+      element?.classList?.contains('selected') || element?.getAttribute('aria-selected') === 'true' ||
+      element?.getAttribute('aria-pressed') === 'true' || element?.dataset?.active === 'true' ||
+      element?.dataset?.selected === 'true'
     );
-    if (areaButton && !areaButton.classList.contains('on')) {
-      areaButton.click();
-      await delay(180);
+    const clickControl = (element) => {
+      element?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      element?.click?.();
+    };
+    const navigationCandidates = () => [...new Set([
+      ...document.querySelectorAll('.map-area, .map-tab, .map-region'),
+      ...document.querySelectorAll('[data-map], [data-map-slug], [data-world], [data-region], [data-area]'),
+      ...document.querySelectorAll('[role="tab"]')
+    ])].filter((element) => !element.matches('.hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug]'));
+    const selectNavigation = async (value, kind) => {
+      const wanted = normalize(value);
+      if (!wanted) return false;
+      const exactAttributes = kind === 'map'
+        ? ['data-map-slug', 'data-map', 'data-world']
+        : ['data-area', 'data-region', 'data-zone'];
+      const candidates = navigationCandidates();
+      const control = candidates.find((element) => exactAttributes.some((attribute) => normalize(element.getAttribute(attribute)) === wanted)) ||
+        candidates.find((element) => buttonDescriptor(element) === wanted) ||
+        candidates.find((element) => buttonDescriptor(element).includes(wanted));
+      if (!control) return false;
+      if (!isSelected(control)) {
+        clickControl(control);
+        await delay(350);
+        await waitFor(() => isSelected(control) || !document.documentElement.contains(control), 1800);
+      }
+      return true;
+    };
+
+    const targetMap = normalize(target.map || target.mapName);
+    const targetMapName = normalize(target.mapName);
+    const targetArea = normalize(target.area);
+    const targetAreaName = normalize(target.areaName);
+    const mapSelected = await selectNavigation(targetMap, 'map');
+    if (!mapSelected && targetMapName !== targetMap) await selectNavigation(targetMapName, 'map');
+    if (targetArea && targetArea !== targetMap) {
+      const areaSelected = await selectNavigation(targetArea, 'area');
+      if (!areaSelected && targetAreaName !== targetArea) await selectNavigation(targetAreaName, 'area');
     }
 
     const markerGuide = 'hunt-' + target.slug;
-    const marker = await waitFor(() =>
-      [...document.querySelectorAll('.hunt-marker')].find((candidate) =>
-        candidate.dataset.guide === markerGuide ||
-        normalize(candidate.textContent).includes(normalize(target.name))
-      ) || null
-    , 6500);
-    if (!marker) throw new Error('No se encontró la zona de ' + target.name + ' en el mapa.');
+    const targetSlug = normalize(target.slug);
+    const targetName = normalize(target.name);
+    const markerCandidates = () => [...new Set([
+      ...document.querySelectorAll('.hunt-marker'),
+      ...document.querySelectorAll('[data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug], [data-guide^="hunt-"]'),
+      ...document.querySelectorAll('[data-marker-type="hunt"], [data-type="hunt"]')
+    ])];
+    const markerSlugValues = (candidate) => [
+      candidate.dataset?.huntSlug,
+      candidate.dataset?.teleportSlug,
+      candidate.dataset?.fieldTeleportSlug,
+      candidate.dataset?.slug,
+      candidate.dataset?.guide?.replace(/^hunt[-_:]/i, ''),
+      candidate.getAttribute('data-target')
+    ].map(normalize).filter(Boolean);
+    const findMarker = () => {
+      const candidates = markerCandidates();
+      return candidates.find((candidate) => markerSlugValues(candidate).includes(targetSlug)) ||
+        candidates.find((candidate) => normalize(candidate.dataset?.guide) === normalize(markerGuide)) ||
+        candidates.find((candidate) => buttonDescriptor(candidate).includes(targetName)) || null;
+    };
+    let marker = await waitFor(findMarker, 4500);
+    if (!marker) {
+      const searchInput = [
+        ...document.querySelectorAll('.map-filter-q, input[type="search"], input[data-map-search]')
+      ].find((input) => visible(input));
+      if (searchInput) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        if (setter) setter.call(searchInput, target.name);
+        else searchInput.value = target.name;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+        marker = await waitFor(findMarker, 7000);
+      }
+    }
+    if (!marker) {
+      const location = [target.mapName || target.map, target.areaName || target.area].filter(Boolean).join(' / ');
+      throw new Error('No se encontró la zona de ' + target.name + (location ? ' en ' + location : '') + '.');
+    }
     if (marker.classList.contains('no') || marker.disabled) {
       throw new Error(target.name + ' todavía está bloqueado para esta cuenta.');
     }
     const locationMatchesTarget = () => {
-      const meta = document.querySelector('.phud-tloc, .pg-player-meta');
-      return Boolean(meta && normalize(meta.textContent).includes(normalize(target.name)));
+      const meta = document.querySelector('.phud-tloc, .pg-player-meta, [data-current-hunt], [data-current-location]');
+      const descriptor = meta ? buttonDescriptor(meta) : '';
+      return Boolean(descriptor && (descriptor.includes(targetName) || descriptor.includes(targetSlug)));
     };
     const alreadyAtTarget = marker.classList.contains('here') || locationMatchesTarget();
     if (alreadyAtTarget) {
-      const closeMapButton = mapWindow.querySelector('.cfg-x, [data-action="close"], [aria-label*="cerrar" i], [aria-label*="close" i]');
+      const closeMapButton = findMapWindow()?.querySelector('.cfg-x, [data-action="close"], [aria-label*="cerrar" i], [aria-label*="close" i]');
       closeMapButton?.click();
-      const mapClosed = await waitFor(() => !visible(document.querySelector('.map-window')), 3000);
+      const mapClosed = await waitFor(() => !findMapWindow(), 3000);
       if (!mapClosed) throw new Error('La cuenta ya está en ' + target.name + ', pero no se pudo cerrar el mapa.');
     } else {
-      marker.click();
-      if (targetArea === 'orre' && allowOrreTravel) {
+      clickControl(marker);
+      const targetRegion = normalize([target.map, target.mapName, target.area, target.areaName].filter(Boolean).join(' '));
+      const isOrreTarget = targetRegion.split(/[^a-z0-9]+/).includes('orre');
+      if (isOrreTarget && allowOrreTravel) {
         const confirmation = await waitFor(() => {
           const promptPattern = /hunt properly|needs both the aoe|elemental tms|still want to enter/;
           const yesPattern = /^(yes|si|confirm|aceptar|entrar)$/;
@@ -5999,7 +6250,7 @@ function buildFarmAutomationScript(config, options = {}) {
             return null;
           }).filter(Boolean).sort((left, right) => Number(right.hasNoButton) - Number(left.hasNoButton) || left.depth - right.depth);
           if (matches[0]) return { yesButton: matches[0].button };
-          return !visible(document.querySelector('.map-window')) ? { skipped: true } : null;
+          return !findMapWindow() || locationMatchesTarget() ? { skipped: true } : null;
         }, 6500);
         if (confirmation?.yesButton) {
           confirmation.yesButton.scrollIntoView?.({ block: 'center', inline: 'center' });
@@ -6011,12 +6262,12 @@ function buildFarmAutomationScript(config, options = {}) {
           await delay(300);
         }
       }
-      const mapClosed = await waitFor(() => !visible(document.querySelector('.map-window')), 6500);
-      if (!mapClosed) throw new Error('El viaje no se inició. Revisa el nivel y que el Pokémon líder tenga vida.');
+      const travelStarted = await waitFor(() => locationMatchesTarget() || !findMapWindow(), 9000);
+      if (!travelStarted) throw new Error('El viaje no se inició. Revisa el nivel y que el Pokémon líder tenga vida.');
     }
     const travelConfirmed = await waitFor(() => {
       return locationMatchesTarget();
-    }, 10000);
+    }, 15000);
     if (!travelConfirmed) throw new Error('El juego no confirmó la llegada a ' + target.name + '.');
     await delay(350);
 
@@ -6083,12 +6334,14 @@ function buildFarmAutomationScript(config, options = {}) {
       }
       const captureRect = currentCapture.getBoundingClientRect();
       const huntRect = currentHunt.getBoundingClientRect();
-      localStorage.setItem('pokegrid:capture-log-geometry:v2', JSON.stringify({
-        left: captureRect.left, top: captureRect.top, width: captureRect.width, height: captureRect.height
-      }));
-      localStorage.setItem('pokegrid:hunt-analyzer-geometry:v3', JSON.stringify({
-        left: huntRect.left, top: huntRect.top, width: huntRect.width, height: huntRect.height
-      }));
+      try {
+        localStorage.setItem('pokegrid:capture-log-geometry:v2', JSON.stringify({
+          left: captureRect.left, top: captureRect.top, width: captureRect.width, height: captureRect.height
+        }));
+        localStorage.setItem('pokegrid:hunt-analyzer-geometry:v3', JSON.stringify({
+          left: huntRect.left, top: huntRect.top, width: huntRect.width, height: huntRect.height
+        }));
+      } catch {}
     };
     window.__pgFarmArrangeMonitors = arrangeMonitors;
     if (!window.__pgFarmResizeBound) {

@@ -22,6 +22,7 @@ app.whenReady().then(async () => {
     const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
     const monitorScript = loadRendererFunction(renderer, 'captureMonitorInstallScript', 'clearNativeCaptureLogScript');
     const farmScript = loadRendererFunction(renderer, 'farmEnhancedContextScript', 'farmEnhancedCatalogScript');
+    const farmCatalogScript = loadRendererFunction(renderer, 'farmEnhancedCatalogScript', 'captureReferenceCatalogScript');
     const farmAutomationScript = loadRendererFunction(renderer, 'buildFarmAutomationScript', 'cleanFarmError');
 
     await window.webContents.executeJavaScript(`(() => {
@@ -218,6 +219,72 @@ app.whenReady().then(async () => {
     }
 
     await window.webContents.executeJavaScript(`(() => {
+      window.__farmOriginalFetch = window.fetch;
+      window.fetch = async (url) => {
+        const path = String(url);
+        const payload = path.includes('/api/game/map-markers') ? {
+          worlds: [{
+            slug: 'johto', name: 'Johto', maps: [{
+              slug: 'johto-west', name: 'Johto Oeste', regions: [{
+                slug: 'ilex-forest', name: 'Bosque Ilex', markers: [{
+                  pokemonName: 'Hoothoot', fieldTeleportSlug: 'hoothoot-field', requiredLevel: 'Nv. 42'
+                }]
+              }]
+            }]
+          }]
+        } : [];
+        return { ok: true, json: async () => payload };
+      };
+    })()`);
+    const nestedCatalog = await window.webContents.executeJavaScript(farmCatalogScript());
+    await window.webContents.executeJavaScript('window.fetch = window.__farmOriginalFetch; delete window.__farmOriginalFetch');
+    const nestedHunt = nestedCatalog?.hunts?.[0];
+    if (nestedCatalog?.hunts?.length !== 1 || nestedHunt?.name !== 'Hoothoot' ||
+      nestedHunt?.slug !== 'hoothoot-field' || nestedHunt?.map !== 'johto-west' ||
+      nestedHunt?.area !== 'ilex-forest' || nestedHunt?.level !== 42) {
+      throw new Error(`Nested map catalog was not flattened correctly: ${JSON.stringify(nestedCatalog)}`);
+    }
+
+    await window.webContents.executeJavaScript(`(() => {
+      document.body.innerHTML = [
+        '<div class="phud-tloc">Johto · Old Hunt</div>',
+        '<section data-map-window style="position:fixed;inset:10px;width:700px;height:500px">',
+        '<button role="tab" data-map-slug="johto-west">Johto Oeste</button>',
+        '<button role="tab" data-region="ilex-forest">Bosque Ilex</button>',
+        '<input class="map-filter-q" type="search">',
+        '<button data-field-teleport-slug="hoothoot-field" aria-label="Viajar a Hoothoot">Hoothoot</button>',
+        '</section>',
+        '<section data-pg-hunt-dialog="true" style="position:fixed;left:720px;top:10px;width:200px;height:300px"></section>',
+        '<section class="clog-window" style="position:fixed;left:10px;top:520px;width:400px;height:160px"></section>'
+      ].join('');
+      const map = document.querySelector('[data-map-slug]');
+      const area = document.querySelector('[data-region]');
+      map.addEventListener('click', () => { map.setAttribute('aria-selected', 'true'); window.__newMapSelected = true; });
+      area.addEventListener('click', () => { area.dataset.selected = 'true'; window.__newAreaSelected = true; });
+      document.querySelector('[data-field-teleport-slug]').addEventListener('click', () => {
+        document.querySelector('.phud-tloc').textContent = 'Johto Oeste · Hoothoot';
+        document.querySelector('[data-map-window]')?.remove();
+      });
+    })()`);
+    const nestedAutomationSource = farmAutomationScript({
+      target: {
+        slug: 'hoothoot-field', name: 'Hoothoot', map: 'johto-west', mapName: 'Johto Oeste',
+        area: 'ilex-forest', areaName: 'Bosque Ilex', level: 42
+      }
+    });
+    const nestedAutomation = await window.webContents.executeJavaScript(`(async () => {
+      try { return { result: await ${nestedAutomationSource} }; }
+      catch (error) { return { error: String(error?.message || error), stack: String(error?.stack || '') }; }
+    })()`);
+    const nestedNavigation = await window.webContents.executeJavaScript(`({
+      map: window.__newMapSelected === true,
+      area: window.__newAreaSelected === true
+    })`);
+    if (!nestedAutomation.result?.ok || !nestedNavigation.map || !nestedNavigation.area) {
+      throw new Error(`New map navigation failed: ${JSON.stringify({ nestedAutomation, nestedNavigation })}`);
+    }
+
+    await window.webContents.executeJavaScript(`(() => {
       document.body.innerHTML = [
         '<div class="phud-tloc">CapeGames · Orre Gate</div>',
         '<section class="map-window" style="position:fixed;inset:10px;width:700px;height:500px">',
@@ -289,6 +356,8 @@ app.whenReady().then(async () => {
       farm: actualFarm,
       optionalFarm: { name: optionalFarm.leader.name, strength: optionalFarm.leader.strength, ivTotal: optionalFarm.leader.ivTotal },
       websocketFarm: { name: websocketFarm.leader.name, strength: websocketFarm.leader.strength, source: websocketFarm.leader.dataSource },
+      nestedCatalog: { name: nestedHunt.name, map: nestedHunt.map, area: nestedHunt.area, slug: nestedHunt.slug },
+      nestedNavigation,
       orreAutoConfirmed,
       globalOverlayIgnored: globalCount === 0
     }));
