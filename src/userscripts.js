@@ -843,7 +843,7 @@
     dropZone.setAttribute('aria-busy', 'true');
     for (const file of files) {
       try {
-        if (Number(file.size) > 1_000_000) throw new Error('supera el límite de 1 MB');
+        if (Number(file.size) > 10 * 1024 * 1024) throw new Error('supera el límite de 10 MB');
         const code = await file.text();
         if (!/==UserScript==/i.test(code)) throw new Error('no contiene el bloque ==UserScript==');
         const validation = await window.pokeGrid.validateUserScriptSyntax(code);

@@ -24,6 +24,10 @@ assert.match(main, /La descarga no pertenece al repositorio oficial de la Shop/)
 assert.match(main, /SCRIPT_SHOP_CATALOG_LIMIT = 512_000/);
 assert.match(main, /replace\(\/\^\\uFEFF\//);
 assert.match(main, /USER_SCRIPT_CODE_LIMIT/);
+assert.match(main, /USER_SCRIPT_CODE_LIMIT = 10 \* 1024 \* 1024/);
+assert.match(main, /USER_SCRIPT_REQUEST_BODY_LIMIT = 1_000_000/);
+assert.match(renderer, /file\.size\) > 10 \* 1024 \* 1024/);
+assert.doesNotMatch(main, /límite de 1 MB/);
 assert.match(main, /existing\?\.accounts/);
 assert.match(main, /existing\?\.enabled !== false/);
 assert.match(main, /script\.namespace === item\.namespace && script\.name === publishedName/);

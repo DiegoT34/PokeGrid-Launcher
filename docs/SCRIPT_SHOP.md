@@ -11,7 +11,7 @@ Los scripts se mantienen en un repositorio separado para que el código del laun
 El archivo debe:
 
 - terminar en `.user.js`;
-- pesar menos de 1 MB;
+- pesar como máximo 10 MB;
 - contener un bloque `==UserScript==` válido;
 - declarar `@name`, `@namespace` y una versión semántica `@version` con formato `X.Y.Z`;
 - declarar sus `@match`, `@grant` y `@connect` reales;

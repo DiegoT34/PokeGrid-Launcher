@@ -12,8 +12,9 @@ const GAME_ORIGIN = 'https://poke.idleworld.online';
 const POKEPEDIA_URL = `${GAME_ORIGIN}/pokepedia`;
 const ACCOUNT_COUNT = 4;
 const USER_SCRIPT_LIMIT = 100;
-const USER_SCRIPT_CODE_LIMIT = 1_000_000;
+const USER_SCRIPT_CODE_LIMIT = 10 * 1024 * 1024;
 const USER_SCRIPT_RESPONSE_LIMIT = 2_000_000;
+const USER_SCRIPT_REQUEST_BODY_LIMIT = 1_000_000;
 const USER_SCRIPT_SHARED_VALUE_LIMIT = 256_000;
 const USER_SCRIPT_SHARED_STORE_LIMIT = 1_000_000;
 const SCRIPT_SHOP_CATALOG_URL = 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/catalog.json';
@@ -288,7 +289,7 @@ function normalizeUserScript(value, existing = null) {
   const code = String(value?.code || '');
   if (!code.trim()) throw new Error('El script no puede estar vacío.');
   if (Buffer.byteLength(code, 'utf8') > USER_SCRIPT_CODE_LIMIT) {
-    throw new Error('El script supera el límite de 1 MB.');
+    throw new Error('El script supera el límite de 10 MB.');
   }
   try {
     new Function(`return async function () {\n${code}\n};`);
@@ -587,7 +588,7 @@ async function performUserScriptRequest(event, scriptId, details) {
   const multipart = Array.isArray(details?.multipart) ? details.multipart.slice(0, 40) : null;
   const bodyText = details?.data == null ? undefined : String(details.data);
   if (multipart && bodyText !== undefined) throw new Error('La solicitud no puede mezclar data y multipart.');
-  if (bodyText && Buffer.byteLength(bodyText, 'utf8') > USER_SCRIPT_CODE_LIMIT) throw new Error('El cuerpo supera 1 MB.');
+  if (bodyText && Buffer.byteLength(bodyText, 'utf8') > USER_SCRIPT_REQUEST_BODY_LIMIT) throw new Error('El cuerpo supera 1 MB.');
   const headers = {};
   const forbiddenHeaders = new Set(['cookie', 'host', 'origin', 'referer', 'content-length']);
   for (const [key, rawValue] of Object.entries(details?.headers || {}).slice(0, 60)) {
@@ -609,7 +610,7 @@ async function performUserScriptRequest(event, scriptId, details) {
         }
         const bytes = Buffer.from(String(part.base64), 'base64');
         binaryBytes += bytes.length;
-        if (!bytes.length || binaryBytes > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo multipart supera 1 MB.');
+        if (!bytes.length || binaryBytes > USER_SCRIPT_REQUEST_BODY_LIMIT) throw new Error('El archivo multipart supera 1 MB.');
         const filename = String(part.filename || 'upload.bin').replace(/[^a-z0-9_.-]/gi, '_').slice(0, 120);
         form.append(name, new Blob([bytes], { type: mimeType }), filename);
       } else {
@@ -652,7 +653,7 @@ async function readUserScriptFromUrl(rawUrl) {
   if (!response.ok) throw new Error(`No se pudo descargar el script (${response.status}).`);
   if (new URL(response.url).protocol !== 'https:') throw new Error('La descarga fue redirigida fuera de HTTPS.');
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo está vacío o supera 1 MB.');
+  if (!bytes.length || bytes.length > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo está vacío o supera 10 MB.');
   const code = bytes.toString('utf8');
   if (!/==UserScript==/i.test(code)) throw new Error('El archivo no contiene un bloque ==UserScript==.');
   return { code, sourceUrl: response.url || target.href };
@@ -773,7 +774,7 @@ async function downloadScriptShopCode(item) {
   if (!response.ok) throw new Error(`No se pudo descargar el script (HTTP ${response.status}).`);
   const finalUrl = assertScriptShopDownloadUrl(response.url || target);
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length || bytes.length > USER_SCRIPT_CODE_LIMIT) throw new Error('El script está vacío o supera 1 MB.');
+  if (!bytes.length || bytes.length > USER_SCRIPT_CODE_LIMIT) throw new Error('El script está vacío o supera 10 MB.');
   const actualHash = crypto.createHash('sha256').update(bytes).digest('hex');
   if (actualHash !== item.sha256) throw new Error('La firma SHA-256 no coincide. La instalación fue cancelada por seguridad.');
   const code = bytes.toString('utf8');
@@ -1451,7 +1452,7 @@ ipcMain.handle('userscripts:import-file', async () => {
   if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
   try {
     const file = result.filePaths[0];
-    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo supera 1 MB.');
+    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo supera 10 MB.');
     return { ok: true, code: fs.readFileSync(file, 'utf8'), sourceUrl: pathToFileURL(file).href };
   } catch (error) {
     return { ok: false, error: error.message };
@@ -1461,7 +1462,7 @@ ipcMain.handle('userscripts:export-file', async (_event, value) => {
   try {
     const code = String(value?.code || '');
     if (!code.trim()) throw new Error('El script está vacío.');
-    if (Buffer.byteLength(code, 'utf8') > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo supera 1 MB.');
+    if (Buffer.byteLength(code, 'utf8') > USER_SCRIPT_CODE_LIMIT) throw new Error('El archivo supera 10 MB.');
     const baseName = String(value?.suggestedName || 'PokeGrid-userscript')
       .replace(/(?:\.user)?\.js$/i, '')
       .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
@@ -1488,7 +1489,7 @@ ipcMain.handle('userscripts:bundled-telegram', () => {
     const filename = 'PokeGrid-Telegram-Alerts.user.js';
     const file = path.join(bundledUserScriptsPath(), filename);
     if (!fs.existsSync(file)) throw new Error('No se encontró el módulo de alertas Telegram.');
-    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El módulo supera 1 MB.');
+    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El módulo supera 10 MB.');
     return {
       ok: true,
       code: fs.readFileSync(file, 'utf8'),
