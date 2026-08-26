@@ -402,18 +402,21 @@ function normalizeFarmTarget(value) {
   const nestedWorld = value.world && typeof value.world === 'object' ? value.world : {};
   const nestedArea = value.area && typeof value.area === 'object' ? value.area : {};
   const nestedRegion = value.region && typeof value.region === 'object' ? value.region : {};
-  const map = String(
+  const explicitMap = String(
     value.mapSlug || value.map_slug || nestedMap.slug || nestedMap.id || value.mapName || nestedMap.name ||
     value.worldSlug || value.world_slug || nestedWorld.slug || value.worldName || nestedWorld.name ||
     (typeof value.map === 'string' ? value.map : '') || (typeof value.world === 'string' ? value.world : '') ||
     value.continentSlug || value.continent || value._map || ''
   ).trim().toLowerCase();
-  const area = String(
+  const explicitArea = String(
     value.areaSlug || value.area_slug || nestedArea.slug || nestedArea.id || value.areaName || nestedArea.name ||
     value.regionSlug || value.region_slug || nestedRegion.slug || value.regionName || nestedRegion.name ||
     (typeof value.area === 'string' ? value.area : '') || (typeof value.region === 'string' ? value.region : '') ||
-    value.zoneSlug || value.zoneName || value.zone || value._area || map || 'kanto'
+    value.zoneSlug || value.zoneName || value.zone || value._area || explicitMap || 'kanto'
   ).trim().toLowerCase();
+  const gameMapKeys = new Set(['kanto', 'outland', 'orre', 'johto', 'nightmare']);
+  const map = explicitMap || (gameMapKeys.has(explicitArea) ? explicitArea : '');
+  const area = explicitArea || map || 'kanto';
   return {
     slug: slug.slice(0, 80),
     name: name.slice(0, 80),
@@ -5188,6 +5191,7 @@ function farmEnhancedCatalogScript() {
     };
     const hunts = [];
     const seenObjects = new WeakSet();
+    const gameMapKeys = new Set(['kanto', 'outland', 'orre', 'johto', 'nightmare']);
     const collectionRole = (key) => {
       if (/^(maps?|worlds?|continents?)$/i.test(key)) return 'map';
       if (/^(areas?|regions?|zones?|islands?|tabs?|groups?)$/i.test(key)) return 'area';
@@ -5248,14 +5252,20 @@ function farmEnhancedCatalogScript() {
           entry.huntSlug || entry.hunt_slug || entry.targetSlug || entry.target_slug)
       );
       if (huntSignal) {
+        const huntArea = first(entry.areaSlug, entry.area_slug, entry.area?.slug, entry.regionSlug, entry.region_slug, entry.region?.slug, entry.zoneSlug, nextContext.area, nextContext.map);
+        const huntMap = first(
+          entry.mapSlug, entry.map_slug, entry.map?.slug, entry.worldSlug, entry.world_slug,
+          entry.world?.slug, entry.continentSlug, nextContext.map,
+          gameMapKeys.has(huntArea.toLowerCase()) ? huntArea : ''
+        );
         hunts.push({
           ...entry,
           name,
           slug: slug || guide.replace(/^hunt[-_:]/i, ''),
           level,
-          map: first(entry.mapSlug, entry.map_slug, entry.map?.slug, entry.worldSlug, entry.world_slug, entry.world?.slug, entry.continentSlug, nextContext.map),
+          map: huntMap,
           mapName: first(entry.mapName, entry.map?.name, entry.worldName, entry.world?.name, entry.continentName, nextContext.mapName),
-          area: first(entry.areaSlug, entry.area_slug, entry.area?.slug, entry.regionSlug, entry.region_slug, entry.region?.slug, entry.zoneSlug, nextContext.area, nextContext.map),
+          area: huntArea || huntMap,
           areaName: first(entry.areaName, entry.area?.name, entry.regionName, entry.region?.name, entry.zoneName, nextContext.areaName, nextContext.mapName),
           guide
         });
@@ -6140,7 +6150,7 @@ function buildFarmAutomationScript(config, options = {}) {
       element?.click?.();
     };
     const navigationCandidates = () => [...new Set([
-      ...document.querySelectorAll('.map-area, .map-tab, .map-region'),
+      ...document.querySelectorAll('.map-area, .map-plate, .map-tab, .map-region'),
       ...document.querySelectorAll('[data-map], [data-map-slug], [data-world], [data-region], [data-area]'),
       ...document.querySelectorAll('[role="tab"]')
     ])].filter((element) => !element.matches('.hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug]'));
@@ -6150,15 +6160,15 @@ function buildFarmAutomationScript(config, options = {}) {
       const exactAttributes = kind === 'map'
         ? ['data-map-slug', 'data-map', 'data-world']
         : ['data-area', 'data-region', 'data-zone'];
-      const candidates = navigationCandidates();
-      const control = candidates.find((element) => exactAttributes.some((attribute) => normalize(element.getAttribute(attribute)) === wanted)) ||
-        candidates.find((element) => buttonDescriptor(element) === wanted) ||
-        candidates.find((element) => buttonDescriptor(element).includes(wanted));
+      const matchesControl = (element) => exactAttributes.some((attribute) => normalize(element.getAttribute(attribute)) === wanted) ||
+        buttonDescriptor(element) === wanted || buttonDescriptor(element).includes(wanted);
+      const control = navigationCandidates().find(matchesControl);
       if (!control) return false;
       if (!isSelected(control)) {
         clickControl(control);
         await delay(350);
-        await waitFor(() => isSelected(control) || !document.documentElement.contains(control), 1800);
+        const activated = await waitFor(() => navigationCandidates().find((element) => matchesControl(element) && isSelected(element)) || null, 3000);
+        if (!activated) return false;
       }
       return true;
     };
@@ -6167,8 +6177,11 @@ function buildFarmAutomationScript(config, options = {}) {
     const targetMapName = normalize(target.mapName);
     const targetArea = normalize(target.area);
     const targetAreaName = normalize(target.areaName);
-    const mapSelected = await selectNavigation(targetMap, 'map');
-    if (!mapSelected && targetMapName !== targetMap) await selectNavigation(targetMapName, 'map');
+    let mapSelected = await selectNavigation(targetMap, 'map');
+    if (!mapSelected && targetMapName !== targetMap) mapSelected = await selectNavigation(targetMapName, 'map');
+    if (targetMap && !mapSelected) {
+      throw new Error('No se pudo activar el mapa ' + (target.mapName || target.map) + ' antes de buscar ' + target.name + '.');
+    }
     if (targetArea && targetArea !== targetMap) {
       const areaSelected = await selectNavigation(targetArea, 'area');
       if (!areaSelected && targetAreaName !== targetArea) await selectNavigation(targetAreaName, 'area');

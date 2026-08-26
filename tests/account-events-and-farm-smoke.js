@@ -223,6 +223,7 @@ app.whenReady().then(async () => {
       window.fetch = async (url) => {
         const path = String(url);
         const payload = path.includes('/api/game/map-markers') ? {
+          hunts: [{ name: 'Porygon', slug: 'porygon', area: 'outland', level: 150 }],
           worlds: [{
             slug: 'johto', name: 'Johto', maps: [{
               slug: 'johto-west', name: 'Johto Oeste', regions: [{
@@ -238,10 +239,12 @@ app.whenReady().then(async () => {
     })()`);
     const nestedCatalog = await window.webContents.executeJavaScript(farmCatalogScript());
     await window.webContents.executeJavaScript('window.fetch = window.__farmOriginalFetch; delete window.__farmOriginalFetch');
-    const nestedHunt = nestedCatalog?.hunts?.[0];
-    if (nestedCatalog?.hunts?.length !== 1 || nestedHunt?.name !== 'Hoothoot' ||
+    const nestedHunt = nestedCatalog?.hunts?.find((hunt) => hunt.name === 'Hoothoot');
+    const outlandHunt = nestedCatalog?.hunts?.find((hunt) => hunt.name === 'Porygon');
+    if (nestedCatalog?.hunts?.length !== 2 || nestedHunt?.name !== 'Hoothoot' ||
       nestedHunt?.slug !== 'hoothoot-field' || nestedHunt?.map !== 'johto-west' ||
-      nestedHunt?.area !== 'ilex-forest' || nestedHunt?.level !== 42) {
+      nestedHunt?.area !== 'ilex-forest' || nestedHunt?.level !== 42 ||
+      outlandHunt?.map !== 'outland' || outlandHunt?.area !== 'outland') {
       throw new Error(`Nested map catalog was not flattened correctly: ${JSON.stringify(nestedCatalog)}`);
     }
 
@@ -282,6 +285,56 @@ app.whenReady().then(async () => {
     })`);
     if (!nestedAutomation.result?.ok || !nestedNavigation.map || !nestedNavigation.area) {
       throw new Error(`New map navigation failed: ${JSON.stringify({ nestedAutomation, nestedNavigation })}`);
+    }
+
+    await window.webContents.executeJavaScript(`(() => {
+      document.body.innerHTML = [
+        '<div class="phud-tloc">Kanto · Old Hunt</div>',
+        '<section class="map-window" style="position:fixed;inset:10px;width:700px;height:500px">',
+        '<div class="map-areas">',
+        '<button class="map-plate on"><img src="/assets/maps/tabs/kanto.png" alt="Kanto"></button>',
+        '<button class="map-plate"><img src="/assets/maps/tabs/outland.png" alt="Outland"></button>',
+        '<button class="map-plate"><img src="/assets/maps/tabs/orre.png" alt="Orre"></button>',
+        '</div>',
+        '<input class="map-filter-q" type="search">',
+        '</section>',
+        '<section data-pg-hunt-dialog="true" style="position:fixed;left:720px;top:10px;width:200px;height:300px"></section>',
+        '<section class="clog-window" style="position:fixed;left:10px;top:520px;width:400px;height:160px"></section>'
+      ].join('');
+      const plates = [...document.querySelectorAll('.map-plate')];
+      const outland = plates[1];
+      outland.addEventListener('click', () => {
+        plates.forEach((plate) => plate.classList.remove('on'));
+        outland.classList.add('on');
+        window.__outlandSelectedFirst = true;
+      });
+      document.querySelector('.map-filter-q').addEventListener('input', (event) => {
+        window.__searchUsedMap = outland.classList.contains('on') ? 'outland' : 'kanto';
+        if (!outland.classList.contains('on') || !/porygon/i.test(event.target.value) || document.querySelector('.hunt-marker')) return;
+        const marker = document.createElement('button');
+        marker.className = 'hunt-marker';
+        marker.dataset.guide = 'hunt-porygon';
+        marker.textContent = 'Porygon';
+        marker.addEventListener('click', () => {
+          document.querySelector('.phud-tloc').textContent = 'Outland · Porygon';
+          document.querySelector('.map-window')?.remove();
+        });
+        document.querySelector('.map-window').appendChild(marker);
+      });
+    })()`);
+    const outlandAutomationSource = farmAutomationScript({
+      target: { slug: 'porygon', name: 'Porygon', map: 'outland', mapName: 'Outland', area: 'outland', level: 150 }
+    });
+    const outlandAutomation = await window.webContents.executeJavaScript(`(async () => {
+      try { return { result: await ${outlandAutomationSource} }; }
+      catch (error) { return { error: String(error?.message || error), stack: String(error?.stack || '') }; }
+    })()`);
+    const outlandNavigation = await window.webContents.executeJavaScript(`({
+      mapSelectedFirst: window.__outlandSelectedFirst === true,
+      searchedMap: window.__searchUsedMap || ''
+    })`);
+    if (!outlandAutomation.result?.ok || !outlandNavigation.mapSelectedFirst || outlandNavigation.searchedMap !== 'outland') {
+      throw new Error(`Outland was not activated before searching: ${JSON.stringify({ outlandAutomation, outlandNavigation })}`);
     }
 
     await window.webContents.executeJavaScript(`(() => {
@@ -358,6 +411,7 @@ app.whenReady().then(async () => {
       websocketFarm: { name: websocketFarm.leader.name, strength: websocketFarm.leader.strength, source: websocketFarm.leader.dataSource },
       nestedCatalog: { name: nestedHunt.name, map: nestedHunt.map, area: nestedHunt.area, slug: nestedHunt.slug },
       nestedNavigation,
+      outlandNavigation,
       orreAutoConfirmed,
       globalOverlayIgnored: globalCount === 0
     }));
