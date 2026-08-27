@@ -130,6 +130,7 @@ app.whenReady().then(async () => {
         qualityValue: 1.5,
         moves: [{ name: 'Steel Wing', type: 'STEEL', power: 140, cooldownMs: 8000, tm: true }],
         heldItems: [{ id: 59216, name: 'Steel-Type TM Disk', category: 'tm' }],
+        aoeTmActive: true,
         stats: { hp: 65, atk: 80, def: 140, spAtk: 40, spDef: 70, speed: 70 }
       };
       root.__reactFiber$test = {
@@ -153,6 +154,7 @@ app.whenReady().then(async () => {
       ivTotal: farm.leader?.ivTotal,
       move: farm.leader?.moves?.[0]?.name,
       item: farm.leader?.items?.[0]?.name,
+      tmKinds: farm.leader?.items?.filter((item) => item.isTm).map((item) => item.isAoe ? 'aoe' : item.isTypeTm ? 'type' : 'tm').join(','),
       defense: farm.leader?.stats?.defense,
       qualityValue: farm.leader?.qualityValue
     };
@@ -170,6 +172,7 @@ app.whenReady().then(async () => {
       ivTotal: 130,
       move: 'Steel Wing',
       item: 'Steel-Type TM Disk',
+      tmKinds: 'type,aoe',
       defense: 1115,
       qualityValue: 1.8
     };

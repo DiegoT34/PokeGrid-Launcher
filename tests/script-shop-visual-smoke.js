@@ -26,11 +26,23 @@ app.whenReady().then(async () => {
   try {
     await window.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
     await waitFor(window, 'window.pokeGridUserScriptManager');
+    await window.webContents.executeJavaScript(`localStorage.removeItem('pokegrid:script-shop-seen:v1')`);
+    await window.webContents.reload();
+    await waitFor(window, 'window.pokeGridUserScriptManager');
+    await waitFor(window, '!document.querySelector("#scriptsMenuBadge").hidden && !document.querySelector("#hamburgerScriptBadge").hidden');
+    const notificationBadges = await window.webContents.executeJavaScript(`({
+      scripts: document.querySelector('#scriptsMenuBadge').textContent,
+      hamburger: document.querySelector('#hamburgerScriptBadge').textContent
+    })`);
+    if (notificationBadges.scripts !== '1' || notificationBadges.hamburger !== '1') {
+      throw new Error(`Script Shop notification badges failed: ${JSON.stringify(notificationBadges)}`);
+    }
     await window.webContents.executeJavaScript(`(() => {
       document.querySelector('#scriptsButton').click();
       document.querySelector('#scriptShopTab').click();
     })()`);
     await waitFor(window, 'document.querySelectorAll(".script-shop-card").length === 1');
+    await waitFor(window, 'document.querySelector("#scriptsMenuBadge").hidden && document.querySelector("#hamburgerScriptBadge").hidden');
     const desktop = await window.webContents.executeJavaScript(`(() => {
       const modal = document.querySelector('.scripts-modal').getBoundingClientRect();
       const card = document.querySelector('.script-shop-card').getBoundingClientRect();
@@ -79,7 +91,7 @@ app.whenReady().then(async () => {
     if (retired.cards !== 0 || !retired.message.includes('retirado de la Shop')) {
       throw new Error(`Retired Shop item was not removed locally: ${JSON.stringify(retired)}`);
     }
-    console.log(JSON.stringify({ desktop, mobile, retired }));
+    console.log(JSON.stringify({ notificationBadges, desktop, mobile, retired }));
   } catch (error) {
     console.error(error.stack || error);
     process.exitCode = 1;

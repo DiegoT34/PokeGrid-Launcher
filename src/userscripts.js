@@ -22,6 +22,8 @@
 `;
 
   const scriptsButton = document.querySelector('#scriptsButton');
+  const hamburgerScriptBadge = document.querySelector('#hamburgerScriptBadge');
+  const scriptsMenuBadge = document.querySelector('#scriptsMenuBadge');
   const backdrop = document.querySelector('#scriptsBackdrop');
   const closeButton = document.querySelector('#closeScriptsButton');
   const newButton = document.querySelector('#newScriptButton');
@@ -76,6 +78,8 @@
   const scriptShopSummary = document.querySelector('#scriptShopSummary');
   const scriptShopGrid = document.querySelector('#scriptShopGrid');
   const scriptShopMessage = document.querySelector('#scriptShopMessage');
+  const SCRIPT_SHOP_SEEN_KEY = 'pokegrid:script-shop-seen:v1';
+  const SCRIPT_SHOP_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
   let scripts = [];
   let selectedId = null;
@@ -95,6 +99,9 @@
   let scriptShopBusyId = '';
   let scriptShopLauncherVersion = '0.0.0';
   let activeScriptsView = 'installed';
+  let scriptShopLastCheckedAt = 0;
+  let scriptShopPollTimer = 0;
+  let scriptShopSeen = loadScriptShopSeen();
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -496,6 +503,47 @@
     return scripts.find((script) => script.shopId === shopId) || null;
   }
 
+  function loadScriptShopSeen() {
+    try {
+      const value = JSON.parse(localStorage.getItem(SCRIPT_SHOP_SEEN_KEY) || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function scriptShopSignature(item) {
+    return `${String(item?.version || '')}|${String(item?.sha256 || '')}`;
+  }
+
+  function saveScriptShopSeen() {
+    try { localStorage.setItem(SCRIPT_SHOP_SEEN_KEY, JSON.stringify(scriptShopSeen)); } catch {}
+  }
+
+  function markScriptShopCatalogSeen() {
+    if (!scriptShopCatalog?.scripts) return;
+    for (const item of scriptShopCatalog.scripts) scriptShopSeen[item.id] = scriptShopSignature(item);
+    saveScriptShopSeen();
+  }
+
+  function scriptShopNotificationCounts() {
+    const rows = scriptShopCatalog?.scripts || [];
+    const updates = rows.filter((item) => scriptShopState(item).key === 'update').length;
+    const newScripts = rows.filter((item) => {
+      if (installedShopScript(item.id)) return false;
+      return scriptShopSeen[item.id] !== scriptShopSignature(item);
+    }).length;
+    return { updates, newScripts, total: updates + newScripts };
+  }
+
+  function setMenuBadge(element, total, title) {
+    if (!element) return;
+    element.textContent = total > 99 ? '99+' : String(total);
+    element.hidden = total === 0;
+    element.title = title;
+    element.setAttribute('aria-label', title);
+  }
+
   function scriptShopState(item) {
     const installed = installedShopScript(item.id);
     if (!installed) return { key: 'available', label: 'Disponible', installed: null };
@@ -508,9 +556,16 @@
   }
 
   function updateScriptShopBadge() {
-    const updates = scriptShopCatalog?.scripts?.filter((item) => scriptShopState(item).key === 'update').length || 0;
-    scriptShopUpdateBadge.textContent = String(updates);
-    scriptShopUpdateBadge.hidden = updates === 0;
+    const { updates, newScripts, total } = scriptShopNotificationCounts();
+    const details = [
+      newScripts ? `${newScripts} script${newScripts === 1 ? '' : 's'} nuevo${newScripts === 1 ? '' : 's'}` : '',
+      updates ? `${updates} actualización${updates === 1 ? '' : 'es'}` : ''
+    ].filter(Boolean).join(' y ') || 'No hay novedades de scripts';
+    scriptShopUpdateBadge.textContent = total > 99 ? '99+' : String(total);
+    scriptShopUpdateBadge.hidden = total === 0;
+    setMenuBadge(scriptsMenuBadge, total, details);
+    setMenuBadge(hamburgerScriptBadge, total, details);
+    scriptsButton.title = details;
   }
 
   function setScriptShopMessage(text, kind = '') {
@@ -598,29 +653,43 @@
     }
   }
 
-  async function loadScriptShop(refresh = false) {
+  async function loadScriptShop(refresh = false, { background = false } = {}) {
     if (scriptShopLoading) return;
     scriptShopLoading = true;
-    refreshScriptShopButton.disabled = true;
-    setScriptShopMessage(refresh ? 'Verificando publicaciones y actualizaciones…' : 'Conectando con la Shop…');
+    scriptShopLastCheckedAt = Date.now();
+    if (!background) {
+      refreshScriptShopButton.disabled = true;
+      setScriptShopMessage(refresh ? 'Verificando publicaciones y actualizaciones…' : 'Conectando con la Shop…');
+    }
     try {
       const result = await window.pokeGrid.loadScriptShop(refresh);
       if (!result?.ok) throw new Error(result?.error || 'No se pudo cargar el catálogo online.');
       scriptShopCatalog = result.catalog;
       scriptShopLauncherVersion = String(result.launcherVersion || scriptShopLauncherVersion);
       if (Array.isArray(result.scripts)) scripts = result.scripts;
+      if (activeScriptsView === 'shop') markScriptShopCatalogSeen();
       renderList();
       renderScriptShop();
-      setScriptShopMessage(result.catalog?.stale
-        ? `Se muestra la última copia disponible. ${result.catalog.warning || ''}`
-        : 'Catálogo verificado con GitHub.', result.catalog?.stale ? '' : 'ok');
+      if (!background || activeScriptsView === 'shop') {
+        setScriptShopMessage(result.catalog?.stale
+          ? `Se muestra la última copia disponible. ${result.catalog.warning || ''}`
+          : 'Catálogo verificado con GitHub.', result.catalog?.stale ? '' : 'ok');
+      }
     } catch (error) {
       renderScriptShop();
-      setScriptShopMessage(error.message || 'No se pudo abrir la Shop. Comprueba tu conexión.');
+      if (!background || activeScriptsView === 'shop') {
+        setScriptShopMessage(error.message || 'No se pudo abrir la Shop. Comprueba tu conexión.');
+      }
     } finally {
       scriptShopLoading = false;
-      refreshScriptShopButton.disabled = false;
+      if (!background) refreshScriptShopButton.disabled = false;
     }
+  }
+
+  function refreshScriptShopNotifications(force = false) {
+    if (typeof window.pokeGrid.loadScriptShop !== 'function') return;
+    if (!force && Date.now() - scriptShopLastCheckedAt < SCRIPT_SHOP_POLL_INTERVAL_MS) return;
+    void loadScriptShop(true, { background: true });
   }
 
   async function installFromScriptShop(item) {
@@ -683,7 +752,12 @@
     scriptShopTab.classList.toggle('is-active', shopActive);
     installedScriptsTab.setAttribute('aria-selected', String(!shopActive));
     scriptShopTab.setAttribute('aria-selected', String(shopActive));
-    if (shopActive && !scriptShopCatalog) loadScriptShop(false);
+    if (shopActive && scriptShopCatalog) {
+      markScriptShopCatalogSeen();
+      renderScriptShop();
+    } else if (shopActive) {
+      loadScriptShop(false);
+    }
   }
 
   function draftAccounts() {
@@ -1265,6 +1339,10 @@ ${script.code}
     guestPreloadUrl = await window.pokeGrid.getGuestPreloadUrl();
     await Promise.all([loadScripts(), loadExtensionStatus()]);
     renderScriptShop();
+    refreshScriptShopNotifications(true);
+    scriptShopPollTimer = window.setInterval(() => {
+      if (!document.hidden) refreshScriptShopNotifications(true);
+    }, SCRIPT_SHOP_POLL_INTERVAL_MS);
     return guestPreloadUrl;
   }
 
@@ -1272,6 +1350,9 @@ ${script.code}
   installedScriptsTab.addEventListener('click', () => switchScriptsView('installed'));
   scriptShopTab.addEventListener('click', () => switchScriptsView('shop'));
   refreshScriptShopButton.addEventListener('click', () => loadScriptShop(true));
+  window.addEventListener('focus', () => refreshScriptShopNotifications(false));
+  window.addEventListener('online', () => refreshScriptShopNotifications(true));
+  window.addEventListener('beforeunload', () => window.clearInterval(scriptShopPollTimer), { once: true });
   scriptShopSearch.addEventListener('input', renderScriptShop);
   closeButton.addEventListener('click', close);
   newButton.addEventListener('click', () => showDraft());

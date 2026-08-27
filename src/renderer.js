@@ -318,40 +318,88 @@ function normalizeFarmStats(value) {
   };
 }
 
+function farmCollectionRows(value) {
+  if (value == null || value === false) return [];
+  if (Array.isArray(value)) return value.flatMap(farmCollectionRows);
+  if (typeof value !== 'object') return [value];
+  if (value.name || value.itemName || value.moveName || value.skillName || value.label || value.item || value.move) return [value];
+  return Object.entries(value).flatMap(([key, entry]) => {
+    if (entry == null || entry === false) return [];
+    if (entry === true) return [{ name: key, _sourceKey: key, active: true }];
+    if (typeof entry === 'object') return [{ ...entry, _sourceKey: key }];
+    return [{ name: String(entry), _sourceKey: key }];
+  });
+}
+
+function farmTypeFromLabel(value) {
+  return String(value || '').split(/[^\p{L}]+/u).map(normalizePokemonType).find(Boolean) || '';
+}
+
 function normalizeFarmMoves(value) {
-  const rows = Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
+  const rows = farmCollectionRows(value);
   return rows.map((move) => {
     if (!move) return null;
     if (typeof move === 'string') return { name: move.slice(0, 60), type: '', power: 0, cooldownMs: 0, category: '', isTm: false };
     const name = String(move.name || move.moveName || move.skillName || move.move?.name || '').trim();
     if (!name) return null;
+    const tmText = `${name} ${move.category || ''} ${move.source || ''} ${move._sourceKey || ''}`;
+    const isTm = Boolean(move.tm || move.isTm || move.fromTm || move.source === 'tm' || /(?:^|\W)(?:tm|mt)(?:\W|$)/i.test(tmText));
+    const isAoe = Boolean(move.aoe || move.isAoe || move.area || move.areaOfEffect || /(?:^|\W)(?:aoe|area\s+of\s+effect)(?:\W|$)/i.test(tmText));
+    const type = normalizePokemonType(move.type || move.moveType || move.move?.type) || farmTypeFromLabel(name);
     return {
       name: name.slice(0, 60),
-      type: normalizePokemonType(move.type || move.moveType || move.move?.type),
+      type,
       power: Math.max(0, Number(move.power || move.damage || move.basePower || move.move?.power) || 0),
       cooldownMs: Math.max(0, Number(move.cooldownMs || move.cooldown || move.cd || move.move?.cooldownMs) || 0),
       category: String(move.category || move.damageClass || '').slice(0, 20),
-      isTm: Boolean(move.tm || move.isTm || move.fromTm || move.source === 'tm')
+      isTm,
+      isAoe: isTm && isAoe,
+      isTypeTm: isTm && !isAoe && Boolean(type),
+      equipped: move.equipped !== false && move.active !== false && move.enabled !== false
     };
   }).filter(Boolean).slice(0, 12);
 }
 
 function normalizeFarmItems(value) {
-  const rows = Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
+  const rows = farmCollectionRows(value);
   return rows.map((item) => {
     if (!item) return null;
     const source = typeof item === 'object' ? item : { name: item };
-    const name = String(source.name || source.itemName || source.label || source.item?.name || '').trim();
+    const sourceKey = String(source._sourceKey || '');
+    const name = String(source.name || source.itemName || source.label || source.item?.name || sourceKey || '').trim();
     if (!name) return null;
-    const typeMatch = name.match(/(normal|fire|water|grass|electric|ice|fighting|poison|ground|flying|psychic|bug|rock|ghost|dragon|dark|steel|fairy)[- ]type/i);
+    const tmText = `${name} ${source.category || ''} ${source.kind || ''} ${sourceKey}`;
+    const type = normalizePokemonType(source.type || source.element) || farmTypeFromLabel(name);
+    const isTm = Boolean(source.tm || source.isTm || /(?:^|\W)(?:tm|mt)(?:\W|$)/i.test(tmText) ||
+      /type\s+(?:tm|mt)\s+disk/i.test(tmText) || /^(?:aoe|elemental|type|aoe(?:tm|mt)|elemental(?:tm|mt)|type(?:tm|mt))$/i.test(sourceKey));
+    const isAoe = Boolean(source.aoe || source.isAoe || source.area || source.areaOfEffect || /(?:^|\W)(?:aoe|area\s+of\s+effect)(?:\W|$)/i.test(tmText));
     return {
       id: String(source.id || source.itemId || source.item?.id || '').slice(0, 80),
       name: name.slice(0, 80),
       category: String(source.category || source.kind || source.item?.category || '').toLowerCase().slice(0, 30),
-      type: normalizePokemonType(source.type || source.element || typeMatch?.[1]),
-      isTm: /(?:^|\s)(?:tm|mt)(?:\s|$)|type tm disk/i.test(name) || /^(?:tm|mt)$/i.test(String(source.category || ''))
+      type,
+      isTm,
+      isAoe: isTm && isAoe,
+      isTypeTm: isTm && !isAoe && Boolean(type),
+      equipped: source.equipped !== false && source.active !== false && source.enabled !== false
     };
   }).filter(Boolean).slice(0, 12);
+}
+
+function farmLeaderTmSummary(leader) {
+  if (!leader) return { all: [], aoe: [], type: [] };
+  const candidates = [
+    ...(leader.items || []).filter((item) => item.isTm && item.equipped !== false),
+    ...(leader.moves || []).filter((move) => move.isTm && move.equipped !== false)
+  ];
+  const unique = new Map();
+  for (const entry of candidates) {
+    const kind = entry.isAoe ? 'aoe' : entry.isTypeTm || entry.type ? 'type' : 'tm';
+    const key = `${kind}|${entry.type || ''}|${normalizeSearchText(entry.name)}`;
+    if (!unique.has(key)) unique.set(key, { name: entry.name || (kind === 'aoe' ? 'MT AoE' : 'MT'), type: entry.type || '', kind });
+  }
+  const all = [...unique.values()];
+  return { all, aoe: all.filter((entry) => entry.kind === 'aoe'), type: all.filter((entry) => entry.kind === 'type') };
 }
 
 function farmTierMultiplier(value, label = '') {
@@ -475,8 +523,18 @@ function normalizeFarmLeader(value) {
     speciesId: Math.max(0, Number(value.speciesId) || 0),
     id: String(value.id || value.pokemonId || '').slice(0, 100),
     stats,
-    moves: normalizeFarmMoves(value.moves || value.attacks || value.skills),
-    items: normalizeFarmItems(value.items || value.heldItems || value.equipment || value.equippedItems),
+    moves: normalizeFarmMoves([value.moves, value.attacks, value.skills, value.equippedMoves, value.activeMoves]),
+    items: normalizeFarmItems([
+      value.heldItems, value.equippedItems, value.equipment, value.activeItems,
+      value.activeTms, value.activeTMs, value.equippedTms, value.equippedTMs,
+      value.tms, value.tmSlots,
+      value.aoeTm != null ? (typeof value.aoeTm === 'object' ? { ...value.aoeTm, _sourceKey: 'aoeTm', aoe: true } : { name: value.aoeTm === true ? 'AoE TM' : String(value.aoeTm), _sourceKey: 'aoeTm', aoe: true }) : null,
+      value.aoeTM != null ? (typeof value.aoeTM === 'object' ? { ...value.aoeTM, _sourceKey: 'aoeTM', aoe: true } : { name: value.aoeTM === true ? 'AoE TM' : String(value.aoeTM), _sourceKey: 'aoeTM', aoe: true }) : null,
+      value.elementalTm != null ? (typeof value.elementalTm === 'object' ? { ...value.elementalTm, _sourceKey: 'elementalTm' } : { name: String(value.elementalTm), _sourceKey: 'elementalTm' }) : null,
+      value.typeTm != null ? (typeof value.typeTm === 'object' ? { ...value.typeTm, _sourceKey: 'typeTm' } : { name: String(value.typeTm), _sourceKey: 'typeTm' }) : null,
+      value.aoeTmActive === true ? { name: 'AoE TM', category: 'tm', aoe: true } : null,
+      value.items
+    ]),
     ivTotal: Math.max(0, Number(value.ivTotal || value.totalIv || value.iv) || 0),
     ivMax: Math.max(1, Number(value.ivMax) || 192),
     quality,
@@ -4788,6 +4846,18 @@ function farmEnhancedContextScript(forcePokes = false) {
       const type = aliases[raw] || raw;
       return validTypes.has(type) ? type : '';
     };
+    const collectionRows = (value) => {
+      if (value == null || value === false) return [];
+      if (Array.isArray(value)) return value.flatMap(collectionRows);
+      if (typeof value !== 'object') return [value];
+      if (value.name || value.itemName || value.moveName || value.skillName || value.label || value.item || value.move) return [value];
+      return Object.entries(value).flatMap(([key, entry]) => {
+        if (entry == null || entry === false) return [];
+        if (entry === true) return [{ name: key, _sourceKey: key, active: true }];
+        if (typeof entry === 'object') return [{ ...entry, _sourceKey: key }];
+        return [{ name: String(entry), _sourceKey: key }];
+      });
+    };
     const root = document.querySelector('.game-root, #root, [data-guide="game-root"]') || document.querySelector('main') || document.body;
     const records = new Map();
     const trainerNames = [];
@@ -4845,27 +4915,49 @@ function farmEnhancedContextScript(forcePokes = false) {
         ...(Array.isArray(value.types) ? value.types : []),
         value.type1, value.type2, value.primaryType, value.secondaryType
       ].map(typeName).filter(Boolean))].slice(0, 2);
-      const moveRows = value.moves || value.attacks || value.skills || value.equippedMoves || [];
-      const moves = (Array.isArray(moveRows) ? moveRows : Object.values(moveRows || {})).map((move) => {
+      const moveRows = collectionRows([value.moves, value.attacks, value.skills, value.equippedMoves, value.activeMoves]);
+      const moves = moveRows.map((move) => {
         if (!move) return null;
         if (typeof move === 'string') return { name: clean(move), type: '', power: 0, cooldownMs: 0, isTm: false };
         const moveName = clean(move.name ?? move.moveName ?? move.skillName ?? move.move?.name);
-        return moveName ? { name: moveName, type: typeName(move.type ?? move.moveType ?? move.move?.type),
+        const moveType = typeName(move.type ?? move.moveType ?? move.move?.type) || clean(moveName).split(/[^a-z]+/i).map(typeName).find(Boolean) || '';
+        const tmText = `${moveName} ${clean(move.category)} ${clean(move.source)} ${clean(move._sourceKey)}`;
+        const isTm = Boolean(move.tm || move.isTm || move.fromTm || move.source === 'tm' || /(?:^|\W)(?:tm|mt)(?:\W|$)/i.test(tmText));
+        const isAoe = Boolean(move.aoe || move.isAoe || move.area || move.areaOfEffect || /(?:^|\W)(?:aoe|area\s+of\s+effect)(?:\W|$)/i.test(tmText));
+        return moveName ? { name: moveName, type: moveType,
           power: positiveNumber(move.power ?? move.damage ?? move.basePower ?? move.move?.power),
           cooldownMs: positiveNumber(move.cooldownMs ?? move.cooldown ?? move.cd ?? move.move?.cooldownMs),
-          category: clean(move.category ?? move.damageClass), isTm: Boolean(move.tm || move.isTm || move.fromTm || move.source === 'tm') } : null;
+          category: clean(move.category ?? move.damageClass), isTm, isAoe: isTm && isAoe,
+          isTypeTm: isTm && !isAoe && Boolean(moveType), equipped: move.equipped !== false && move.active !== false && move.enabled !== false } : null;
       }).filter(Boolean).slice(0, 12);
-      const itemRows = value.heldItems || value.equippedItems || value.equipment || value.items || [];
-      const items = (Array.isArray(itemRows) ? itemRows : Object.values(itemRows || {})).map((item) => {
+      const itemRows = collectionRows([
+        value.heldItems, value.equippedItems, value.equipment, value.activeItems,
+        value.activeTms, value.activeTMs, value.equippedTms, value.equippedTMs,
+        value.tms, value.tmSlots,
+        value.aoeTm != null ? (typeof value.aoeTm === 'object' ? { ...value.aoeTm, _sourceKey: 'aoeTm', aoe: true } : { name: value.aoeTm === true ? 'AoE TM' : String(value.aoeTm), _sourceKey: 'aoeTm', aoe: true }) : null,
+        value.aoeTM != null ? (typeof value.aoeTM === 'object' ? { ...value.aoeTM, _sourceKey: 'aoeTM', aoe: true } : { name: value.aoeTM === true ? 'AoE TM' : String(value.aoeTM), _sourceKey: 'aoeTM', aoe: true }) : null,
+        value.elementalTm != null ? (typeof value.elementalTm === 'object' ? { ...value.elementalTm, _sourceKey: 'elementalTm' } : { name: String(value.elementalTm), _sourceKey: 'elementalTm' }) : null,
+        value.typeTm != null ? (typeof value.typeTm === 'object' ? { ...value.typeTm, _sourceKey: 'typeTm' } : { name: String(value.typeTm), _sourceKey: 'typeTm' }) : null,
+        value.aoeTmActive === true ? { name: 'AoE TM', category: 'tm', aoe: true } : null,
+        value.hasAoeTm === true ? { name: 'AoE TM', category: 'tm', aoe: true } : null,
+        value.items
+      ]);
+      const readTmItem = (item) => {
         if (!item) return null;
         const source = typeof item === 'object' ? item : { name: item };
-        const itemName = clean(source.name ?? source.itemName ?? source.label ?? source.item?.name);
-        const typeMatch = itemName.match(/(normal|fire|water|grass|electric|ice|fighting|poison|ground|flying|psychic|bug|rock|ghost|dragon|dark|steel|fairy)[- ]type/i);
+        const sourceKey = clean(source._sourceKey);
+        const itemName = clean(source.name ?? source.itemName ?? source.label ?? source.item?.name ?? sourceKey);
+        const itemType = typeName(source.type ?? source.element) || itemName.split(/[^a-z]+/i).map(typeName).find(Boolean) || '';
+        const tmText = `${itemName} ${clean(source.category)} ${clean(source.kind)} ${sourceKey}`;
+        const isTm = Boolean(source.tm || source.isTm || /(?:^|\W)(?:tm|mt)(?:\W|$)/i.test(tmText) ||
+          /type\s+(?:tm|mt)\s+disk/i.test(tmText) || /^(?:aoe|elemental|type|aoe(?:tm|mt)|elemental(?:tm|mt)|type(?:tm|mt))$/i.test(sourceKey));
+        const isAoe = Boolean(source.aoe || source.isAoe || source.area || source.areaOfEffect || /(?:^|\W)(?:aoe|area\s+of\s+effect)(?:\W|$)/i.test(tmText));
         return itemName ? { id: clean(source.id ?? source.itemId ?? source.item?.id), name: itemName,
           category: clean(source.category ?? source.kind ?? source.item?.category).toLowerCase(),
-          type: typeName(source.type ?? source.element ?? typeMatch?.[1]),
-          isTm: /(?:^|\s)(?:tm|mt)(?:\s|$)|type tm disk/i.test(itemName) || /^(?:tm|mt)$/i.test(clean(source.category)) } : null;
-      }).filter(Boolean).slice(0, 12);
+          type: itemType, isTm, isAoe: isTm && isAoe, isTypeTm: isTm && !isAoe && Boolean(itemType),
+          equipped: source.equipped !== false && source.active !== false && source.enabled !== false } : null;
+      };
+      const items = itemRows.map(readTmItem).filter(Boolean).slice(0, 12);
       const statValue = (aliases) => {
         const direct = aliases.map((key) => positiveNumber(stats[key])).find(Boolean);
         return direct || numericEntry(aliases, {
@@ -5057,6 +5149,32 @@ function farmEnhancedContextScript(forcePokes = false) {
     };
     const tooltipTypes = [...new Set([...tooltip?.querySelectorAll('[class*="type" i]') || []]
       .flatMap((element) => clean(element.textContent).split(/\s+/)).map(typeName).filter(Boolean))].slice(0, 2);
+    const visibleTmLabels = new Set();
+    const collectTmLabels = (text) => {
+      const value = clean(text);
+      if (!value) return;
+      const patterns = [
+        /(?:normal|fire|water|grass|electric|ice|fighting|poison|ground|flying|psychic|bug|rock|ghost|dragon|dark|steel|fairy)[- ]type\s+(?:tm|mt)(?:\s+disk)?/gi,
+        /(?:aoe|area\s+of\s+effect)\s+(?:tm|mt)(?:\s+disk)?/gi,
+        /(?:tm|mt)\s+(?:aoe|area\s+of\s+effect)/gi
+      ];
+      patterns.forEach((pattern) => (value.match(pattern) || []).forEach((label) => visibleTmLabels.add(clean(label))));
+    };
+    [activeSlot, tooltip].filter(Boolean).forEach((container) => {
+      collectTmLabels(container.textContent);
+      [container, ...container.querySelectorAll('[title], [aria-label], [data-item-name], [data-name], img[alt]')].slice(0, 120).forEach((element) => {
+        collectTmLabels(element.getAttribute?.('title'));
+        collectTmLabels(element.getAttribute?.('aria-label'));
+        collectTmLabels(element.getAttribute?.('alt'));
+        collectTmLabels(element.dataset?.itemName);
+        collectTmLabels(element.dataset?.name);
+      });
+    });
+    const visibleTmItems = [...visibleTmLabels].map((name) => {
+      const type = name.split(/[^a-z]+/i).map(typeName).find(Boolean) || '';
+      const isAoe = /(?:^|\W)(?:aoe|area\s+of\s+effect)(?:\W|$)/i.test(name);
+      return { name, category: 'tm', type, isTm: true, isAoe, isTypeTm: !isAoe && Boolean(type), equipped: true };
+    });
     if (activeSlot) {
       ['pointerout', 'mouseout', 'mouseleave'].forEach((type) => activeSlot.dispatchEvent(new MouseEvent(type, {
         bubbles: type !== 'mouseleave', cancelable: true, view: window
@@ -5079,7 +5197,8 @@ function farmEnhancedContextScript(forcePokes = false) {
         ivMax: Number(tooltipIv?.[2]) || 192,
         quality: tooltipQuality || leader.quality,
         qualityValue: tooltipQualityValue || leader.qualityValue,
-        stats: Object.values(tooltipStats).some(Boolean) ? tooltipStats : leader.stats
+        stats: Object.values(tooltipStats).some(Boolean) ? tooltipStats : leader.stats,
+        items: [...(leader.items || []), ...visibleTmItems]
       };
     }
 
@@ -5673,6 +5792,28 @@ function renderFarmAccounts() {
         details.appendChild(stat);
       });
       leaderCard.appendChild(details);
+      const tmSummary = farmLeaderTmSummary(leader);
+      const tmPanel = document.createElement('div');
+      tmPanel.className = `farm-leader-tms${tmSummary.all.length ? '' : ' is-empty'}`;
+      const tmLabel = document.createElement('small');
+      tmLabel.textContent = 'MT EQUIPADAS';
+      tmPanel.appendChild(tmLabel);
+      if (!tmSummary.all.length) {
+        const emptyTm = document.createElement('span');
+        emptyTm.className = 'farm-leader-tm-empty';
+        emptyTm.textContent = 'AoE o de tipo no detectadas';
+        tmPanel.appendChild(emptyTm);
+      } else {
+        tmSummary.all.forEach((tm) => {
+          const badge = document.createElement('span');
+          badge.className = `farm-leader-tm is-${tm.kind}`;
+          if (tm.type) badge.dataset.type = tm.type;
+          badge.title = tm.name;
+          badge.textContent = `${tm.kind === 'aoe' ? '◎ AoE' : tm.type ? pokemonTypeLabel(tm.type) : 'MT'} · ${tm.name}`;
+          tmPanel.appendChild(badge);
+        });
+      }
+      leaderCard.appendChild(tmPanel);
     }
 
     const body = document.createElement('div');

@@ -288,6 +288,7 @@ $targetBackupDir = "$TargetDir.pokegrid-previous-$PID"
 $newProcess = $null
 $oldWasMoved = $false
 $targetWasMoved = $false
+$installationCommitted = $false
 
 function Get-OldLauncherProcesses {
   $escapedName = $ExecutableName.Replace("'", "''")
@@ -384,6 +385,9 @@ try {
     }
   }
   if (-not $launchConfirmed) { throw "La nueva versión no pudo iniciar después de tres intentos. $launchFailure" }
+  # Desde este punto la versión nueva confirmó que su ventana está preparada.
+  # Ningún error de limpieza posterior debe cerrarla ni borrar su carpeta.
+  $installationCommitted = $true
 
   Write-UpdateStatus 'cleanup' 'Eliminando la carpeta de la versión anterior.' @{ newProcessId = $newProcess.Id }
   if (Test-Path -LiteralPath $oldBackupDir) { Remove-DirectoryWithRetry $oldBackupDir 20 }
@@ -397,9 +401,20 @@ try {
   }
   Write-UpdateStatus 'installed' 'La actualización se instaló, abrió y eliminó la versión anterior.' @{ newProcessId = $newProcess.Id; executablePath = $newExe }
   Start-Sleep -Seconds 1
-  if (Test-Path -LiteralPath $UpdateRoot) { Remove-Item -LiteralPath $UpdateRoot -Recurse -Force }
+  # Los archivos stdout/stderr del instalador pueden seguir abiertos dentro de
+  # UpdateRoot. Su eliminación es solo mantenimiento y nunca una razón válida
+  # para revertir una instalación ya confirmada.
+  try {
+    if (Test-Path -LiteralPath $UpdateRoot) { Remove-Item -LiteralPath $UpdateRoot -Recurse -Force -ErrorAction Stop }
+  } catch {}
 } catch {
   $failure = $_.Exception.Message
+  if ($installationCommitted) {
+    try {
+      Write-UpdateStatus 'installed' "La nueva versión está abierta. Quedó una limpieza pendiente: $failure" @{ newProcessId = $newProcess.Id; executablePath = (Join-Path $TargetDir $ExecutableName); cleanupPending = $true }
+    } catch {}
+    exit 0
+  }
   try {
     if ($newProcess -and -not $newProcess.HasExited) {
       Stop-Process -Id $newProcess.Id -Force -ErrorAction SilentlyContinue

@@ -503,7 +503,8 @@ app.whenReady().then(async () => {
       const weakLeader = normalizeFarmLeader({ id: 'orre-1', name: 'Charizard', level: 500, strength: 3000, types: ['fire', 'flying'],
         moves: [{ name: 'Flamethrower', type: 'fire', power: 180, cooldownMs: 8000, tm: true }], items: [] });
       const readyLeader = normalizeFarmLeader({ ...weakLeader,
-        items: [{ name: 'Fire-Type TM Disk', category: 'tm' }, { name: 'Steel-Type TM Disk', category: 'tm' }] });
+        items: [{ name: 'Fire-Type TM Disk', category: 'tm' }, { name: 'AoE TM Disk', category: 'tm', aoe: true }] });
+      const tmSummary = farmLeaderTmSummary(readyLeader);
       const matchup = evaluateFarmTarget(target, { ready: true, level: 600, leader: readyLeader });
       const dualTypeMatchup = evaluateFarmTarget(
         normalizeFarmTarget({ slug: 'gyarados', name: 'Gyarados', level: 80, area: 'kanto', types: ['water', 'flying'], basePower: 540 }),
@@ -522,6 +523,8 @@ app.whenReady().then(async () => {
         shiny: shiny.isShiny,
         blockedOrre: validateOrreTarget(target, { leader: weakLeader }).ok,
         readyOrre: validateOrreTarget(target, { leader: readyLeader }).ok,
+        aoeTms: tmSummary.aoe.length,
+        typeTms: tmSummary.type.length,
         componentKeys: Object.keys(matchup.components).sort(),
         dualTypeOffensive: dualTypeMatchup.offensive,
         accountActions: document.querySelectorAll('.farm-account-action').length,
@@ -542,6 +545,7 @@ app.whenReady().then(async () => {
       };
     })()`);
     if (!farmUpgradeState.shiny || farmUpgradeState.blockedOrre || !farmUpgradeState.readyOrre ||
+        farmUpgradeState.aoeTms !== 1 || farmUpgradeState.typeTms !== 2 ||
         farmUpgradeState.accountActions !== 4 || farmUpgradeState.accountPlayIcons !== 4 || farmUpgradeState.shinyFormCards !== 2 ||
         !farmUpgradeState.shinyFilter || farmUpgradeState.componentKeys.length !== 4 || farmUpgradeState.dualTypeOffensive !== 4 ||
         farmUpgradeState.leaderRefreshButtons !== 4 || !farmUpgradeState.rereadAllButton || !farmUpgradeState.orrePermission ||
