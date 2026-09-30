@@ -152,7 +152,31 @@ app.whenReady().then(async () => {
       throw new Error(`El segundo guardado debía seguir dejando 1 script, hay ${blocked.installedCount}.`);
     }
 
-    console.log(JSON.stringify({ ...state, bloqueado: blocked }));
+    // Escape dentro de la barra de buscar solo debe cerrar la barra. Lo que
+    // detecta el bug no es si la barra se cierra (eso ocurre igual), sino que el
+    // backdrop del modal siga abierto: el handler hacía preventDefault pero no
+    // stopPropagation, así que el evento subía hasta el listener global de
+    // document y cerraba el Centro de scripts entero.
+    const escapeState = await window.webContents.executeJavaScript(`(() => {
+      window.pokeGridUserScriptManager.open();
+      document.querySelector('#findScriptButton').click();
+      const bar = document.querySelector('#scriptFindBar');
+      const wasOpen = !bar.hidden;
+      document.querySelector('#scriptFindInput').dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      );
+      return {
+        wasOpen,
+        findBarHidden: bar.hidden,
+        modalHidden: document.querySelector('#scriptsBackdrop').hidden
+      };
+    })()`);
+
+    if (!escapeState.wasOpen) throw new Error('La barra de buscar no se abrio.');
+    if (!escapeState.findBarHidden) throw new Error('Escape no cerro la barra de buscar.');
+    if (escapeState.modalHidden) throw new Error('Escape en la barra de buscar cerro el Centro de scripts entero.');
+
+    console.log(JSON.stringify({ ...state, bloqueado: blocked, escape: escapeState }));
     window.destroy();
     app.exit(0);
   } catch (error) {

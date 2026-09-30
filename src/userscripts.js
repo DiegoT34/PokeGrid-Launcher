@@ -1449,7 +1449,13 @@ ${script.code}
   findInput.addEventListener('input', () => { findMatchIndex = -1; updateFindMatches(); });
   findInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') { event.preventDefault(); selectFindMatch(event.shiftKey ? -1 : 1); }
-    if (event.key === 'Escape') { event.preventDefault(); closeFind(); }
+    if (event.key !== 'Escape') return;
+    // stopPropagation evita que el listener global de document cierre el Centro
+    // de scripts entero cuando Escape se pulsa aquí dentro: sin esto el evento
+    // subía por burbujeo y el modal se cerraba, perdiendo el borrador en edición.
+    event.preventDefault();
+    event.stopPropagation();
+    closeFind();
   });
   findPreviousButton.addEventListener('click', () => selectFindMatch(-1));
   findNextButton.addEventListener('click', () => selectFindMatch(1));
