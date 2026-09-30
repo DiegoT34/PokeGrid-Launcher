@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { accountTemplateText, parseAccountsTemplate } = require('../src/account-transfer');
 
 const template = accountTemplateText();
@@ -48,4 +50,12 @@ assert.throws(() => parseAccountsTemplate(gap), /consecutivas/);
 const tooMany = Array.from({ length: 33 }, (_, index) => `[CUENTA ${index + 1}]\nnombre_panel=C${index + 1}\nusuario=u\ncontrasena=p`).join('\r\n');
 assert.throws(() => parseAccountsTemplate(tooMany), /Máximo 32/);
 
-console.log(JSON.stringify({ ok: true, accounts: accounts.length, preservesEquals: accounts[0].password === 'clave=uno', multi: multiAccounts.length }));
+// La plantilla descargada desde el launcher debe llevar el número de cuentas que
+// hay, no las 4 por defecto. Aquí solo se comprueba el fuente, como en
+// multi-game-userscripts-static-smoke.js: si la llamada en producción vuelve a
+// quedarse sin argumento, la aserción falla aunque accountTemplateText siga bien.
+const mainSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+assert.match(mainSource, /accountTemplateText\((?!\))/);
+
+console.log(JSON.stringify({ ok: true, accounts: accounts.length, preservesEquals: accounts[0].password === 'clave=uno', multi: multiAccounts.length, templateConArgumento: true }));
+

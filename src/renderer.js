@@ -4568,18 +4568,37 @@ function loadPanelOrder() {
   try {
     const stored = JSON.parse(localStorage.getItem(GRID_ORDER_KEY) || '[]').map(Number);
     const valid = stored.filter((index) => index >= 0 && index < total);
-    // Igual que la visibilidad: se conserva el orden elegido y las cuentas que no
-    // existían al guardar se añaden al final. Un guardado con índices repetidos sí
-    // se descarta, porque no define un orden.
+    // Un guardado con índices repetidos o fuera de rango no define un orden.
     if (valid.length && new Set(valid).size === valid.length) {
-      const seen = new Set(valid);
-      for (let index = Math.min(savedAccountCount(), total); index < total; index += 1) {
-        if (!seen.has(index)) valid.push(index);
+      const saved = savedAccountCount();
+      if (saved < total) {
+        // El guardado es de cuando había menos cuentas: se conserva tal cual y se
+        // completan las que no existían todavía, para no perder el orden elegido.
+        const seen = new Set(valid);
+        for (let index = saved; index < total; index += 1) {
+          if (!seen.has(index)) valid.push(index);
+        }
+        return valid;
       }
-      return valid;
+      // saved === total: el registro es coherente y el guardado es la permutación
+      // completa. saved > total: el registro dice que había más cuentas de las que
+      // hay, así que está desincronizado y no se fía de él.
+      if (saved === total && valid.length === total) return valid;
     }
   } catch {}
+  // Identidad: panelOrder siempre es una permutación de 0..total-1, o si no los
+  // paneles sobrantes se quedan sin order y se renderizan antes que los demás.
   return Array.from({ length: total }, (_, index) => index);
+}
+
+// Importar una plantilla o sincronizar el archivo vinculado cambia el número de
+// cuentas sin reconstruir los paneles, así que el estado de rejilla se relee aquí:
+// en memoria panelOrder se quedaba con el recuento anterior, más corto, y el
+// relleno ya no volvía a ejecutarse hasta el siguiente arranque.
+function reloadGridState() {
+  visibleAccountIndexes = loadVisibleAccountIndexes();
+  panelOrder = loadPanelOrder();
+  if (panelOrder.length < accounts.length) applyGridView(null, { persist: false });
 }
 
 function renderViewModeMenu() {
@@ -8681,6 +8700,7 @@ importAccountsButton.addEventListener('click', async () => {
     accounts = normalizeAccounts(result.accounts);
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
     accountsSourcePath.textContent = `Archivo vinculado: ${linkedAccountsSource}`;
+    reloadGridState();
     refreshPanelNames();
     modalMessage.textContent = `${result.file}: cuatro cuentas importadas y vinculadas. Los cambios futuros se sincronizarán automáticamente.`;
     modalMessage.classList.add('is-ok');
@@ -8699,6 +8719,7 @@ async function syncLinkedAccounts() {
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
     if (result.ok && result.changed) {
       accounts = normalizeAccounts(result.accounts);
+      reloadGridState();
       refreshPanelNames();
       if (!modalBackdrop.hidden) {
         fillAccountForm(accounts);
