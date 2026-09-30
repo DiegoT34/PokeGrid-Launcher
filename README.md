@@ -21,7 +21,8 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 
 ## Funciones principales
 
-- Cuatro sesiones independientes de Poke Idle World en cuadrícula, con cookies, almacenamiento y conexión separados.
+- De una a treinta y dos cuentas simultáneas de Poke Idle World en cuadrícula, con cookies, almacenamiento y conexión separados por cuenta.
+- Cuentas ilimitadas (1–32): añadir, eliminar y reordenar desde el modal **Cuentas**, conservando la sesión de cada una.
 - Pestañas de instancias para abrir otros juegos web sin cerrar las sesiones existentes.
 - De una a seis pantallas independientes por cada instancia adicional, con restauración automática al iniciar.
 - Menú lateral flotante con botones flat diferenciados; se superpone sin reducir ni desplazar las ventanas del juego.
@@ -38,6 +39,18 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Shop online con catálogo actualizado desde GitHub, información, instalación, actualización, desinstalación y verificación SHA-256.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
 - Actualizador integrado que guarda ZIP y firma en Descargas, reintenta el arranque, confirma la ventana nueva y restaura la versión anterior si algo falla.
+
+## Cuentas ilimitadas y VPN/IP por cuenta
+
+El launcher admite de **1 a 32 cuentas** en la misma instalación. Desde el modal **Cuentas** puedes añadir, eliminar o reordenar perfiles; cada uno conserva su partición persistente (cookies, almacenamiento y sesión) aunque se añadan o eliminen otras cuentas.
+
+Cada cuenta puede usar una **IP/VPN distinta**: protocolo `http` o `socks5`, host, puerto y usuario/clave opcionales. El proxy solo afecta a la sesión de esa cuenta; las demás siguen con su conexión normal. Funciona con cualquier proxy compatible (V2RayN, Clash Verge, proxies residenciales de pago, etc.).
+
+Para usar VPN gratuita sin coste mensual, una opción práctica es [V2RayN](https://github.com/2dust/v2rayN) o [Clash Verge](https://github.com/clash-verge-rev/clash-verge-rev) con nodos gratuitos: habilita un puerto local (mixed/socks/http) por cuenta y escribe ese host/puerto en la fila de cada cuenta. Consulta la [guía completa](docs/FUNCIONES.md#administración-de-cuentas).
+
+> **Atajo:** el script [`scripts/vpn-per-account.cjs`](scripts/vpn-per-account.cjs) levanta automáticamente una instancia v2ray por nodo con su propio puerto local (`node scripts/vpn-per-account.cjs up --count 3`). Guía paso a paso en [docs/VPN-POR-CUENTA.md](docs/VPN-POR-CUENTA.md).
+
+> **Nota:** al eliminar una cuenta, las siguientes heredan su posición; el historial asociado a esa posición (capturas, metas) pasa a la cuenta que ocupa ese lugar.
 
 ## Hunt Analyzer
 

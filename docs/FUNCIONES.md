@@ -2,7 +2,9 @@
 
 ## Panel principal multicuentas
 
-La instancia principal abre cuatro webviews persistentes. Cada panel tiene sesión, cookies, zoom, recarga, expansión, Hunt Analyzer y Capture Log independientes. Ocultar una cuenta mediante **Modo vista** no cierra su proceso ni interrumpe el juego.
+La instancia principal abre de uno a treinta y dos webviews persistentes (una por cuenta configurada). Cada panel tiene sesión, cookies, zoom, recarga, expansión, Hunt Analyzer y Capture Log independientes. Ocultar una cuenta mediante **Modo vista** no cierra su proceso ni interrumpe el juego.
+
+La cuadrícula adapta sus columnas al número de cuentas: 1 cuenta → 1 columna; 2–4 → 2 columnas; 5–9 → 3 columnas; 10 o más → 4 columnas.
 
 ## Menú lateral y barra superior
 
@@ -28,7 +30,38 @@ El botón `+` de la barra de pestañas crea una instancia de navegador. El usuar
 
 ## Administración de cuentas
 
-Admite cuatro perfiles para Poke Idle World. Las credenciales se cifran con `safeStorage`/DPAPI y solo se completan en la página oficial de acceso. También permite importar una plantilla local y sincronizar sus cambios.
+Admite de **1 a 32 perfiles** para Poke Idle World en la misma instalación. Las credenciales se cifran con `safeStorage`/DPAPI y solo se completan en la página oficial de acceso.
+
+### Añadir, eliminar y reordenar cuentas
+
+- El botón **+ Añadir cuenta (IP/VPN propia)** crea una fila nueva; el tope es 32 por memoria (cada webview carga el juego completo).
+- Cada cuenta conserva su **identidad estable**: aunque se añadan o eliminen otras, la partición de cookies y sesión de cada una no cambia.
+- Al eliminar una cuenta, las siguientes heredan su posición. El historial asociado a esa posición (Capture Log, metas, notificaciones) pasa a la cuenta que ocupe ese lugar; tenlo en cuenta antes de borrar cuentas intermedias.
+- La importación por plantilla `.txt` admite de 1 a 32 secciones `[CUENTA N]` consecutivas. Al re-sincronizar un archivo vinculado, las identidades existentes se conservan por posición para no perder sesiones.
+
+### VPN / IP distinta por cuenta
+
+Cada fila del modal **Cuentas** incluye la sección plegable **VPN / IP distinta**, con estos campos:
+
+| Campo | Descripción |
+|---|---|
+| Protocolo | `http` o `socks5`. |
+| Host | Dirección del proxy (p. ej. `127.0.0.1`). |
+| Puerto | Puerto local del proxy (1–65535). |
+| Usuario / Clave | Opcionales; solo si el proxy exige autenticación. |
+
+El proxy se aplica únicamente a la sesión de esa cuenta: las demás cuentas y las instancias de otros juegos conservan su conexión normal. Si los datos son inválidos, el launcher desactiva el proxy en vez de romper el arranque, y tras guardar muestra cuántas cuentas no pudieron aplicarlo.
+
+**Con VPN gratuita (V2RayN / Clash Verge):**
+
+1. Instala [V2RayN](https://github.com/2dust/v2rayN) o [Clash Verge](https://github.com/clash-verge-rev/clash-verge-rev) y añade un nodo gratuito de confianza.
+2. Habilita el proxy local (puerto *mixed* o SOCKS/HTTP en `127.0.0.1`).
+3. Para usar una IP distinta por cuenta, ejecuta una instancia adicional del cliente con otro puerto local (o usa varios clientes), cada uno apuntando a un nodo diferente.
+4. En el launcher, escribe `127.0.0.1` y el puerto correspondiente en la fila de cada cuenta.
+
+El launcher es genérico: cualquier proxy `http`/`socks5` funciona igual, incluidos proxies residenciales o datacentro de pago.
+
+**Atajo automatizado:** el script [`scripts/vpn-per-account.cjs`](../scripts/vpn-per-account.cjs) descarga v2ray-core una sola vez y levanta una instancia por nodo (enlaces `vmess://`, `vless://`, `trojan://` o `ss://`) con puertos locales propios: `node scripts/vpn-per-account.cjs up --count 3`. Guía completa en [VPN-POR-CUENTA.md](VPN-POR-CUENTA.md).
 
 ## Centro de scripts
 

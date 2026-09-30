@@ -27,6 +27,7 @@ const EXCLUDED = new Map([
   ['better-market-redesign-visual-smoke.js', 'script personal del autor; está en .gitignore'],
   ['better-market-window-scales-smoke.js', 'script personal del autor; está en .gitignore'],
   ['breeding-second-parent-smoke.js', 'script personal del autor; está en .gitignore'],
+  ['capture-management-redesign-smoke.js', 'script personal del autor; está en .gitignore'],
   ['chat-translator-smoke.js', 'script personal del autor; está en .gitignore'],
   ['custom-card-event-bars-smoke.js', 'script personal del autor; está en .gitignore'],
   ['custom-card-responsive-settings-smoke.js', 'script personal del autor; está en .gitignore'],

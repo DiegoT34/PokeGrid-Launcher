@@ -1,7 +1,6 @@
 (function createPokeGridUserScriptManager() {
   const GAME_ORIGIN = 'https://poke.idleworld.online';
   const PRIMARY_INSTANCE_ID = 'poke-idle-world';
-  const ACCOUNT_COUNT = 4;
   const UNSUPPORTED_DIRECTIVES = ['require', 'resource', 'antifeature', 'downloadurl', 'updateurl'];
   const DEFAULT_SOURCE = `// ==UserScript==
 // @name         Mi script de PokeGrid
@@ -84,11 +83,11 @@
   let scripts = [];
   let selectedId = null;
   let selectedSnapshot = null;
-  let accountRows = Array.from({ length: ACCOUNT_COUNT }, (_, index) => ({ label: `Cuenta ${index + 1}` }));
+  let accountRows = [{ id: 1, label: 'Cuenta 1' }];
   let panelRows = [];
   let focusAccount = -1;
   let guestPreloadUrl = '';
-  let extensionConfig = { path: '', accounts: Array(ACCOUNT_COUNT).fill(false) };
+  let extensionConfig = { path: '', accounts: [] };
   let editorTimer = 0;
   let syntaxTimer = 0;
   let findMatches = [];
@@ -231,18 +230,20 @@
   }
 
   function currentAccountSelection(container = accountToggles) {
-    return Array.from({ length: ACCOUNT_COUNT }, (_, index) =>
+    return Array.from({ length: accountRows.length }, (_, index) =>
       Boolean(container.querySelector(`input[data-account="${index}"]`)?.checked)
     );
   }
 
-  function createAccountToggles(container, selected) {
+  function createAccountToggles(container, selected, { defaultEnabled = false } = {}) {
     container.replaceChildren();
     accountRows.forEach((account, index) => {
       const label = document.createElement('label');
       label.className = 'script-account-toggle';
       label.innerHTML = `<input type="checkbox" data-account="${index}"><span>${escapeHtml(account.label || `Cuenta ${index + 1}`)}</span>`;
-      label.querySelector('input').checked = selected?.[index] === true;
+      label.querySelector('input').checked = defaultEnabled
+        ? !(Array.isArray(selected) && selected[index] === false)
+        : (Array.isArray(selected) && selected[index] === true);
       container.appendChild(label);
     });
   }
@@ -250,7 +251,7 @@
   function renderScriptTargetControls(code, selectedAccounts = []) {
     const scope = scriptScope(code);
     accountToggles.replaceChildren();
-    if (scope.primary) createAccountToggles(accountToggles, selectedAccounts);
+    if (scope.primary) createAccountToggles(accountToggles, selectedAccounts, { defaultEnabled: true });
     for (const game of scope.customGames) {
       const target = document.createElement('span');
       target.className = 'script-auto-target';
@@ -761,8 +762,8 @@
   }
 
   function draftAccounts() {
-    if (focusAccount < 0) return Array(ACCOUNT_COUNT).fill(true);
-    return Array.from({ length: ACCOUNT_COUNT }, (_, index) => index === focusAccount);
+    if (focusAccount < 0) return accountRows.map(() => true);
+    return accountRows.map((_account, index) => index === focusAccount);
   }
 
   function showDraft(value = {}) {
@@ -771,7 +772,7 @@
     editorKicker.textContent = value.id ? 'USERSCRIPT INSTALADO' : 'NUEVO USERSCRIPT';
     enabledInput.checked = value.enabled !== false;
     codeInput.value = value.code || DEFAULT_SOURCE;
-    createAccountToggles(accountToggles, value.accounts || draftAccounts());
+    createAccountToggles(accountToggles, value.accounts || draftAccounts(), { defaultEnabled: true });
     deleteButton.hidden = !value.id;
     displayMetadata(codeInput.value);
     refreshEditor({ validate: true });
@@ -1005,7 +1006,7 @@
       ...(existing || {}),
       code: result.code,
       sourceUrl: result.sourceUrl,
-      accounts: existing?.accounts || Array(ACCOUNT_COUNT).fill(true),
+      accounts: existing?.accounts || accountRows.map(() => true),
       enabled: true
     });
     selectedSnapshot = { ...(existing || {}), sourceUrl: result.sourceUrl };
@@ -1282,7 +1283,7 @@ ${script.code}
     extensionConfig = result.config || extensionConfig;
     extensionPathOutput.value = extensionConfig.path || 'Ninguna carpeta seleccionada';
     extensionPathOutput.title = extensionConfig.path || '';
-    createAccountToggles(extensionAccountToggles, extensionConfig.accounts);
+    createAccountToggles(extensionAccountToggles, extensionConfig.accounts, { defaultEnabled: false });
     const loaded = (result.results || []).filter((entry) => entry.loaded);
     extensionStatus.textContent = loaded.length
       ? `${loaded[0].name || 'Extensión'} cargada en ${loaded.length} sesión(es).`
@@ -1332,7 +1333,7 @@ ${script.code}
         ? `${result.manifest?.name || 'Extensión'} cargada en ${loaded.length} sesión(es).`
         : 'Extensión desactivada en todas las sesiones.';
     extensionStatus.className = failures.length ? 'is-error' : 'is-ok';
-    reloadAccounts(Array(ACCOUNT_COUNT).fill(true));
+    reloadAccounts(accountRows.map(() => true));
   }
 
   async function initialize() {
@@ -1462,13 +1463,14 @@ ${script.code}
     installIntoPanel,
     getGuestPreloadUrl: () => guestPreloadUrl,
     setAccounts(value) {
-      accountRows = Array.from({ length: ACCOUNT_COUNT }, (_, index) => ({
-        label: value?.[index]?.label || `Cuenta ${index + 1}`
-      }));
+      const rows = Array.isArray(value) ? value : [];
+      accountRows = rows.length
+        ? rows.map((row, index) => ({ id: Number(row?.id) || index + 1, label: row?.label || `Cuenta ${index + 1}` }))
+        : [{ id: 1, label: 'Cuenta 1' }];
       const selected = currentAccountSelection();
       const extensionSelected = currentAccountSelection(extensionAccountToggles);
       renderScriptTargetControls(codeInput.value, selected);
-      createAccountToggles(extensionAccountToggles, extensionSelected);
+      createAccountToggles(extensionAccountToggles, extensionSelected, { defaultEnabled: false });
       renderList();
     },
     setPanels(value) {

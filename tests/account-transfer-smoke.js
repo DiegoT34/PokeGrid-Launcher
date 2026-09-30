@@ -3,7 +3,8 @@ const { accountTemplateText, parseAccountsTemplate } = require('../src/account-t
 
 const template = accountTemplateText();
 assert.equal(template.startsWith('\uFEFF# IDLE POKE LAUNCHER'), true);
-assert.equal((template.match(/\[CUENTA [1-4]\]/g) || []).length, 4);
+const sectionLines = (text) => text.split(/\r?\n/).filter((line) => /^\[CUENTA \d+\]/.test(line.trim()));
+assert.equal(sectionLines(template).length, 4);
 
 const completed = template
   .replace('nombre_panel=Cuenta 1', 'nombre_panel=Principal')
@@ -23,4 +24,28 @@ assert.deepEqual(accounts.map(({ label, username, password }) => ({ label, usern
 assert.throws(() => parseAccountsTemplate(completed.replace('[CUENTA 4]', '[CUENTA 3]')), /repetida/);
 assert.throws(() => parseAccountsTemplate(template), /necesita usuario y contraseña/);
 
-console.log(JSON.stringify({ ok: true, accounts: accounts.length, preservesEquals: accounts[0].password === 'clave=uno' }));
+// Plantillas personalizadas: de 1 a N cuentas (máximo 32).
+const single = accountTemplateText(1);
+assert.equal(sectionLines(single).length, 1);
+const six = accountTemplateText(6)
+  .replace(/usuario=/g, 'usuario=multi')
+  .replace(/contrasena=/g, 'contrasena=secreta');
+const multiAccounts = parseAccountsTemplate(six);
+assert.equal(multiAccounts.length, 6);
+assert.deepEqual(multiAccounts.map((row) => row.username), Array(6).fill('multi'));
+
+// Una sola cuenta es válida.
+const oneAccount = accountTemplateText(1)
+  .replace('usuario=', 'usuario=unica')
+  .replace('contrasena=', 'contrasena=sola');
+assert.equal(parseAccountsTemplate(oneAccount).length, 1);
+
+// Las secciones deben ser consecutivas desde [CUENTA 1].
+const gap = '[CUENTA 1]\nnombre_panel=A\nusuario=a\ncontrasena=x\r\n[CUENTA 3]\nnombre_panel=B\nusuario=b\ncontrasena=y';
+assert.throws(() => parseAccountsTemplate(gap), /consecutivas/);
+
+// Más de 32 cuentas se rechaza.
+const tooMany = Array.from({ length: 33 }, (_, index) => `[CUENTA ${index + 1}]\nnombre_panel=C${index + 1}\nusuario=u\ncontrasena=p`).join('\r\n');
+assert.throws(() => parseAccountsTemplate(tooMany), /Máximo 32/);
+
+console.log(JSON.stringify({ ok: true, accounts: accounts.length, preservesEquals: accounts[0].password === 'clave=uno', multi: multiAccounts.length }));

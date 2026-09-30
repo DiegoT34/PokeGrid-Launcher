@@ -14,12 +14,14 @@ accounts-source.json
 /Better Market and More.user.js
 /Breeding Center - Breeding calculator.user.js
 /calculadora ivs.js
+/Poke Idle World - Capture Management Redesign.user.js
 /Poke Idle World - Chat Translator.user.js
 /Poke Idle World - Custom Card Ultimate v3.80 (Toast Mini 50%).user.js
 
 # Pruebas específicas de esos scripts privados.
 /tests/better-market-*.js
 /tests/breeding-second-parent-smoke.js
+/tests/capture-management-redesign-smoke.js
 /tests/chat-translator-smoke.js
 /tests/custom-card-*.js
 

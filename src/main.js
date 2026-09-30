@@ -7,10 +7,10 @@ const { pathToFileURL } = require('node:url');
 const { userScriptResponseTarget } = require('./userscript-network');
 const { accountTemplateText, parseAccountsTemplate } = require('./account-transfer');
 const { prepareUpdate, launchPreparedUpdate } = require('./updater');
+const { DEFAULT_ACCOUNT_COUNT, MAX_ACCOUNTS, accountPartition, buildProxyRules, normalizeAccounts } = require('./account-model');
 
 const GAME_ORIGIN = 'https://poke.idleworld.online';
 const POKEPEDIA_URL = `${GAME_ORIGIN}/pokepedia`;
-const ACCOUNT_COUNT = 4;
 const USER_SCRIPT_LIMIT = 100;
 const USER_SCRIPT_CODE_LIMIT = 10 * 1024 * 1024;
 const USER_SCRIPT_RESPONSE_LIMIT = 2_000_000;
@@ -34,7 +34,7 @@ let mainWindow = null;
 let pokepediaWindow = null;
 const remoteImageCache = new Map();
 const pokeApiSpeciesCache = new Map();
-const loadedUnpackedExtensions = Array.from({ length: ACCOUNT_COUNT }, () => null);
+const loadedUnpackedExtensions = [];
 const browserInstanceSessions = new WeakSet();
 let scriptShopCache = null;
 
@@ -154,18 +154,11 @@ function accountSourcePath() {
   return path.join(app.getPath('userData'), 'accounts-source.json');
 }
 
-function normalizeAccounts(value) {
-  const rows = Array.isArray(value) ? value : [];
-  return Array.from({ length: ACCOUNT_COUNT }, (_, index) => ({
-    label: String(rows[index]?.label || `Cuenta ${index + 1}`).slice(0, 40),
-    username: String(rows[index]?.username || '').slice(0, 180),
-    password: String(rows[index]?.password || '').slice(0, 300)
-  }));
-}
-
 function readAccounts() {
   const file = credentialPath();
-  if (!fs.existsSync(file)) return normalizeAccounts([]);
+  if (!fs.existsSync(file)) {
+    return normalizeAccounts(Array.from({ length: DEFAULT_ACCOUNT_COUNT }, (_, index) => ({ id: index + 1 })));
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('El cifrado seguro del sistema no está disponible.');
   }
@@ -187,6 +180,21 @@ function writeAccounts(accounts) {
   return true;
 }
 
+async function applyAccountProxies(accounts) {
+  const results = [];
+  for (const account of accounts || []) {
+    try {
+      const gameSession = session.fromPartition(accountPartition(account.id));
+      if (account.proxy?.enabled) await gameSession.setProxy({ proxyRules: buildProxyRules(account.proxy) });
+      else await gameSession.setProxy({ proxyRules: 'direct://' });
+      results.push({ id: account.id, ok: true });
+    } catch (error) {
+      results.push({ id: account.id, ok: false, error: error.message });
+    }
+  }
+  return results;
+}
+
 function readAccountSourceConfig() {
   try {
     const value = JSON.parse(fs.readFileSync(accountSourcePath(), 'utf8'));
@@ -206,6 +214,17 @@ function writeAccountSourceConfig(sourcePath, modifiedAt = 0) {
   fs.renameSync(temporary, file);
 }
 
+function preserveAccountIds(parsed) {
+  if (!Array.isArray(parsed) || parsed.some((row) => Number.isInteger(Number(row.id)))) return parsed;
+  let previous = [];
+  try { previous = readAccounts(); } catch {}
+  parsed.forEach((row, index) => {
+    const existingId = Number(previous[index]?.id);
+    if (Number.isInteger(existingId) && existingId > 0) row.id = existingId;
+  });
+  return parsed;
+}
+
 function syncAccountsFromSource({ force = false } = {}) {
   const config = readAccountSourceConfig();
   if (!config) return { linked: false, changed: false, accounts: readAccounts(), sourcePath: '' };
@@ -217,7 +236,7 @@ function syncAccountsFromSource({ force = false } = {}) {
   if (!force && stats.mtimeMs <= config.modifiedAt) {
     return { linked: true, changed: false, accounts: readAccounts(), sourcePath: config.sourcePath };
   }
-  const accounts = parseAccountsTemplate(fs.readFileSync(config.sourcePath, 'utf8'));
+  const accounts = preserveAccountIds(parseAccountsTemplate(fs.readFileSync(config.sourcePath, 'utf8')));
   writeAccounts(accounts);
   writeAccountSourceConfig(config.sourcePath, stats.mtimeMs);
   return { linked: true, changed: true, accounts, sourcePath: config.sourcePath };
@@ -327,7 +346,9 @@ function normalizeUserScript(value, existing = null) {
     shopCatalogUrl: shopId ? SCRIPT_SHOP_CATALOG_URL : '',
     code,
     enabled: value?.enabled !== false,
-    accounts: Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false),
+    accounts: Array.isArray(value?.accounts)
+      ? value.accounts.slice(0, MAX_ACCOUNTS).map((entry) => entry === true)
+      : (Array.isArray(existing?.accounts) ? existing.accounts.slice(0, MAX_ACCOUNTS) : []),
     matches: normalizedMatches,
     games: cleanMetadataList(metadata.game, 8).length
       ? cleanMetadataList(metadata.game, 8).map((entry) => entry.slice(0, 80))
@@ -418,17 +439,26 @@ function removeUserScript(id) {
   return true;
 }
 
+function currentAccountCount() {
+  try {
+    const count = readAccounts().length;
+    if (count >= 1) return count;
+  } catch {}
+  return DEFAULT_ACCOUNT_COUNT;
+}
+
+function normalizeExtensionAccountFlags(value) {
+  return Array.from({ length: currentAccountCount() }, (_, index) => value?.[index] === true);
+}
+
 function readExtensionConfig() {
   const file = extensionConfigPath();
-  if (!fs.existsSync(file)) return { path: '', accounts: Array(ACCOUNT_COUNT).fill(false) };
+  if (!fs.existsSync(file)) return { path: '', accounts: normalizeExtensionAccountFlags([]) };
   try {
     const value = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return {
-      path: String(value?.path || ''),
-      accounts: Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] === true)
-    };
+    return { path: String(value?.path || ''), accounts: normalizeExtensionAccountFlags(value?.accounts) };
   } catch {
-    return { path: '', accounts: Array(ACCOUNT_COUNT).fill(false) };
+    return { path: '', accounts: normalizeExtensionAccountFlags([]) };
   }
 }
 
@@ -446,9 +476,12 @@ function validateUnpackedExtensionPath(rawPath) {
 }
 
 async function applyUnpackedExtensionConfig(value, persist = true) {
+  let accountList = [];
+  try { accountList = readAccounts(); } catch {}
+  if (!accountList.length) accountList = Array.from({ length: DEFAULT_ACCOUNT_COUNT }, (_, index) => ({ id: index + 1 }));
   const config = {
     path: String(value?.path || ''),
-    accounts: Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] === true)
+    accounts: normalizeExtensionAccountFlags(value?.accounts)
   };
   let manifest = null;
   if (config.accounts.some(Boolean)) {
@@ -457,9 +490,10 @@ async function applyUnpackedExtensionConfig(value, persist = true) {
     manifest = validation.manifest;
   }
 
+  loadedUnpackedExtensions.length = accountList.length;
   const results = [];
-  for (let index = 0; index < ACCOUNT_COUNT; index += 1) {
-    const gameSession = session.fromPartition(`persist:pokegrid-${index + 1}`);
+  for (let index = 0; index < accountList.length; index += 1) {
+    const gameSession = session.fromPartition(accountPartition(accountList[index].id));
     const previous = loadedUnpackedExtensions[index];
     if (previous) {
       try { await gameSession.extensions.removeExtension(previous.id); } catch {}
@@ -482,10 +516,15 @@ async function applyUnpackedExtensionConfig(value, persist = true) {
 }
 
 function getGameAccountIndex(webContents) {
-  for (let index = 0; index < ACCOUNT_COUNT; index += 1) {
-    if (webContents.session === session.fromPartition(`persist:pokegrid-${index + 1}`)) return index;
+  const partition = String(webContents?.session?.partition || '');
+  if (!partition.startsWith('persist:pokegrid-')) return -1;
+  const id = Number(partition.slice('persist:pokegrid-'.length));
+  if (!Number.isInteger(id) || id < 1) return -1;
+  try {
+    return readAccounts().findIndex((account) => account.id === id);
+  } catch {
+    return -1;
   }
-  return -1;
 }
 
 function authorizeUserScriptRuntime(event, scriptId, requiredGrant = '') {
@@ -494,7 +533,7 @@ function authorizeUserScriptRuntime(event, scriptId, requiredGrant = '') {
     throw new Error('Origen de solicitud no permitido.');
   }
   const script = readUserScripts().find((candidate) => candidate.id === String(scriptId || ''));
-  if (!script?.enabled || !script.accounts[accountIndex]) {
+  if (!script?.enabled || script.accounts?.[accountIndex] === false) {
     throw new Error('El script no está habilitado en esta cuenta.');
   }
   if (requiredGrant && !script.grants.includes(requiredGrant)) {
@@ -802,7 +841,9 @@ async function installScriptShopItem(value) {
   const scripts = readUserScripts();
   const existing = scripts.find((script) => script.shopId === item.id) ||
     scripts.find((script) => item.namespace && publishedName && script.namespace === item.namespace && script.name === publishedName);
-  const accounts = existing?.accounts || Array.from({ length: ACCOUNT_COUNT }, (_, index) => value?.accounts?.[index] !== false);
+  const accounts = Array.isArray(value?.accounts)
+    ? value.accounts.slice(0, MAX_ACCOUNTS).map((entry) => entry === true)
+    : (existing?.accounts || []);
   const script = saveUserScript({
     id: existing?.id,
     code: downloaded.code,
@@ -853,13 +894,19 @@ async function maintainGameSessionCaches(gameSessions) {
 }
 
 async function configureGameSessions() {
+  let accountList = [];
+  try { accountList = readAccounts(); } catch {}
+  if (!accountList.length) accountList = Array.from({ length: DEFAULT_ACCOUNT_COUNT }, (_, index) => ({ id: index + 1, proxy: null }));
   const gameSessions = [];
-  for (let index = 1; index <= ACCOUNT_COUNT; index += 1) {
-    const gameSession = session.fromPartition(`persist:pokegrid-${index}`);
+  for (const account of accountList) {
+    const gameSession = session.fromPartition(accountPartition(account.id));
     gameSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     gameSessions.push(gameSession);
   }
   await maintainGameSessionCaches(gameSessions);
+  try { await applyAccountProxies(accountList); } catch (error) {
+    console.warn(`No se pudieron aplicar los proxies de cuenta: ${error.message}`);
+  }
   const pokepediaSession = session.fromPartition('persist:pokegrid-pokepedia');
   pokepediaSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   const savedExtension = readExtensionConfig();
@@ -1308,10 +1355,15 @@ ipcMain.handle('accounts:sync-source', () => {
   }
 });
 
-ipcMain.handle('accounts:save', (_event, accounts) => {
+ipcMain.handle('accounts:save', async (_event, accounts) => {
   try {
     writeAccounts(accounts);
-    return { ok: true };
+    const saved = readAccounts();
+    let proxyResults = [];
+    try { proxyResults = await applyAccountProxies(saved); } catch (error) {
+      proxyResults = saved.map((account) => ({ id: account.id, ok: false, error: error.message }));
+    }
+    return { ok: true, accounts: saved, proxyResults };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -1334,7 +1386,7 @@ ipcMain.handle('accounts:download-template', async () => {
 
 ipcMain.handle('accounts:import-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Importar las cuatro cuentas',
+    title: 'Importar cuentas',
     properties: ['openFile'],
     filters: [{ name: 'Plantilla de cuentas', extensions: ['txt'] }]
   });
@@ -1342,7 +1394,7 @@ ipcMain.handle('accounts:import-file', async () => {
   try {
     const file = path.resolve(result.filePaths[0]);
     if (fs.statSync(file).size > 64 * 1024) throw new Error('El archivo supera el límite de 64 KB.');
-    const accounts = parseAccountsTemplate(fs.readFileSync(file, 'utf8'));
+    const accounts = preserveAccountIds(parseAccountsTemplate(fs.readFileSync(file, 'utf8')));
     writeAccounts(accounts);
     writeAccountSourceConfig(file, fs.statSync(file).mtimeMs);
     return { ok: true, accounts, file: path.basename(file), sourcePath: file, linked: true };

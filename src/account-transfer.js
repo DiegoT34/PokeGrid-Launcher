@@ -1,17 +1,19 @@
-const ACCOUNT_COUNT = 4;
+const MAX_ACCOUNTS = 32;
 
-function accountTemplateText() {
+function accountTemplateText(count = 4) {
+  const total = Math.max(1, Math.min(MAX_ACCOUNTS, Number(count) || 4));
   const lines = [
-    '# IDLE POKE LAUNCHER - Cuentas vinculadas (plantilla v2)',
+    '# IDLE POKE LAUNCHER - Cuentas vinculadas (plantilla v3)',
     '# ================================================================',
     '# PASOS: completa, importa una vez y luego edita siempre este archivo.',
     '# El launcher detectara los cambios guardados automaticamente.',
     '# Completa los datos después del signo = sin agregar comillas.',
+    '# Puedes declarar de 1 a ' + MAX_ACCOUNTS + ' cuentas ([CUENTA 1] en adelante).',
     '# ADVERTENCIA: las contraseñas de este archivo quedan en texto plano.',
     '# Importa el archivo desde Cuentas y elimínalo cuando ya no lo necesites.',
     ''
   ];
-  for (let index = 0; index < ACCOUNT_COUNT; index += 1) {
+  for (let index = 0; index < total; index += 1) {
     lines.push(
       `[CUENTA ${index + 1}]`,
       `nombre_panel=Cuenta ${index + 1}`,
@@ -41,9 +43,10 @@ function parseAccountsTemplate(text) {
   for (const [lineIndex, rawLine] of source.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#') || line.startsWith(';')) continue;
-    const section = line.match(/^\[(?:cuenta|account)\s+([1-4])\]$/i);
+    const section = line.match(/^\[(?:cuenta|account)\s+([0-9]+)\]$/i);
     if (section) {
       currentIndex = Number(section[1]) - 1;
+      if (currentIndex >= MAX_ACCOUNTS) throw new Error(`Máximo ${MAX_ACCOUNTS} cuentas por archivo.`);
       if (sections.has(currentIndex)) throw new Error(`La sección CUENTA ${currentIndex + 1} está repetida.`);
       sections.set(currentIndex, {});
       continue;
@@ -63,8 +66,12 @@ function parseAccountsTemplate(text) {
     row[field] = rawLine.slice(separator + 1).trim();
   }
 
-  if (sections.size !== ACCOUNT_COUNT) throw new Error('El archivo debe contener las secciones [CUENTA 1] hasta [CUENTA 4].');
-  return Array.from({ length: ACCOUNT_COUNT }, (_, index) => {
+  if (!sections.size) throw new Error('El archivo no contiene ninguna sección [CUENTA N].');
+  const expected = [...sections.keys()].sort((a, b) => a - b);
+  for (let position = 0; position < expected.length; position += 1) {
+    if (expected[position] !== position) throw new Error('Las secciones deben ser consecutivas desde [CUENTA 1].');
+  }
+  return Array.from({ length: sections.size }, (_, index) => {
     const row = sections.get(index);
     if (!row || !Object.hasOwn(row, 'label') || !Object.hasOwn(row, 'username') || !Object.hasOwn(row, 'password')) {
       throw new Error(`CUENTA ${index + 1} debe incluir nombre_panel, usuario y contrasena.`);

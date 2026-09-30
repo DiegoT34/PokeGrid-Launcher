@@ -1,5 +1,6 @@
 const LOGIN_URL = 'https://poke.idleworld.online/login';
-const ACCOUNT_COUNT = 4;
+const DEFAULT_ACCOUNT_COUNT = 4;
+const MAX_ACCOUNTS = 32;
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
@@ -55,6 +56,7 @@ const viewModeAllButton = document.querySelector('#viewModeAllButton');
 const panelTemplate = document.querySelector('#panelTemplate');
 const modalBackdrop = document.querySelector('#modalBackdrop');
 const accountRows = document.querySelector('#accountRows');
+const accountRowActions = document.querySelector('#accountRowActions');
 const modalMessage = document.querySelector('#modalMessage');
 const accountsForm = document.querySelector('#accountsForm');
 const downloadAccountsTemplateButton = document.querySelector('#downloadAccountsTemplateButton');
@@ -195,7 +197,12 @@ let draggedPanelIndex = null;
 let farmCatalog = [];
 let pokemonReferenceIndex = new Map();
 let captureReferencePromise = null;
-let farmContexts = Array.from({ length: ACCOUNT_COUNT }, () => ({ level: null, location: '', ready: false, leader: null }));
+let farmContexts = [];
+
+function resetFarmContexts() {
+  const count = accounts.length || DEFAULT_ACCOUNT_COUNT;
+  farmContexts = Array.from({ length: count }, () => ({ level: null, location: '', ready: false, leader: null }));
+}
 let farmConfigs = loadFarmConfigs();
 let farmPickerIndex = -1;
 let farmPickerArea = 'all';
@@ -273,16 +280,50 @@ function applyTopbarCollapsedState(collapsed, { persist = true } = {}) {
   if (persist) localStorage.setItem('launcherTopbarCollapsed', isCollapsed ? '1' : '0');
 }
 
-function defaultAccount(index) {
-  return { label: `Cuenta ${index + 1}`, username: '', password: '' };
+function accountCount() {
+  return accounts.length || DEFAULT_ACCOUNT_COUNT;
+}
+
+function defaultProxy() {
+  return { enabled: false, protocol: '', host: '', port: 0, username: '', password: '' };
+}
+
+function normalizeProxy(value) {
+  if (!value || typeof value !== 'object') return defaultProxy();
+  const protocol = ['http', 'socks5'].includes(String(value.protocol || '').toLowerCase()) ? String(value.protocol).toLowerCase() : '';
+  const host = String(value.host || '').trim().slice(0, 253);
+  const port = Number(value.port);
+  const valid = value.enabled === true && Boolean(protocol) && Boolean(host) && Number.isInteger(port) && port >= 1 && port <= 65535;
+  return {
+    enabled: Boolean(valid),
+    protocol: valid ? protocol : '',
+    host: valid ? host : '',
+    port: valid ? port : 0,
+    username: valid ? String(value.username || '').slice(0, 120) : '',
+    password: valid ? String(value.password || '').slice(0, 200) : ''
+  };
 }
 
 function normalizeAccounts(value) {
   const rows = Array.isArray(value) ? value : [];
-  return Array.from({ length: ACCOUNT_COUNT }, (_, index) => ({
-    ...defaultAccount(index),
-    ...rows[index]
-  }));
+  if (rows.length > MAX_ACCOUNTS) throw new Error(`Máximo ${MAX_ACCOUNTS} cuentas por launcher.`);
+  const usedIds = new Set();
+  let nextId = 1;
+  return rows.map((row) => {
+    let id = Number(row?.id);
+    if (!Number.isInteger(id) || id < 1 || id > 9999 || usedIds.has(id)) {
+      while (usedIds.has(nextId)) nextId += 1;
+      id = nextId;
+    }
+    usedIds.add(id);
+    return {
+      id,
+      label: String(row?.label || `Cuenta ${id}`).slice(0, 40),
+      username: String(row?.username || '').slice(0, 180),
+      password: String(row?.password || '').slice(0, 300),
+      proxy: normalizeProxy(row?.proxy)
+    };
+  });
 }
 
 function defaultFarmConfig() {
@@ -713,7 +754,7 @@ function validateOrreTarget(target, context, seed = {}) {
 
 function normalizeFarmConfigs(value) {
   const rows = Array.isArray(value) ? value : [];
-  return Array.from({ length: ACCOUNT_COUNT }, (_, index) => ({
+  return Array.from({ length: accountCount() }, (_, index) => ({
     ...defaultFarmConfig(),
     enabled: rows[index]?.enabled !== false,
     target: normalizeFarmTarget(rows[index]?.target)
@@ -771,7 +812,7 @@ function normalizeCaptureGoal(value) {
   const tiers = Array.isArray(value.tiers)
     ? [...new Set(value.tiers.filter((candidate) => ['weak', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ancient', 'divine'].includes(candidate)))]
     : [];
-  const account = Number.isInteger(Number(value.account)) ? Math.max(-1, Math.min(ACCOUNT_COUNT - 1, Number(value.account))) : -1;
+  const account = Number.isInteger(Number(value.account)) ? Math.max(-1, Math.min(accountCount() - 1, Number(value.account))) : -1;
   return {
     id: String(value.id || createLocalId('goal')).slice(0, 90),
     kind,
@@ -863,7 +904,7 @@ function normalizeLauncherNotification(value) {
     id: String(value.id || createLocalId('notification')).slice(0, 100),
     createdAt: Number(value.createdAt) || Date.now(),
     read: value.read === true,
-    accountIndex: Math.max(0, Math.min(ACCOUNT_COUNT - 1, Number(value.accountIndex) || 0)),
+    accountIndex: Math.max(0, Math.min(accountCount() - 1, Number(value.accountIndex) || 0)),
     eventKind,
     types,
     goalNames: Array.isArray(value.goalNames) ? value.goalNames.map((nameValue) => String(nameValue).slice(0, 80)).slice(0, 6) : [],
@@ -4499,19 +4540,19 @@ function restoreGrid() {
 function loadVisibleAccountIndexes() {
   try {
     const stored = JSON.parse(localStorage.getItem(GRID_VISIBLE_KEY) || '[]');
-    const valid = [...new Set(stored.map(Number).filter((index) => index >= 0 && index < ACCOUNT_COUNT))];
+    const valid = [...new Set(stored.map(Number).filter((index) => index >= 0 && index < accountCount()))];
     if (valid.length) return new Set(valid);
   } catch {}
-  const legacyCount = Math.max(1, Math.min(ACCOUNT_COUNT, Number(localStorage.getItem(GRID_VIEW_KEY)) || ACCOUNT_COUNT));
+  const legacyCount = Math.max(1, Math.min(accountCount(), Number(localStorage.getItem(GRID_VIEW_KEY)) || accountCount()));
   return new Set(Array.from({ length: legacyCount }, (_, index) => index));
 }
 
 function loadPanelOrder() {
   try {
     const stored = JSON.parse(localStorage.getItem(GRID_ORDER_KEY) || '[]').map(Number);
-    if (stored.length === ACCOUNT_COUNT && new Set(stored).size === ACCOUNT_COUNT && stored.every((index) => index >= 0 && index < ACCOUNT_COUNT)) return stored;
+    if (stored.length === accountCount() && new Set(stored).size === accountCount() && stored.every((index) => index >= 0 && index < accountCount())) return stored;
   } catch {}
-  return Array.from({ length: ACCOUNT_COUNT }, (_, index) => index);
+  return Array.from({ length: accountCount() }, (_, index) => index);
 }
 
 function renderViewModeMenu() {
@@ -7582,7 +7623,7 @@ function renderStatistics(rows) {
   const total = (getter) => rows.reduce((sum, row) => sum + (Number(getter(row)) || 0), 0);
   const totalHuntSeconds = total((row) => parseHuntDuration(statisticMetric(row.hunt, 'time')));
   const totals = [
-    ['Cuentas en línea', `${rows.filter((row) => row.online).length}/${ACCOUNT_COUNT}`, 'is-accent'],
+    ['Cuentas en línea', `${rows.filter((row) => row.online).length}/${accountCount()}`, 'is-accent'],
     ['Derrotados', formatStatisticNumber(total((row) => statisticMetricNumber(row.hunt, 'defeated'))), ''],
     ['Capturados (Hunt)', formatStatisticNumber(total((row) => statisticMetricNumber(row.hunt, 'captured'))), ''],
     ['Capturas guardadas', formatStatisticNumber(total((row) => row.captures)), 'is-accent'],
@@ -7929,7 +7970,7 @@ function syncUserScriptPanels() {
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
-    { id: PRIMARY_BROWSER_INSTANCE_ID, name: 'Poke Idle World', count: ACCOUNT_COUNT, primary: true },
+    { id: PRIMARY_BROWSER_INSTANCE_ID, name: 'Poke Idle World', count: accountCount(), primary: true },
     ...browserInstances
   ];
   rows.forEach((instance) => {
@@ -7964,7 +8005,7 @@ function renderBrowserInstanceTabs() {
     instanceTabs.appendChild(shell);
   });
   const brandSummary = document.querySelector('.brand small');
-  if (brandSummary) brandSummary.textContent = `${ACCOUNT_COUNT} cuentas · ${rows.length} ${rows.length === 1 ? 'juego' : 'juegos'}`;
+  if (brandSummary) brandSummary.textContent = `${accountCount()} cuentas · ${rows.length} ${rows.length === 1 ? 'juego' : 'juegos'}`;
   updateBrowserInstanceSelection();
 }
 
@@ -8206,7 +8247,8 @@ function createPanel(index) {
 
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
-  webview.setAttribute('partition', `persist:pokegrid-${index + 1}`);
+  const accountId = Number(accounts[index]?.id) || index + 1;
+  webview.setAttribute('partition', `persist:pokegrid-${accountId}`);
   webview.setAttribute('src', 'about:blank');
   webview.setAttribute('allowpopups', 'false');
   webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no');
@@ -8217,6 +8259,7 @@ function createPanel(index) {
     instanceId: PRIMARY_BROWSER_INSTANCE_ID,
     instanceName: 'Poke Idle World',
     index,
+    accountId,
     element,
     name,
     status,
@@ -8431,6 +8474,38 @@ function createPanel(index) {
   }
 }
 
+function gridLayoutForCount(count) {
+  if (count <= 1) return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)' };
+  if (count <= 4) return { columns: 'repeat(2, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 2)}, minmax(0, 1fr))` };
+  if (count <= 9) return { columns: 'repeat(3, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 3)}, minmax(0, 1fr))` };
+  return { columns: 'repeat(4, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 4)}, minmax(0, 1fr))` };
+}
+
+function setGridLayout() {
+  const layout = gridLayoutForCount(accountCount());
+  grid.style.gridTemplateColumns = layout.columns;
+  grid.style.gridTemplateRows = layout.rows;
+}
+
+function rebuildGamePanels() {
+  panels.forEach((panel) => {
+    panel.destroyed = true;
+    clearConnectionTimers(panel);
+    try { panel.webview.stop(); } catch {}
+    panel.element.remove();
+  });
+  panels.length = 0;
+  resetFarmContexts();
+  for (let index = 0; index < accounts.length; index += 1) createPanel(index);
+  setGridLayout();
+  visibleAccountIndexes = new Set(Array.from({ length: accounts.length }, (_, index) => index));
+  applyGridView(null, { persist: false });
+  window.pokeGridUserScriptManager?.setAccounts(accounts);
+  syncUserScriptPanels();
+  refreshNotificationAccountOptions();
+  renderCaptureGoals();
+}
+
 function refreshPanelNames() {
   panels.forEach((panel) => {
     panel.name.textContent = accounts[panel.index].label || `Cuenta ${panel.index + 1}`;
@@ -8441,32 +8516,87 @@ function refreshPanelNames() {
   window.pokeGridUserScriptManager?.setAccounts(accounts);
 }
 
+function renderAccountRow(account, index) {
+  const row = document.createElement('div');
+  row.className = 'account-row';
+  row.dataset.accountId = String(Number(account.id) || index + 1);
+  row.innerHTML = `
+    <label class="field">
+      <span>NOMBRE DEL PANEL</span>
+      <input data-index="${index}" data-field="label" maxlength="40" placeholder="Cuenta ${index + 1}">
+    </label>
+    <label class="field">
+      <span>USUARIO O EMAIL</span>
+      <input data-index="${index}" data-field="username" maxlength="180" autocomplete="off" placeholder="Usuario">
+    </label>
+    <label class="field">
+      <span>CONTRASEÑA</span>
+      <input data-index="${index}" data-field="password" maxlength="300" type="password" autocomplete="new-password" placeholder="Contraseña">
+    </label>
+    <details class="account-proxy-details">${account.proxy?.enabled ? ' open' : ''}
+      <summary>VPN / IP distinta</summary>
+      <div class="account-proxy-grid">
+        <label><span>Protocolo</span>
+          <select data-index="${index}" data-field="proxy.protocol">
+            <option value="">Sin proxy (IP del equipo)</option>
+            <option value="http">HTTP</option>
+            <option value="socks5">SOCKS5</option>
+          </select>
+        </label>
+        <label><span>Host</span><input data-index="${index}" data-field="proxy.host" maxlength="253" placeholder="127.0.0.1"></label>
+        <label><span>Puerto</span><input data-index="${index}" data-field="proxy.port" type="number" min="1" max="65535" placeholder="1080"></label>
+        <label><span>Usuario (opcional)</span><input data-index="${index}" data-field="proxy.username" maxlength="120" autocomplete="off"></label>
+        <label><span>Clave del proxy (opcional)</span><input data-index="${index}" data-field="proxy.password" type="password" maxlength="200" autocomplete="new-password"></label>
+      </div>
+    </details>`;
+  row.querySelector('[data-field="label"]').value = account.label || '';
+  row.querySelector('[data-field="username"]').value = account.username || '';
+  row.querySelector('[data-field="password"]').value = account.password || '';
+  const proxy = account.proxy && typeof account.proxy === 'object' ? account.proxy : defaultProxy();
+  row.querySelector('[data-field="proxy.protocol"]').value = ['http', 'socks5'].includes(proxy.protocol) ? proxy.protocol : '';
+  row.querySelector('[data-field="proxy.host"]').value = proxy.host || '';
+  row.querySelector('[data-field="proxy.port"]').value = Number(proxy.port) > 0 ? String(proxy.port) : '';
+  row.querySelector('[data-field="proxy.username"]').value = proxy.username || '';
+  row.querySelector('[data-field="proxy.password"]').value = proxy.password || '';
+
+  const removeButton = document.createElement('button');
+  removeButton.type = 'button';
+  removeButton.className = 'account-row-remove icon-button';
+  removeButton.textContent = '×';
+  removeButton.title = 'Eliminar esta cuenta al guardar (conserva las demás)';
+  removeButton.addEventListener('click', () => {
+    if (accountRows.querySelectorAll('.account-row').length <= 1) return;
+    row.remove();
+    reindexAccountRows();
+  });
+  row.appendChild(removeButton);
+  return row;
+}
+
+function reindexAccountRows() {
+  accountRows.querySelectorAll('.account-row').forEach((row, index) => {
+    row.querySelectorAll('[data-index]').forEach((control) => { control.dataset.index = String(index); });
+  });
+}
+
 function openAccountsModal() {
   accountRows.replaceChildren();
   modalMessage.textContent = '';
   modalMessage.classList.remove('is-ok');
 
-  accounts.forEach((account, index) => {
-    const row = document.createElement('div');
-    row.className = 'account-row';
-    row.innerHTML = `
-      <label class="field">
-        <span>NOMBRE DEL PANEL</span>
-        <input data-index="${index}" data-field="label" maxlength="40" placeholder="Cuenta ${index + 1}">
-      </label>
-      <label class="field">
-        <span>USUARIO O EMAIL</span>
-        <input data-index="${index}" data-field="username" maxlength="180" autocomplete="off" placeholder="Usuario">
-      </label>
-      <label class="field">
-        <span>CONTRASEÑA</span>
-        <input data-index="${index}" data-field="password" maxlength="300" type="password" autocomplete="new-password" placeholder="Contraseña">
-      </label>`;
-    row.querySelector('[data-field="label"]').value = account.label || '';
-    row.querySelector('[data-field="username"]').value = account.username || '';
-    row.querySelector('[data-field="password"]').value = account.password || '';
-    accountRows.appendChild(row);
+  accounts.forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
+
+  const addButton = document.createElement('button');
+  addButton.type = 'button';
+  addButton.className = 'button button-secondary';
+  addButton.textContent = '+ Añadir cuenta (IP/VPN propia)';
+  addButton.addEventListener('click', () => {
+    if (accountRows.querySelectorAll('.account-row').length >= MAX_ACCOUNTS) return;
+    const nextId = Math.max(0, ...accounts.map((row) => Number(row.id) || 0)) + 1;
+    accountRows.appendChild(renderAccountRow({ id: nextId, label: '', username: '', password: '', proxy: defaultProxy() }, accountRows.querySelectorAll('.account-row').length - 1));
+    reindexAccountRows();
   });
+  accountRowActions.replaceChildren(addButton);
 
   modalBackdrop.hidden = false;
   accountsSourcePath.textContent = linkedAccountsSource
@@ -8480,12 +8610,8 @@ function closeAccountsModal() {
 }
 
 function fillAccountForm(rows) {
-  normalizeAccounts(rows).forEach((account, index) => {
-    for (const field of ['label', 'username', 'password']) {
-      const input = accountRows.querySelector(`input[data-index="${index}"][data-field="${field}"]`);
-      if (input) input.value = account[field] || '';
-    }
-  });
+  accountRows.replaceChildren();
+  normalizeAccounts(rows).forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
 }
 
 downloadAccountsTemplateButton.addEventListener('click', async () => {
@@ -8556,9 +8682,25 @@ async function syncLinkedAccounts() {
 
 accountsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const nextAccounts = normalizeAccounts(accounts);
-  accountRows.querySelectorAll('input').forEach((input) => {
-    nextAccounts[Number(input.dataset.index)][input.dataset.field] = input.value.trim();
+  const rowElements = Array.from(accountRows.querySelectorAll('.account-row'));
+  if (!rowElements.length) {
+    modalMessage.textContent = 'Añade al menos una cuenta.';
+    return;
+  }
+  let nextId = Math.max(0, ...accounts.map((row) => Number(row.id) || 0));
+  const nextAccounts = rowElements.map((rowEl) => {
+    const existingId = Number(rowEl.dataset.accountId);
+    const id = (Number.isInteger(existingId) && existingId > 0) ? existingId : (nextId += 1);
+    const account = { id, label: '', username: '', password: '', proxy: defaultProxy() };
+    rowEl.querySelectorAll('input[data-field], select[data-field]').forEach((control) => {
+      const value = control.value.trim();
+      if (control.dataset.field.startsWith('proxy.')) account.proxy[control.dataset.field.slice(6)] = value;
+      else account[control.dataset.field] = value;
+    });
+    // El proxy se considera activo cuando el usuario completó protocolo + host + puerto.
+    const p = account.proxy;
+    p.enabled = Boolean(p.protocol && p.host && Number(p.port) >= 1);
+    return account;
   });
 
   const result = await window.pokeGrid.saveAccounts(nextAccounts);
@@ -8567,11 +8709,20 @@ accountsForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  accounts = nextAccounts;
-  refreshPanelNames();
-  modalMessage.textContent = 'Cuentas guardadas de forma segura.';
+  accounts = normalizeAccounts(result.accounts || nextAccounts);
+  const structureChanged = accounts.length !== panels.length ||
+    accounts.some((account, index) => Number(panels[index]?.accountId) !== account.id);
+  if (structureChanged) {
+    rebuildGamePanels();
+    modalMessage.textContent = 'Cuentas guardadas y paneles actualizados.';
+  } else {
+    refreshPanelNames();
+    modalMessage.textContent = 'Cuentas guardadas de forma segura.';
+  }
+  const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
+  if (proxyFailures.length) modalMessage.textContent += ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).`;
   modalMessage.classList.add('is-ok');
-  window.setTimeout(closeAccountsModal, 500);
+  window.setTimeout(closeAccountsModal, structureChanged ? 900 : 500);
 });
 
 document.querySelector('#accountsButton').addEventListener('click', openAccountsModal);
@@ -8868,7 +9019,7 @@ viewModeButton.addEventListener('click', () => {
   }
 });
 viewModeAllButton.addEventListener('click', () => {
-  visibleAccountIndexes = new Set(Array.from({ length: ACCOUNT_COUNT }, (_, index) => index));
+  visibleAccountIndexes = new Set(Array.from({ length: accountCount() }, (_, index) => index));
   applyGridView();
 });
 document.addEventListener('pointerdown', (event) => {
@@ -9304,10 +9455,13 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   const result = await window.pokeGrid.loadAccounts();
   accounts = normalizeAccounts(result.accounts);
   linkedAccountsSource = result.sourcePath || '';
+  farmConfigs = loadFarmConfigs();
+  resetFarmContexts();
+  setGridLayout();
   window.pokeGridUserScriptManager?.setAccounts(accounts);
   await window.pokeGridUserScriptManager?.initialize();
   refreshNotificationAccountOptions();
-  for (let index = 0; index < ACCOUNT_COUNT; index += 1) createPanel(index);
+  for (let index = 0; index < accounts.length; index += 1) createPanel(index);
   initializeBrowserInstances();
   applyGridView(null, { persist: false });
   syncUserScriptPanels();
