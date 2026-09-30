@@ -163,7 +163,7 @@ app.whenReady().then(async () => {
       const bar = document.querySelector('#scriptFindBar');
       const wasOpen = !bar.hidden;
       document.querySelector('#scriptFindInput').dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
       );
       return {
         wasOpen,
@@ -172,9 +172,9 @@ app.whenReady().then(async () => {
       };
     })()`);
 
-    if (!escapeState.wasOpen) throw new Error('La barra de buscar no se abrio.');
-    if (!escapeState.findBarHidden) throw new Error('Escape no cerro la barra de buscar.');
-    if (escapeState.modalHidden) throw new Error('Escape en la barra de buscar cerro el Centro de scripts entero.');
+    if (!escapeState.wasOpen) throw new Error('La barra de buscar no se abrió.');
+    if (!escapeState.findBarHidden) throw new Error('Escape no cerró la barra de buscar.');
+    if (escapeState.modalHidden) throw new Error('Escape en la barra de buscar cerró el Centro de scripts entero.');
 
     console.log(JSON.stringify({ ...state, bloqueado: blocked, escape: escapeState }));
     window.destroy();

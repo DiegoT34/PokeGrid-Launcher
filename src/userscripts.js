@@ -1463,6 +1463,9 @@ ${script.code}
   applyExtensionButton.addEventListener('click', applyExtension);
   backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
   document.addEventListener('keydown', (event) => {
+    // Guarda de defensa: si algún hijo del modal ya ha cerrado con Escape y ha
+    // marcado el evento con preventDefault, aquí no se vuelve a cerrar nada.
+    if (event.defaultPrevented) return;
     if (event.key === 'Escape' && !backdrop.hidden) close();
   });
 
