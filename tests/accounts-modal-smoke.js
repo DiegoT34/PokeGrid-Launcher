@@ -41,7 +41,9 @@ app.whenReady().then(async () => {
       state.usernames.join(',') !== 'usuario1,usuario2,usuario3,usuario4' ||
       state.passwords.join(',') !== 'clave=1,clave=2,clave=3,clave=4' ||
       !state.sourcePath.includes('C:\\Datos\\PokeGrid\\cuentas-prueba.txt') ||
-      !state.message.includes('cuatro cuentas importadas')) {
+      // El número sale del archivo importado, no de un literal: el texto ya no dice
+      // "cuatro cuentas" cuando el archivo trae otra cantidad.
+      !/^cuentas-prueba\.txt: \d+ cuentas? importadas? y vinculadas?\./.test(state.message)) {
       throw new Error(`Accounts modal failed: ${JSON.stringify(state)}`);
     }
     console.log(JSON.stringify(state));

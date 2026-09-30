@@ -49,6 +49,23 @@ assert.match(renderer, /item\.games/);
 assert.match(renderer, /<span class="is-game">/);
 assert.match(renderer, /fue retirado de la Shop/);
 assert.match(renderer, /candidate\.id !== item\.id/);
+
+// Aviso antes de sobrescribir un script editado localmente. El aviso va antes de
+// marcar scriptShopBusyId, y cancelar devuelve sin llegar a installScriptShopItem,
+// así que cancelar no toca lo guardado. La condición se apoya en el estado de la
+// tarjeta, y además cubre el caso en que la Shop publica una versión más nueva
+// (scriptShopState dice "update" y no "modified", pero instalar también tira la
+// edición local). Esto fija el cableado, no el comportamiento: el recorrido con
+// window.confirm está diferido, ver task-5-report.md.
+assert.match(renderer, /const estado = previous \? scriptShopState\(item\) : null/);
+assert.match(renderer, /if \(previous && \(estado\.key === 'modified' \|\| editado\)\)/);
+assert.match(renderer, /Has editado «\$\{previous\.name\}» de la Shop/);
+assert.match(renderer, /Actualizar a \$\{item\.version\} descarta tus cambios y no se puede deshacer/);
+assert.match(renderer, /if \(!accepted\) return;/);
+assert.ok(
+  renderer.indexOf('if (!accepted) return;') < renderer.indexOf('window.pokeGrid.installScriptShopItem'),
+  'Cancelar el aviso de sobrescritura debe abandonar antes de instalar.'
+);
 assert.match(css, /\.script-shop-grid/);
 assert.match(css, /@media \(max-width: 620px\)/);
 

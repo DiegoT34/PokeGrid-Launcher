@@ -8574,6 +8574,25 @@ function refreshPanelNames() {
   window.pokeGridUserScriptManager?.setAccounts(accounts);
 }
 
+// Un solo sitio para el mensaje del modal, para que el texto y la clase is-ok no
+// diverjan entre los caminos que escriben en él.
+function setModalMessage(text, ok = false) {
+  modalMessage.textContent = String(text || '');
+  modalMessage.classList.toggle('is-ok', Boolean(ok));
+}
+
+// Filas con usuario y sin contraseña, o al revés. El launcher arranca con cuatro
+// filas vacías a propósito y un usuario puede dejar más huecos sin usar, así que
+// una fila totalmente vacía es válida: lo que se bloquea es la que está a medio
+// rellenar, que casi siempre es un Enter en el campo equivocado. Devuelve el
+// array entero para poder decir cuántas son.
+function incompleteAccountRows(rowElements) {
+  return (rowElements || []).filter((rowEl) => {
+    const value = (field) => rowEl.querySelector(`[data-field="${field}"]`)?.value?.trim() || '';
+    return Boolean(value('username')) !== Boolean(value('password'));
+  });
+}
+
 function renderAccountRow(account, index) {
   const row = document.createElement('div');
   row.className = 'account-row';
@@ -8623,7 +8642,28 @@ function renderAccountRow(account, index) {
   removeButton.textContent = '×';
   removeButton.title = 'Eliminar esta cuenta al guardar (conserva las demás)';
   removeButton.addEventListener('click', () => {
-    if (accountRows.querySelectorAll('.account-row').length <= 1) return;
+    const rows = [...accountRows.querySelectorAll('.account-row')];
+    if (rows.length <= 1) {
+      setModalMessage('Debe quedar al menos una cuenta.');
+      return;
+    }
+    // Eliminar una cuenta desplaza hacia arriba las siguientes y su historial
+    // (capturas, metas y notificaciones) pasa a la cuenta que ocupa ese lugar. Sin
+    // este aviso el usuario pierde datos sin entender a quién se han pasado. El
+    // nombre de quien hereda se lee del DOM y no del guardado, porque las filas ya
+    // borradas en esta sesión desplazan lo que hay entre `accounts` y la pantalla.
+    const position = rows.indexOf(row);
+    const siguiente = rows[position + 1];
+    const nombre = row.querySelector('[data-field="label"]')?.value.trim() || `Cuenta ${position + 1}`;
+    const hereda = siguiente
+      ? (siguiente.querySelector('[data-field="label"]')?.value.trim() || `Cuenta ${position + 2}`)
+      : '';
+    if (!window.confirm(
+      `¿Eliminar ${nombre} al guardar?\n\n` +
+      (hereda
+        ? `El historial de esa posición (capturas, metas y notificaciones) pasará a ${hereda}.`
+        : 'Es la última cuenta de la lista, así que no queda a quién pasarle su historial.')
+    )) return;
     row.remove();
     reindexAccountRows();
   });
@@ -8639,8 +8679,7 @@ function reindexAccountRows() {
 
 function openAccountsModal() {
   accountRows.replaceChildren();
-  modalMessage.textContent = '';
-  modalMessage.classList.remove('is-ok');
+  setModalMessage('');
 
   accounts.forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
 
@@ -8674,19 +8713,17 @@ function fillAccountForm(rows) {
 
 downloadAccountsTemplateButton.addEventListener('click', async () => {
   downloadAccountsTemplateButton.disabled = true;
-  modalMessage.textContent = 'Preparando la plantilla…';
-  modalMessage.classList.remove('is-ok');
+  setModalMessage('Preparando la plantilla…');
   try {
     const result = await window.pokeGrid.downloadAccountsTemplate();
     if (result.canceled) {
-      modalMessage.textContent = '';
+      setModalMessage('');
       return;
     }
     if (!result.ok) throw new Error(result.error || 'No se pudo guardar la plantilla.');
-    modalMessage.textContent = `Plantilla guardada: ${result.file}`;
-    modalMessage.classList.add('is-ok');
+    setModalMessage(`Plantilla guardada: ${result.file}`, true);
   } catch (error) {
-    modalMessage.textContent = error.message || 'No se pudo guardar la plantilla.';
+    setModalMessage(error.message || 'No se pudo guardar la plantilla.');
   } finally {
     downloadAccountsTemplateButton.disabled = false;
   }
@@ -8694,12 +8731,11 @@ downloadAccountsTemplateButton.addEventListener('click', async () => {
 
 importAccountsButton.addEventListener('click', async () => {
   importAccountsButton.disabled = true;
-  modalMessage.textContent = 'Leyendo y validando las cuatro cuentas…';
-  modalMessage.classList.remove('is-ok');
+  setModalMessage('Leyendo y validando las cuentas…');
   try {
     const result = await window.pokeGrid.importAccountsFile();
     if (result.canceled) {
-      modalMessage.textContent = '';
+      setModalMessage('');
       return;
     }
     if (!result.ok) throw new Error(result.error || 'No se pudo importar el archivo.');
@@ -8713,10 +8749,10 @@ importAccountsButton.addEventListener('click', async () => {
     // tirarlos abajo mataría webviews con sesión viva para renombrar cuentas.
     if (accounts.length !== previousCount) rebuildGamePanels();
     else refreshPanelNames();
-    modalMessage.textContent = `${result.file}: cuatro cuentas importadas y vinculadas. Los cambios futuros se sincronizarán automáticamente.`;
-    modalMessage.classList.add('is-ok');
+    const total = accounts.length || result.accounts.length || 0;
+    setModalMessage(`${result.file}: ${total} cuenta${total === 1 ? '' : 's'} importada${total === 1 ? '' : 's'} y vinculada${total === 1 ? '' : 's'}. Los cambios futuros se sincronizarán automáticamente.`, true);
   } catch (error) {
-    modalMessage.textContent = error.message || 'El archivo no contiene una plantilla válida.';
+    setModalMessage(error.message || 'El archivo no contiene una plantilla válida.');
   } finally {
     importAccountsButton.disabled = false;
   }
@@ -8738,8 +8774,7 @@ async function syncLinkedAccounts() {
       else refreshPanelNames();
       if (!modalBackdrop.hidden) {
         fillAccountForm(accounts);
-        modalMessage.textContent = 'Cambios del archivo vinculado aplicados automáticamente.';
-        modalMessage.classList.add('is-ok');
+        setModalMessage('Cambios del archivo vinculado aplicados automáticamente.', true);
       }
     }
     if (!modalBackdrop.hidden && linkedAccountsSource) accountsSourcePath.textContent = `Archivo vinculado: ${linkedAccountsSource}`;
@@ -8752,7 +8787,19 @@ accountsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const rowElements = Array.from(accountRows.querySelectorAll('.account-row'));
   if (!rowElements.length) {
-    modalMessage.textContent = 'Añade al menos una cuenta.';
+    setModalMessage('Añade al menos una cuenta.');
+    return;
+  }
+  // Una fila con usuario y sin contraseña, o al revés, se cuela al guardar si el
+  // Enter cae en el campo equivocado: la cuenta se guarda con la mitad de sus
+  // credenciales y no puede iniciar sesión. El aviso va con el recuento porque
+  // corregir "la última" ya no sirve cuando hay varias.
+  const incompletas = incompleteAccountRows(rowElements);
+  if (incompletas.length) {
+    setModalMessage(
+      `${incompletas.length} ${incompletas.length === 1 ? 'fila está' : 'filas están'} a medio rellenar ` +
+      '(usuario sin contraseña o contraseña sin usuario). Completa o vacía la fila para poder guardar.'
+    );
     return;
   }
   let nextId = Math.max(0, ...accounts.map((row) => Number(row.id) || 0));
@@ -8773,23 +8820,31 @@ accountsForm.addEventListener('submit', async (event) => {
 
   const result = await window.pokeGrid.saveAccounts(nextAccounts);
   if (!result.ok) {
-    modalMessage.textContent = result.error || 'No fue posible guardar las cuentas.';
+    setModalMessage(result.error || 'No fue posible guardar las cuentas.');
     return;
   }
 
   accounts = normalizeAccounts(result.accounts || nextAccounts);
   const structureChanged = accounts.length !== panels.length ||
     accounts.some((account, index) => Number(panels[index]?.accountId) !== account.id);
+  // El texto va entero a setModalMessage: el += de antes leía de modalMessage y
+  // hacía que este bloque dependiera de que nadie hubiera escrito entre medias.
+  const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
   if (structureChanged) {
     rebuildGamePanels();
-    modalMessage.textContent = 'Cuentas guardadas y paneles actualizados.';
+    setModalMessage(
+      'Cuentas guardadas y paneles actualizados.' +
+      (proxyFailures.length ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).` : ''),
+      true
+    );
   } else {
     refreshPanelNames();
-    modalMessage.textContent = 'Cuentas guardadas de forma segura.';
+    setModalMessage(
+      'Cuentas guardadas de forma segura.' +
+      (proxyFailures.length ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).` : ''),
+      true
+    );
   }
-  const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
-  if (proxyFailures.length) modalMessage.textContent += ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).`;
-  modalMessage.classList.add('is-ok');
   window.setTimeout(closeAccountsModal, structureChanged ? 900 : 500);
 });
 
