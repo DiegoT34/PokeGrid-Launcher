@@ -92,7 +92,7 @@ function run({ name, file, kind }) {
       if (killed) {
         console.error(`[${name}] árbol de procesos terminado: taskkill /PID ${child.pid} /T /F`);
       } else {
-        // Sin esto el handle sigue referenciado y el runner no puede salir:
+        // El process.exit(1) de la rama de fallo ya tapaba el cuelgue, sin ser para esto:
         // un cuelgue en CI es peor que un test rojo.
         try { child.kill(); } catch {}
         child.unref();
@@ -158,7 +158,7 @@ async function main() {
 }
 
 // Sin esto, una excepción pendiente sería una unhandled rejection: Node la
-// imprime pero sale con otro código. Aquí se sale siempre con 1.
+// imprime, pero el mensaje y el código de salida los pone el runner, no Node.
 main().catch((error) => {
   console.error(`El runner falló con un error inesperado: ${error && error.message ? error.message : error}`);
   process.exit(1);
