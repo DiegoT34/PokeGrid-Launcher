@@ -55,22 +55,28 @@ app.whenReady().then(async () => {
     await window.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
     await waitFor(window, 'window.pokeGridUserScriptManager && document.querySelectorAll(".panel").length === 4');
 
-    // El script se guarda con 4 cuentas marcadas y luego se comprueba con 32
-    // cuentas: las cuentas 5..32 no tienen entrada en accounts y, con opt-out,
-    // tienen que recibir la inyección igualmente.
+    // Arnés de pruebas, no producto: que el preload quedara configurado con 32
+    // cuentas es una precondición de todo lo que viene después. Si esto falla, el
+    // fallo está en el arnés y los bloques de comportamiento no significan nada.
     const harness = await window.webContents.executeJavaScript(`(async () => {
       const set = await window.pokeGrid.setPreviewAccountCount(32);
       const accounts = await window.pokeGrid.loadAccounts();
+      return { requested: set.count, loaded: accounts.accounts.length };
+    })()`);
+    if (harness.loaded !== 32) {
+      throw new Error(`ARNÉS: el preload no aplicó las 32 cuentas, devolvió ${harness.loaded} (pedidas ${harness.requested}). Arregla el arnés antes de leer los resultados de abajo.`);
+    }
+
+    // Comportamiento: el script se guarda con 4 cuentas marcadas y luego se
+    // comprueba con 32 cuentas. Las cuentas 5..32 no tienen entrada en accounts y,
+    // con opt-out, tienen que recibir la inyección igualmente.
+    await window.webContents.executeJavaScript(`(() => {
       window.pokeGridUserScriptManager.open();
       document.querySelector('#newScriptButton').click();
       const editor = document.querySelector('#scriptCodeInput');
       editor.value = ${JSON.stringify(SCRIPT)};
       editor.dispatchEvent(new Event('input', { bubbles: true }));
-      return { requested: set.count, loaded: accounts.accounts.length };
     })()`);
-    if (harness.loaded !== 32) {
-      throw new Error(`El preload no aplicó las 32 cuentas: devolvió ${harness.loaded} (pedidas ${harness.requested}).`);
-    }
 
     await new Promise((resolve) => setTimeout(resolve, 520));
     await window.webContents.executeJavaScript('document.querySelector("#scriptEditorForm").requestSubmit()');

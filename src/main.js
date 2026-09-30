@@ -311,8 +311,9 @@ function userScriptGameLabels(patterns) {
 function normalizeUserScript(value, existing = null) {
   const code = String(value?.code || '');
   if (!code.trim()) throw new Error('El script no puede estar vacío.');
-  // Buffer.byteLength cuenta bytes y no caracteres, así que un script con acentos
-  // o emoji pesa menos de lo que el usuario cree: el mensaje lleva los bytes reales.
+  // El límite se mide en bytes, no en caracteres: un carácter multibyte cuenta
+  // como varios, así que contar caracteres subestima el tamaño y el script puede
+  // rebasar el límite antes de lo previsto. El mensaje lleva los bytes reales.
   const codeBytes = Buffer.byteLength(code, 'utf8');
   if (codeBytes > USER_SCRIPT_CODE_LIMIT) {
     throw new Error(`El script supera el límite de 10 MB (${codeBytes} bytes).`);

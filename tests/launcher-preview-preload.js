@@ -10,22 +10,34 @@ const previewSpeciesCache = new Map();
 // pokeGrid.setPreviewAccountCount() desde el mundo principal.
 const previewState = { accountCount: 4 };
 
-function previewAccountCount() {
-  // window.__pokeGridPreviewAccountCount solo es visible aquí si se asigna desde el
-  // propio preload: con contextIsolation el mundo principal tiene otro objeto global.
-  const requested = Number(window.__pokeGridPreviewAccountCount ?? previewState.accountCount);
-  const count = Math.floor(requested);
+// Un único sitio donde se clampea el conteo, para que el valor que se guarda en
+// previewState y el que se devuelve sean siempre el mismo número.
+function clampPreviewAccountCount(value) {
+  const count = Math.floor(Number(value));
   return Math.max(1, Math.min(32, Number.isFinite(count) ? count : 4));
 }
 
-function previewAccount(index) {
+function previewAccountCount() {
+  // window.__pokeGridPreviewAccountCount solo es visible aquí si se asigna desde el
+  // propio preload: con contextIsolation el mundo principal tiene otro objeto global.
+  return clampPreviewAccountCount(window.__pokeGridPreviewAccountCount ?? previewState.accountCount);
+}
+
+// Una fila con la misma forma que produce normalizeAccounts en src/account-model.js.
+// Tanto la carga como la importación pasan por aquí, así que no pueden volver a
+// divergir en el número de filas ni en los campos.
+function previewAccount(index, fields = {}) {
   return {
     id: index + 1,
-    label: ['SHOCKVOR', 'SHOCKOR', 'DIEGO20', 'SHOCKVINY'][index] || `Cuenta ${index + 1}`,
-    username: '',
-    password: '',
+    label: fields.label ?? (['SHOCKVOR', 'SHOCKOR', 'DIEGO20', 'SHOCKVINY'][index] || `Cuenta ${index + 1}`),
+    username: fields.username ?? '',
+    password: fields.password ?? '',
     proxy: { enabled: false, protocol: '', host: '', port: 0, username: '', password: '' }
   };
+}
+
+function previewAccounts(fieldsFor = () => ({})) {
+  return Array.from({ length: previewAccountCount() }, (_, index) => previewAccount(index, fieldsFor(index)));
 }
 
 async function previewImageDataUrl(rawUrl) {
@@ -92,7 +104,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   previewMode: true,
   loadAccounts: async () => ({
     ok: true,
-    accounts: Array.from({ length: previewAccountCount() }, (_, index) => previewAccount(index))
+    accounts: previewAccounts()
   }),
   saveAccounts: async (value) => {
     const accounts = Array.isArray(value) ? value : [];
@@ -103,7 +115,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
     };
   },
   setPreviewAccountCount: async (count) => {
-    previewState.accountCount = Math.floor(Number(count)) || 4;
+    previewState.accountCount = clampPreviewAccountCount(count);
     return { ok: true, count: previewAccountCount() };
   },
   syncAccountsSource: async () => ({ ok: true, changed: false, accounts: [], sourcePath: '' }),
@@ -112,7 +124,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
     ok: true,
     file: 'cuentas-prueba.txt',
     sourcePath: 'C:\\Datos\\PokeGrid\\cuentas-prueba.txt',
-    accounts: Array.from({ length: 4 }, (_, index) => ({
+    accounts: previewAccounts((index) => ({
       label: `IMPORTADA ${index + 1}`,
       username: `usuario${index + 1}`,
       password: `clave=${index + 1}`
