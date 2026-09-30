@@ -43,6 +43,20 @@ const RECORRIDO = `(async () => {
   const mensaje = () => document.querySelector('#modalMessage').textContent;
   const paneles = () => [...document.querySelectorAll('#grid .panel')];
   const nombresDePanel = () => paneles().map((panel) => panel.querySelector('.panel-name')?.textContent || '');
+  // Estado visible de cada panel: el texto de la barra, la marca de recarga por proxy y
+  // la etiqueta de VPN. Las fases de proxy comparan esto entero, carácter a carácter,
+  // contra la instantánea previa. No se mira "si ha cambiado" porque una recarga
+  // escribe siempre el mismo texto: lo único que separa "ha recargado" de "no ha
+  // recargado" es el texto exacto que había antes.
+  const estadosDePanel = () => paneles().map((panel) => {
+    const chip = panel.querySelector('.panel-vpn-chip');
+    return {
+      estado: panel.querySelector('.panel-status')?.textContent || '',
+      recargando: panel.classList.contains('is-proxy-reloading'),
+      vpn: chip ? !chip.hidden : null,
+      vpnTitulo: chip?.title || ''
+    };
+  });
   const abrir = async () => { document.querySelector('#accountsButton').click(); await esperar(160); };
   const enviar = async () => {
     document.querySelector('#accountsForm').requestSubmit();
@@ -172,7 +186,92 @@ const RECORRIDO = `(async () => {
     paneles: { total: paneles().length, nombres: nombresDePanel() }
   };
 
-  return { problemas, etiquetasIniciales, panelesIniciales, aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, plural, avisos };
+  // Un webview recién creado dispara sus propios eventos y la barra pasa sola por
+  // "Cargando…" antes de settlear en "Sesión disponible". Se espera a que ningún panel
+  // esté en ese transitorio: si no, la instantánea fotografía un estado que el launcher
+  // va a cambiar por su cuenta y la comparación daría falsos negativos.
+  const asentar = async () => {
+    for (let intento = 0; intento < 40; intento += 1) {
+      if (!estadosDePanel().some((estado) => estado.estado === 'Cargando…')) return;
+      await esperar(100);
+    }
+  };
+  // Guardar y dejar que los estados se asienten antes de fotografiarlos.
+  const enviarAsentado = async () => {
+    const texto = await enviar();
+    await asentar();
+    return texto;
+  };
+
+  // --- G: guardar sin tocar ningún proxy no puede mover ninguna sesión ---
+  await abrir();
+  await asentar();
+  const estadosG = { antes: estadosDePanel(), despues: null, mensaje: '' };
+  estadosG.mensaje = await enviarAsentado();
+  estadosG.despues = estadosDePanel();
+
+  // --- H: activar el proxy de la fila 0 recarga ese panel y solo ese ---
+  await abrir();
+  const proxyMontado = [
+    rellenar(0, 'proxy.protocol', 'http'),
+    rellenar(0, 'proxy.host', '127.0.0.1'),
+    rellenar(0, 'proxy.port', '1080')
+  ];
+  await asentar();
+  const estadosH = { proxyMontado, antes: estadosDePanel(), despues: null, mensaje: '' };
+  estadosH.mensaje = await enviarAsentado();
+  estadosH.despues = estadosDePanel();
+
+  // --- I: una fila nueva reconstruye la rejilla y deja los paneles limpios ---
+  // Hace falta un panel sin recargar para la fase J: en previsualización ninguna
+  // sesión termina de cargar, así que el texto de la fase H se quedaría puesto y en
+  // la J no se podría distinguir "ha recargado por la clave" de "sigue recargando de
+  // antes". La reconstrucción también deja escrito que el estado de recarga pertenece
+  // al panel y no sobrevive a su sustitución.
+  await abrir();
+  const botonAnadir = document.querySelector('#accountRowActions button');
+  const filasAntesDeAnadir = filas().length;
+  if (botonAnadir) botonAnadir.click();
+  const estadosI = { anadida: false, antes: estadosDePanel(), despues: null, mensaje: '' };
+  estadosI.anadida = filas().length === filasAntesDeAnadir + 1;
+  estadosI.mensaje = await enviarAsentado();
+  estadosI.despues = estadosDePanel();
+
+  // --- J: cambiar SOLO la clave del proxy también recarga ---
+  // El destino no se mueve: mismo protocolo, mismo host, mismo puerto. Una firma que
+  // ignorase la clave daría las dos sesiones por iguales y dejaría al usuario con la
+  // IP anterior creyendo que la tiene nueva, que es justo el fallo que se corrige.
+  await abrir();
+  const clavePuesta = rellenar(0, 'proxy.password', 'clave-del-proxy');
+  await asentar();
+  const estadosJ = { clavePuesta, antes: estadosDePanel(), despues: null, mensaje: '' };
+  estadosJ.mensaje = await enviarAsentado();
+  estadosJ.despues = estadosDePanel();
+
+  // --- K: un guardado que no cambia nada del proxy no recarga a nadie ---
+  await abrir();
+  await asentar();
+  const estadosK = { antes: estadosDePanel(), despues: null, mensaje: '' };
+  estadosK.mensaje = await enviarAsentado();
+  estadosK.despues = estadosDePanel();
+
+  // --- L: una importación sin proxy retira la etiqueta de VPN del panel ---
+  // La importación cambia las cuentas por su cuenta y pasa por refreshPanelNames, no
+  // por el formulario. Si esa función no repintase la etiqueta, el panel seguiría
+  // anunciando un proxy que la cuenta ya no tiene. El número de cuentas de la
+  // plantilla se baja a 3 para que no cambie y la ruta sea la de refresco y no la de
+  // reconstrucción: con reconstrucción el nodo se crearía limpio y la fase no probaría
+  // nada de refreshPanelNames.
+  await window.pokeGrid.setPreviewAccountCount(3);
+  await abrir();
+  document.querySelector('#importAccountsButton').click();
+  await esperar(400);
+  const estadosL = { nombres: nombresDePanel(), despues: estadosDePanel(), mensaje: mensaje() };
+
+  return {
+    problemas, etiquetasIniciales, panelesIniciales, aceptando, cancelando, ultimaFila, minimo,
+    listaVacia, filaIncompleta, plural, avisos, proxy: { estadosG, estadosH, estadosI, estadosJ, estadosK, estadosL }
+  };
 })()`;
 
 app.whenReady().then(async () => {
@@ -325,6 +424,113 @@ app.whenReady().then(async () => {
     }
     if (plural.paneles.nombres.join(',') !== plural.panelesAntes.nombres.join(',')) {
       throw new Error(`Con dos filas incompletas se guardó algo: ${JSON.stringify(plural)}`);
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Proxy: session.setProxy ya se llamaba, pero solo afecta a las conexiones nuevas.
+    // Una cuenta que ya estaba cargada conservaba los sockets de Chromium y seguía
+    // saliendo por la IP anterior, así que el launcher tenía que recargar ese webview.
+    //
+    // Estas fases comprueban el EFECTO y no el texto del modal. Una implementación que
+    // no recargara pondría el mismo texto de éxito y la prueba seguiría verde; una que
+    // recargara siempre dejaría el mismo "recargando…" en todas y también. Lo que las
+    // separa es el estado de cada panel: la marca de recarga y el texto de su barra.
+    //
+    // Las comparaciones de "nada se movió" van sobre la marca y sobre el patrón del
+    // texto, no sobre el texto entero. En previsualización los webviews de about:blank
+    // disparan sus propios eventos y la barra pasa sola por "Cargando…" hasta
+    // "Sesión disponible", así que comparar el texto entero daría falsos negativos
+    // según el momento en que se fotografiara.
+    // ---------------------------------------------------------------------------------
+    const { estadosG, estadosH, estadosI, estadosJ, estadosK, estadosL } = state.proxy;
+    const RECARGANDO = /Recargando con la nueva conexión/;
+    const marcas = (estados) => estados.map((estado) => estado.recargando);
+    const textoDeRecarga = (estados) => estados.filter((estado) => RECARGANDO.test(estado.estado)).length;
+    const sinLaFila = (estados, indice) => estados.filter((_estado, position) => position !== indice);
+    const arrancoConRecarga = (estados) => estados.filter((estado) => estado.recargando).length;
+
+    if (estadosG.despues.length !== estadosG.antes.length) {
+      throw new Error(`G: el número de paneles se movió sin cambiar cuentas: ${JSON.stringify(estadosG)}`);
+    }
+    if (JSON.stringify(marcas(estadosG.despues)) !== JSON.stringify(marcas(estadosG.antes)) || textoDeRecarga(estadosG.despues)) {
+      throw new Error(`G: guardar sin tocar ningún proxy no puede tocar ninguna sesión: ${JSON.stringify(estadosG)}`);
+    }
+    if (estadosG.mensaje !== 'Cuentas guardadas de forma segura.') {
+      throw new Error(`G: un guardado sin cambios de proxy no debe anunciar recargas: ${JSON.stringify(estadosG.mensaje)}`);
+    }
+
+    if (!estadosH.proxyMontado.every(Boolean)) {
+      throw new Error(`H: no se pudo montar el caso del proxy: ${JSON.stringify(estadosH)}`);
+    }
+    if (!estadosH.despues[0]?.recargando || !RECARGANDO.test(estadosH.despues[0]?.estado || '')) {
+      throw new Error(`H: cambiar el proxy de la fila 0 no recargó su panel: ${JSON.stringify(estadosH)}`);
+    }
+    if (JSON.stringify(sinLaFila(marcas(estadosH.despues), 0)) !== JSON.stringify(sinLaFila(marcas(estadosH.antes), 0))
+      || textoDeRecarga(sinLaFila(estadosH.despues, 0)) !== textoDeRecarga(sinLaFila(estadosH.antes, 0))) {
+      throw new Error(`H: cambiar el proxy de la fila 0 recargó cuentas que no lo cambiaron: ${JSON.stringify(estadosH)}`);
+    }
+    if (!/Recargando 1 sesión/.test(estadosH.mensaje)) {
+      throw new Error(`H: el modal no dice cuántas sesiones se recargan: ${JSON.stringify(estadosH.mensaje)}`);
+    }
+    if (estadosH.despues[0].vpn !== true || !/127\.0\.0\.1:1080/.test(estadosH.despues[0].vpnTitulo)) {
+      throw new Error(`H: el panel de la cuenta con proxy no muestra su destino: ${JSON.stringify(estadosH.despues[0])}`);
+    }
+    if (estadosH.despues[1].vpn !== false) {
+      throw new Error(`H: el panel de la cuenta sin proxy no puede llevar la etiqueta: ${JSON.stringify(estadosH.despues[1])}`);
+    }
+
+    if (!estadosI.anadida) {
+      throw new Error(`I: no se pudo añadir la fila que deja los paneles limpios: ${JSON.stringify(estadosI)}`);
+    }
+    if (estadosI.despues.length !== estadosI.antes.length + 1) {
+      throw new Error(`I: añadir una cuenta debe reconstruir la rejilla: ${JSON.stringify(estadosI)}`);
+    }
+    if (arrancoConRecarga(estadosI.despues)) {
+      throw new Error(`I: un panel nuevo no puede heredar el estado de recarga del que sustituye: ${JSON.stringify(estadosI.despues)}`);
+    }
+
+    if (!estadosJ.clavePuesta) {
+      throw new Error(`J: no se pudo cambiar solo la clave del proxy: ${JSON.stringify(estadosJ)}`);
+    }
+    // Arnés: si el panel de la fila 0 ya estuviera recargando, la comparación de la fase
+    // J no probaría nada, porque su estado antes y después sería el mismo.
+    if (estadosJ.antes[0]?.recargando || RECARGANDO.test(estadosJ.antes[0]?.estado || '')) {
+      throw new Error(`ARNÉS: el panel de la fase J ya estaba recargando, así que la fase no prueba nada: ${JSON.stringify(estadosJ.antes)}`);
+    }
+    if (!estadosJ.despues[0]?.recargando || !RECARGANDO.test(estadosJ.despues[0]?.estado || '')) {
+      throw new Error(
+        'J: cambiar solo la clave del proxy debe recargar la sesión: es lo único que Chromium rehace ' +
+        `aunque el destino sea el mismo. ${JSON.stringify(estadosJ)}`
+      );
+    }
+    if (JSON.stringify(sinLaFila(marcas(estadosJ.despues), 0)) !== JSON.stringify(sinLaFila(marcas(estadosJ.antes), 0))
+      || textoDeRecarga(sinLaFila(estadosJ.despues, 0)) !== textoDeRecarga(sinLaFila(estadosJ.antes, 0))) {
+      throw new Error(`J: cambiar la clave del proxy de la fila 0 recargó a las demás: ${JSON.stringify(estadosJ)}`);
+    }
+
+    // K no puede exigir cero paneles recargando: el de la fase J lo sigue estando,
+    // porque en previsualización ninguna sesión termina de cargar y nadie cierra el
+    // estado. Lo que sí tiene que valer es que el conjunto no CREZCA y que el modal no
+    // anuncie recargas: una implementación que recargara siempre añadiría los otros dos.
+    if (JSON.stringify(marcas(estadosK.despues)) !== JSON.stringify(marcas(estadosK.antes))
+      || textoDeRecarga(estadosK.despues) !== textoDeRecarga(estadosK.antes)) {
+      throw new Error(`K: un guardado que no cambia el proxy recargó alguna sesión: ${JSON.stringify(estadosK)}`);
+    }
+    if (arrancoConRecarga(estadosK.despues) > arrancoConRecarga(estadosK.antes)) {
+      throw new Error(`K: un guardado que no cambia el proxy recargó alguna sesión: ${JSON.stringify(estadosK)}`);
+    }
+    if (estadosK.mensaje !== 'Cuentas guardadas de forma segura.') {
+      throw new Error(`K: un guardado que no cambia el proxy no debe anunciar recargas: ${JSON.stringify(estadosK.mensaje)}`);
+    }
+
+    if (estadosL.nombres.join(',') !== 'IMPORTADA 1,IMPORTADA 2,IMPORTADA 3') {
+      throw new Error(`L: la importación no llegó a renombrar los paneles, así que la fase no prueba nada: ${JSON.stringify(estadosL.nombres)}`);
+    }
+    if (estadosL.despues.length !== 3) {
+      throw new Error(`L: importar 3 cuentas sobre 3 debe refrescar, no reconstruir: ${JSON.stringify(estadosL.despues)}`);
+    }
+    if (estadosL.despues.some((estado) => estado.vpn !== false)) {
+      throw new Error(`L: una importación sin proxy dejó la etiqueta de VPN puesta: ${JSON.stringify(estadosL.despues)}`);
     }
 
     window.destroy();

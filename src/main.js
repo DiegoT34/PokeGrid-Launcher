@@ -37,6 +37,12 @@ const pokeApiSpeciesCache = new Map();
 const loadedUnpackedExtensions = [];
 const browserInstanceSessions = new WeakSet();
 let scriptShopCache = null;
+// Resultado del applyAccountProxies del arranque, en la forma {id, ok, error?}. Se
+// guarda para que el renderer pueda repartir el aviso por panel al pintar la rejilla:
+// configureGameSessions corre antes que createWindow(), así que cuando el renderer
+// pregunta ya está poblado y no hace falta ningún evento. El renderer lo une a cada
+// panel por id, nunca por posición.
+let lastProxyResults = [];
 
 function writeUpdateLaunchHandshake() {
   const prefix = '--pokegrid-update-handshake=';
@@ -912,8 +918,16 @@ async function configureGameSessions() {
     gameSessions.push(gameSession);
   }
   await maintainGameSessionCaches(gameSessions);
-  try { await applyAccountProxies(accountList); } catch (error) {
+  // applyAccountProxies no lanza: devuelve un resultado por cuenta, y cada entrada
+  // se guarda tal cual para que el aviso llegue a la cuenta que lo sufrió. El try
+  // sigue ahí por si la propia llamada revienta, que es lo que la dejaba sin aviso.
+  try { lastProxyResults = await applyAccountProxies(accountList); } catch (error) {
     console.warn(`No se pudieron aplicar los proxies de cuenta: ${error.message}`);
+  }
+  const proxyFailures = lastProxyResults.filter((entry) => !entry.ok);
+  if (proxyFailures.length) {
+    // Solo el id y el motivo: ni las reglas del proxy ni sus credenciales van al log.
+    console.warn(`No se pudo aplicar el proxy de ${proxyFailures.length} cuenta(s): ${proxyFailures.map((entry) => `${entry.id} (${entry.error})`).join(', ')}`);
   }
   const pokepediaSession = session.fromPartition('persist:pokegrid-pokepedia');
   pokepediaSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
@@ -1371,6 +1385,9 @@ ipcMain.handle('accounts:save', async (_event, accounts) => {
     try { proxyResults = await applyAccountProxies(saved); } catch (error) {
       proxyResults = saved.map((account) => ({ id: account.id, ok: false, error: error.message }));
     }
+    // El informe que lee el renderer al arrancar tiene que reflejar el último
+    // guardado, no el del arranque anterior.
+    lastProxyResults = proxyResults;
     return { ok: true, accounts: saved, proxyResults };
   } catch (error) {
     return { ok: false, error: error.message };
@@ -1474,6 +1491,16 @@ ipcMain.handle('app:cleanup-memory', async () => {
   } catch (error) {
     return { ok: false, error: error.message };
   }
+});
+// Informe de proxies del arranque. Solo responde a la ventana principal: el renderer
+// reparte cada entrada por el id de su cuenta, así que un resultado que no sea suyo
+// no debe aparecerle. El nombre del canal es el que espera el renderer, y la Tarea
+// 10 no debe duplicarlo ni tocarlo.
+ipcMain.handle('app:proxy-results', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    return { ok: false, results: [] };
+  }
+  return { ok: true, results: lastProxyResults };
 });
 ipcMain.handle('assets:pokemon-species', (_event, slug) => resolvePokeApiSpecies(slug));
 ipcMain.handle('userscripts:list', () => {

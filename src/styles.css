@@ -976,6 +976,30 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .panel-name { display: block; max-width: 180px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
 .panel-status { display: block; margin-top: 1px; color: var(--muted); font-size: 10px; }
 
+/* Etiqueta de proxy activo en la barra del panel. El nodo está en la plantilla y
+   solo se le cambia el contenido, así que ni renombrar una cuenta ni reconstruir la
+   rejilla pueden dejarla duplicada ni desincronizada. El destino va en el title: el
+   texto se queda corto porque la barra es estrecha. */
+.panel-vpn-chip {
+  width: max-content;
+  margin-top: 2px;
+  padding: 1px 6px;
+  display: block;
+  border: 1px solid rgba(255, 200, 87, .4);
+  border-radius: 999px;
+  background: rgba(255, 200, 87, .12);
+  color: var(--warning);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.panel-vpn-chip[hidden] { display: none; }
+/* Mientras se recarga para cambiar de salida, la barra lo dice con el texto y además
+   se distingue del resto: el texto se sustituye en cuanto la sesión queda lista. */
+.panel.is-proxy-reloading .panel-status { color: var(--warning); }
+
 .status-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px rgba(255,200,87,.08); }
 .panel.is-online .status-dot { background: var(--success); box-shadow: 0 0 0 4px rgba(75,224,138,.08); }
 .panel.is-error .status-dot { background: var(--danger); box-shadow: 0 0 0 4px rgba(255,102,120,.08); }

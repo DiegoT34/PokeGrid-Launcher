@@ -312,6 +312,55 @@ function normalizeProxy(value) {
   };
 }
 
+// "HTTP · 127.0.0.1:1080" para una cuenta que sale por su propio proxy, y cadena
+// vacía para una que sigue heredando la del equipo. Es el único sitio que nombra un
+// destino de conexión y lo usan tanto la etiqueta del panel como el texto de
+// "sesión lista", para que las dos cosas no puedan contradecirse. Nunca incluye la
+// clave del proxy: aquí solo se enseña y se compara, nunca se registra.
+function proxyDestino(account) {
+  const proxy = account?.proxy;
+  if (!proxy?.enabled) return '';
+  return `${String(proxy.protocol).toUpperCase()} · ${proxy.host}:${proxy.port}`;
+}
+
+// Huella del destino de una cuenta: si la huella no cambia, su sesión no necesita
+// recargarse. Describe DÓNDE sale la conexión y deja la contraseña fuera a
+// propósito, porque es el único secreto de esta estructura y no tiene por qué
+// viajar dentro de un string que alguien pueda volcar en un log o en un mensaje de
+// la interfaz. La clave se compara aparte, en proxyCambiado.
+//
+// Un array en vez de un objeto porque el orden de las claves de un objeto no está
+// garantizado y una diferencia de orden provocaría recargas que no tocan la
+// conexión. Se normaliza a minúsculas y sin espacios porque 'HTTP' frente a 'http',
+// o ' 1080' frente a '1080', son el mismo destino y no justifican tirar la sesión
+// abajo.
+function proxyHuella(account) {
+  const proxy = account?.proxy;
+  if (!proxy || typeof proxy !== 'object') return 'sin-proxy';
+  return JSON.stringify([
+    Boolean(proxy.enabled),
+    String(proxy.protocol || '').trim().toLowerCase(),
+    String(proxy.host || '').trim().toLowerCase(),
+    String(proxy.port || '').trim(),
+    String(proxy.username || '').trim()
+  ]);
+}
+
+// ¿Hay que recargar la sesión de una cuenta? applyAccountProxies ya llama a
+// session.setProxy, y eso solo afecta a las conexiones nuevas: los sockets que
+// Chromium tiene abiertos siguen saliendo por la IP anterior, así que una cuenta ya
+// cargada no nota el cambio hasta que su webview se recarga. Son dos los motivos que
+// obligan a recargar, y hacen falta los dos:
+//   1. el destino cambia (si está activo, protocolo, host, puerto o usuario), y
+//   2. solo cambia la clave del proxy, que es lo único que Chromium va a rehacer en
+//      la sesión cuando el destino es el mismo de siempre.
+// `previous` y `next` son la misma cuenta antes y después de guardar.
+function proxyCambiado(previous, next) {
+  if (!previous || !next) return false;
+  if (proxyHuella(previous) !== proxyHuella(next)) return true;
+  return String(previous.proxy?.password || '') !== String(next.proxy?.password || '');
+}
+
 function normalizeAccounts(value) {
   const rows = Array.isArray(value) ? value : [];
   if (rows.length > MAX_ACCOUNTS) throw new Error(`Máximo ${MAX_ACCOUNTS} cuentas por launcher.`);
@@ -7862,6 +7911,58 @@ function clearConnectionTimers(panel) {
   panel.stallTimer = 0;
 }
 
+// El panel de una cuenta, encontrado por id y no por posición. accounts y panels
+// solo van en paralelo mientras no cambie la estructura, y al arrancar el orden lo
+// fija el proceso principal, no este: unir por id es lo único que aguanta las dos
+// situaciones, y además es la clave que usan proxyResults y el informe de arranque,
+// así que guardar y arrancar hablan el mismo idioma. Con un id que no está en la
+// lista se devuelve null y quien llama no toca nada, en vez de leer un panel ajeno.
+function panelForAccountId(accountId) {
+  const id = Number(accountId);
+  const index = accounts.findIndex((account) => Number(account.id) === id);
+  return index >= 0 ? panels[index] : null;
+}
+
+// Estado visible de "esta sesión se está recargando para cambiar de conexión". Vive
+// en el panel y no en la fila del modal porque el modal se cierra a los 500 ms del
+// guardado: una fila que desaparece no es un estado que nadie pueda leer, y el panel
+// es donde vive la sesión a la que afecta el proxy.
+//
+// El texto se guarda en el panel y lo reutiliza la recarga, para que la barra diga lo
+// mismo durante y después de cargar en vez de que una llamada se pise a la otra.
+function markProxyReloading(panel, account) {
+  const destino = proxyDestino(account);
+  panel.proxyReloading = true;
+  panel.proxyStatusText = destino
+    ? `Recargando con la nueva conexión · ${destino}`
+    : 'Recargando con la nueva conexión…';
+  panel.element.classList.add('is-proxy-reloading');
+  setConnectionVisual(panel, 'loading', panel.proxyStatusText);
+}
+
+// El panel deja de estar recargando por cambio de proxy. Se llama tanto cuando la
+// sesión queda lista como en la ruta de error, porque un panel que entra en
+// recuperación no va a recargar nunca y se quedaría con el texto de "recargando"
+// para siempre. No escribe texto: quien llama escribe el suyo justo después.
+function clearProxyReloading(panel) {
+  if (!panel || !panel.proxyReloading) return false;
+  panel.proxyReloading = false;
+  panel.element.classList.remove('is-proxy-reloading');
+  return true;
+}
+
+// El error de proxy manda sobre el texto de "sesión disponible": si el proxy no llegó
+// a aplicarse la sesión puede estar perfectamente viva y saliendo por la IP
+// equivocada, y el texto normal taparía justo lo que el usuario tiene que ver. Se
+// borra en cuanto el proxy se vuelve a aplicar con éxito.
+function setConnectionReadyVisual(panel, text = 'Sesión disponible') {
+  if (panel.proxyError) {
+    setConnectionVisual(panel, 'error', `Proxy no aplicado: ${panel.proxyError}`);
+    return;
+  }
+  setConnectionVisual(panel, 'online', text);
+}
+
 function webviewCurrentUrl(panel) {
   try {
     const current = panel.webview.getURL();
@@ -7875,20 +7976,30 @@ function recoveryDelay(attempt) {
   return Math.round(exponential + Math.random() * Math.min(1000, exponential * 0.2));
 }
 
-async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga' } = {}) {
+// statusText permite que quien llama deje su propio texto en la barra del panel en
+// vez del "motivo de carga" genérico, que es lo que necesita la recarga por cambio de
+// proxy para no quedarse tapada por su propio motivo.
+async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga', statusText = '' } = {}) {
   if (!panel || panel.destroyed || window.pokeGrid.previewMode) return false;
   if (!navigator.onLine) {
+    // Sin red no hay recarga posible, así que el panel no puede quedarse con el
+    // texto de "recargando con la nueva conexión" para siempre.
+    clearProxyReloading(panel);
     setConnectionVisual(panel, 'error', 'Sin conexión · esperando red');
     return false;
   }
   const target = rawUrl || webviewCurrentUrl(panel) || panel.startUrl;
-  if (!target || target === 'about:blank') return false;
+  if (!target || target === 'about:blank') {
+    clearProxyReloading(panel);
+    return false;
+  }
   panel.lastUrl = target;
-  setConnectionVisual(panel, 'loading', `${reason}…`);
+  setConnectionVisual(panel, 'loading', statusText || `${reason}…`);
   try {
     await panel.webview.loadURL(target);
     return true;
   } catch (error) {
+    clearProxyReloading(panel);
     schedulePanelRecovery(panel, error?.message || reason);
     return false;
   }
@@ -7896,6 +8007,10 @@ async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga' } = {}
 
 function schedulePanelRecovery(panel, reason = 'Conexión interrumpida', { immediate = false } = {}) {
   if (!panel || panel.destroyed || panel.recoveryTimer) return;
+  // Un panel que entra en recuperación ya no está recargando por cambio de proxy:
+  // sin esto se quedaría con el texto de "recargando con la nueva conexión" pegado
+  // encima del "Reconectando en Ns" que se escribe a continuación.
+  clearProxyReloading(panel);
   if (!navigator.onLine) {
     setConnectionVisual(panel, 'error', 'Sin conexión · reconexión automática');
     return;
@@ -7929,7 +8044,7 @@ function startConnectionStallWatch(panel) {
       if (state?.hasBody && /^https:\/\//i.test(state.url || '')) {
         panel.isLoading = false;
         panel.lastReadyAt = panel.lastReadyAt || Date.now();
-        setConnectionVisual(panel, 'online', 'El juego continúa sincronizando…');
+        setConnectionReadyVisual(panel, 'El juego continúa sincronizando…');
         return;
       }
     } catch {}
@@ -7945,7 +8060,17 @@ function markConnectionReady(panel) {
   panel.isLoading = false;
   panel.connectionFailures = 0;
   panel.lastReadyAt = Date.now();
-  setConnectionVisual(panel, 'online', 'Sesión disponible');
+  // El texto de "recargando con la nueva conexión" no sobrevive a una sesión que ya
+  // está lista: se sustituye por el destino al que sale ahora, que es lo que
+  // confirma al usuario que el cambio surtió efecto. Si la recarga no llegó a
+  // ocurrir, la ruta de error ya lo ha retirado antes.
+  const destino = panel.proxyReloading ? proxyDestino(accounts[panel.index]) : '';
+  clearProxyReloading(panel);
+  if (destino) {
+    setConnectionReadyVisual(panel, `Sesión con ${destino}`);
+    return;
+  }
+  setConnectionReadyVisual(panel);
 }
 
 function attachResilientWebview(panel, callbacks = {}) {
@@ -7973,7 +8098,7 @@ function attachResilientWebview(panel, callbacks = {}) {
     panel.isLoading = false;
     window.clearTimeout(panel.stallTimer);
     panel.stallTimer = 0;
-    if (webviewCurrentUrl(panel) !== 'about:blank') setConnectionVisual(panel, 'online', 'Sesión disponible');
+    if (webviewCurrentUrl(panel) !== 'about:blank') setConnectionReadyVisual(panel);
     callbacks.onStop?.();
   });
   webview.addEventListener('did-fail-load', (event) => {
@@ -8255,6 +8380,7 @@ function createPanel(index) {
   const fragment = panelTemplate.content.cloneNode(true);
   const element = fragment.querySelector('.panel');
   const name = fragment.querySelector('.panel-name');
+  const proxyChip = fragment.querySelector('.panel-vpn-chip');
   const status = fragment.querySelector('.panel-status');
   const panelbar = fragment.querySelector('.panelbar');
   const farmChip = fragment.querySelector('.farm-chip');
@@ -8316,6 +8442,7 @@ function createPanel(index) {
     accountId,
     element,
     name,
+    proxyChip,
     status,
     farmChip,
     zoomLabel,
@@ -8373,6 +8500,9 @@ function createPanel(index) {
     stallTimer: 0,
     isLoading: false,
     destroyed: false,
+    proxyReloading: false,
+    proxyError: '',
+    proxyStatusText: '',
     zoom: getStoredZoom(index),
     lastLoginAttempt: 0,
     captureMonitorReady: false,
@@ -8407,6 +8537,7 @@ function createPanel(index) {
   });
 
   name.textContent = accounts[index].label || `Cuenta ${index + 1}`;
+  renderPanelProxyChip(panel);
   const storedCaptureSort = localStorage.getItem(`captureLogSort:${index}`);
   if ([...captureLogSort.options].some((option) => option.value === storedCaptureSort)) {
     captureLogSort.value = storedCaptureSort;
@@ -8571,9 +8702,45 @@ function rebuildGamePanels() {
   renderCaptureGoals();
 }
 
+// La etiqueta de proxy del panel se pinta desde la cuenta, no con la cuenta, para que:
+//   - una importación que cambia el proxy la actualice en vez de dejar la etiqueta de
+//     la cuenta anterior (importAccountsFile y syncLinkedAccounts pasan por aquí y no
+//     por el formulario),
+//   - rebuildGamePanels no pueda duplicarla nunca, porque el nodo está en la plantilla
+//     y estas funciones solo le cambian el contenido.
+// Si el proxy no llegó a aplicarse se oculta, porque la etiqueta con destino y el
+// aviso de error se contradirían; el motivo queda en la barra de estado del panel.
+function renderPanelProxyChip(panel) {
+  if (!panel?.proxyChip) return;
+  const destino = panel.proxyError ? '' : proxyDestino(accounts[panel.index]);
+  panel.proxyChip.hidden = !destino;
+  panel.proxyChip.textContent = 'VPN';
+  panel.proxyChip.title = destino ? `Sale por ${destino}` : '';
+}
+
+// Resumen de applyAccountProxies por cuenta, pintado en el panel de cada una. El
+// modal se cierra a los 500 ms del guardado y una fila con el resultado dentro no es
+// un estado que nadie pueda leer; el panel es donde vive la sesión afectada. Lo usan
+// el guardado y el informe de arranque, así que los dos caminos hablan el mismo
+// idioma: [{ id, ok, error? }] del proceso principal, unida al panel por id.
+function applyProxyOutcomeToPanels(proxyResults) {
+  const byId = new Map((proxyResults || []).map((entry) => [Number(entry?.id), entry]));
+  accounts.forEach((account) => {
+    const panel = panelForAccountId(account.id);
+    if (!panel) return;
+    const entry = byId.get(Number(account.id));
+    panel.proxyError = entry && !entry.ok ? String(entry.error || 'error desconocido') : '';
+    renderPanelProxyChip(panel);
+  });
+}
+
 function refreshPanelNames() {
   panels.forEach((panel) => {
     panel.name.textContent = accounts[panel.index].label || `Cuenta ${panel.index + 1}`;
+    // El nombre no es lo único de la barra que depende de la cuenta: la etiqueta de
+    // proxy también, y se quedaba pegada a la anterior cuando solo se renombraba o
+    // se importaba.
+    renderPanelProxyChip(panel);
   });
   refreshNotificationAccountOptions();
   renderCaptureGoals();
@@ -8825,6 +8992,11 @@ accountsForm.addEventListener('submit', async (event) => {
     return account;
   });
 
+  // Las cuentas de antes del guardado, para poder distinguir "no ha cambiado nada"
+  // de "ha cambiado el proxy". Se guardan por id porque es la clave estable de una
+  // cuenta, y se desechan al terminar el guardado: no viven más de lo que dura esta
+  // llamada.
+  const previousById = new Map(accounts.map((account) => [Number(account.id), account]));
   const result = await window.pokeGrid.saveAccounts(nextAccounts);
   if (!result.ok) {
     setModalMessage(result.error || 'No fue posible guardar las cuentas.');
@@ -8834,23 +9006,47 @@ accountsForm.addEventListener('submit', async (event) => {
   accounts = normalizeAccounts(result.accounts || nextAccounts);
   const structureChanged = accounts.length !== panels.length ||
     accounts.some((account, index) => Number(panels[index]?.accountId) !== account.id);
+  // applyAccountProxies ya ha llamado a session.setProxy por su cuenta, y eso solo
+  // toca las conexiones nuevas: los sockets que Chromium tiene abiertos siguen
+  // saliendo por la IP anterior. Una cuenta que ya estaba cargada no se entera del
+  // cambio hasta que su webview se recarga, así que se recargan solo las que han
+  // cambiado de proxy. Cuando la estructura cambia no hace falta: los paneles se
+  // reconstruyen y sus webviews ya salen por la conexión nueva.
+  const proxyRecargadas = [];
+  if (!structureChanged) {
+    accounts.forEach((account) => {
+      if (!proxyCambiado(previousById.get(Number(account.id)), account)) return;
+      const panel = panelForAccountId(account.id);
+      if (!panel || panel.destroyed) return;
+      clearConnectionTimers(panel);
+      panel.connectionFailures = 0;
+      markProxyReloading(panel, account);
+      loadConnectionPanel(panel, webviewCurrentUrl(panel), {
+        reason: 'Cambio de proxy',
+        statusText: panel.proxyStatusText
+      });
+      proxyRecargadas.push(Number(account.id));
+    });
+  }
+  if (structureChanged) rebuildGamePanels();
+  else refreshPanelNames();
+  // El resultado de aplicar el proxy se reparte por panel, no por fila del modal: el
+  // modal se cierra enseguida y una fila que desaparece no informa a nadie.
+  applyProxyOutcomeToPanels(result.proxyResults);
+
   // El texto va entero a setModalMessage: el += de antes leía de modalMessage y
   // hacía que este bloque dependiera de que nadie hubiera escrito entre medias.
   const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
+  const avisoFallos = proxyFailures.length
+    ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s), se avisa en su panel.`
+    : '';
   if (structureChanged) {
-    rebuildGamePanels();
-    setModalMessage(
-      'Cuentas guardadas y paneles actualizados.' +
-      (proxyFailures.length ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).` : ''),
-      true
-    );
+    setModalMessage('Cuentas guardadas y paneles actualizados.' + avisoFallos, true);
+  } else if (proxyRecargadas.length) {
+    const cuantas = `${proxyRecargadas.length} ${proxyRecargadas.length === 1 ? 'sesión' : 'sesiones'}`;
+    setModalMessage(`Cuentas guardadas. Recargando ${cuantas} para aplicar la nueva conexión.` + avisoFallos, true);
   } else {
-    refreshPanelNames();
-    setModalMessage(
-      'Cuentas guardadas de forma segura.' +
-      (proxyFailures.length ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s).` : ''),
-      true
-    );
+    setModalMessage('Cuentas guardadas de forma segura.' + avisoFallos, true);
   }
   window.setTimeout(closeAccountsModal, structureChanged ? 900 : 500);
 });
@@ -9597,6 +9793,13 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   await window.pokeGridUserScriptManager?.initialize();
   refreshNotificationAccountOptions();
   for (let index = 0; index < accounts.length; index += 1) createPanel(index);
+  // Informe de proxies del arranque. configureGameSessions corre antes que
+  // createWindow(), así que el resultado ya está poblado y no hace falta ningún
+  // evento. Los paneles tienen que existir ya: se pinta sobre ellos, no sobre las
+  // filas del modal, porque al arrancar no hay modal y porque el panel es donde vive
+  // la sesión que va por la IP equivocada.
+  const proxyReport = await window.pokeGrid.loadProxyResults?.();
+  applyProxyOutcomeToPanels(proxyReport?.results || []);
   initializeBrowserInstances();
   applyGridView(null, { persist: false });
   syncUserScriptPanels();
