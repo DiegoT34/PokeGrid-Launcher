@@ -12,13 +12,32 @@ app.setPath('userData', path.join(app.getPath('temp'), `pokegrid-guest-cleanup-$
 // auxiliar sin CSP, generada aquí mismo y borrada al terminar. Es el mismo
 // contexto que un guest de <webview>: documento real y localStorage real, y el
 // código que se evalúa es exactamente el que devuelve buildGuestCleanupSource.
-const harnessDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-guest-cleanup-'));
-const harnessFile = path.join(harnessDir, 'harness.html');
-fs.writeFileSync(
-  harnessFile,
-  '<!doctype html>\n<html lang="es">\n<head><meta charset="utf-8"><title>Arenero de limpieza</title></head>\n<body></body>\n</html>\n',
-  'utf8'
-);
+//
+// El directorio se crea dentro del try del recorrido, no en el ámbito del
+// módulo: si viviera aquí, un fallo entre los dos puntos dejaría el temporal
+// huérfano y, peor, la promesa de app.whenReady() sin manejar.
+let harnessDir = '';
+
+function createHarness() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-guest-cleanup-'));
+  fs.writeFileSync(
+    path.join(dir, 'harness.html'),
+    '<!doctype html>\n<html lang="es">\n<head><meta charset="utf-8"><title>Arenero de limpieza</title></head>\n<body></body>\n</html>\n',
+    'utf8'
+  );
+  return dir;
+}
+
+// Los reintentos no son adorno: en Windows el antivirus o el indexador pueden
+// tener abierto el directorio justo después de destruir la ventana, y un EPERM
+// sin reintentos convertiría una ejecución verde en un rojo cuyo stack no
+// parece de producto. Es el patrón que ya usan las pruebas del actualizador.
+function removeHarness() {
+  if (!harnessDir) return;
+  try {
+    fs.rmSync(harnessDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  } catch {}
+}
 
 async function waitFor(window, expression, timeout = 15_000) {
   const started = Date.now();
@@ -27,6 +46,52 @@ async function waitFor(window, expression, timeout = 15_000) {
     await new Promise((resolve) => setTimeout(resolve, 80));
   }
   throw new Error(`Timed out waiting for ${expression}`);
+}
+
+const readScriptMessage = (window) => window.webContents.executeJavaScript(
+  "document.querySelector('#scriptsMessage').textContent"
+);
+
+// Textos que el producto pone mientras todavía está trabajando. No se espera a
+// ninguno en concreto: solo sirven para no tomar un estado intermedio por un
+// resultado. La condición que decide es la estabilidad, que es lo que importa.
+const MENSAJES_A_OJAL = ['Revisando', 'Validando e instalando', 'Sintaxis JavaScript correcta'];
+
+// Espera a que la barra de mensajes se acomode: que se haya visto trabajando y
+// que su texto lleve un momento igual.
+//
+// No espera el texto esperado. Afirmar el mensaje esperándolo esconde el aserto
+// de verdad: si el producto se equivoca, el error que sale acaba siendo
+// "Timed out waiting for ..." en lugar del throw que explica qué pasó, y un
+// aserto que sale por timeout no se distingue de un cuelgue.
+//
+// Tampoco se exige que el texto sea distinto del de antes de la acción, y ese
+// matiz es la diferencia entre funcionar y no: dos acciones seguidas pueden
+// acabar con exactamente el mismo mensaje (dos arrastres que se instalan los
+// dos dan "1 actualizado..."), y pedir el cambio convertía un recorrido verde en
+// quince segundos de espera inútil.
+//
+// Lo que sí hace falta es haber visto que la acción empezó, y eso se lee en el
+// mismo instante en que se dispara, no desde aquí: si se leyera después, una
+// acción que termina entre medias dejaría sin verse el estado intermedio y la
+// espera no terminaría nunca. `accion` trae el texto de antes y el de justo
+// después de dispararla.
+async function waitForMessageToSettle(window, accion, timeout = 15_000) {
+  const { antes, despues } = accion;
+  const occupado = (text) => MENSAJES_A_OJAL.some((marker) => text.includes(marker));
+  const started = Date.now();
+  let repeats = 0;
+  let sawWork = despues !== antes || occupado(despues);
+  let last = despues;
+  while (Date.now() - started < timeout) {
+    const current = await readScriptMessage(window);
+    repeats = current === last ? repeats + 1 : 0;
+    last = current;
+    if (current !== antes || occupado(current)) sawWork = true;
+    if (sawWork && !occupado(current) && repeats >= 4) return current;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+  throw new Error(`La barra de mensajes no se asentó tras la acción: ${JSON.stringify({ antes, ahora: last, seVioTrabajar: sawWork })}`);
 }
 
 function userscriptSource(version) {
@@ -42,13 +107,18 @@ function userscriptSource(version) {
   ].join('\n');
 }
 
+// Dispara el arrastre y devuelve el texto de la barra justo antes y justo
+// después, medido en el mismo ciclo: si no, el estado intermedio de la acción
+// se perdería y quien espere no podría distinguir "terminó" de "nunca empezó".
 const dropProbeFile = (window, version) => window.webContents.executeJavaScript(`(() => {
   const transfer = new DataTransfer();
   transfer.items.add(new File([${JSON.stringify(userscriptSource(version))}], 'sonda.user.js', { type: 'text/javascript' }));
+  const mensaje = document.querySelector('#scriptsMessage');
+  const antes = mensaje.textContent;
   document.querySelector('#scriptDropZone').dispatchEvent(
     new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true })
   );
-  return true;
+  return { antes, despues: mensaje.textContent };
 })()`);
 
 const readStoredProbe = (window) => window.webContents.executeJavaScript(`(async () => {
@@ -77,19 +147,18 @@ const seedInstalledProbe = (window) => window.webContents.executeJavaScript(`(as
 
 // Deja el borrador con el interruptor y las cuentas en el estado pedido y lo
 // guarda. Devuelve cuántas cuentas tenía el formulario, que el recorrido usa
-// como prueba de que encontró los controles de verdad.
+// como prueba de que encontró los controles de verdad, y el texto de la barra
+// antes y después del submit.
 const submitEditorWith = (window, { enabled, accounts }) => window.webContents.executeJavaScript(`(() => {
   const enabledInput = document.querySelector('#scriptEnabledInput');
   const toggles = [...document.querySelectorAll('#scriptAccountToggles input')];
   enabledInput.checked = ${JSON.stringify(Boolean(enabled))};
   toggles.forEach((input, index) => { input.checked = ${JSON.stringify(Boolean(accounts))}; });
+  const mensaje = document.querySelector('#scriptsMessage');
+  const antes = mensaje.textContent;
   document.querySelector('#scriptEditorForm').requestSubmit();
-  return toggles.length;
+  return { antes, despues: mensaje.textContent, toggles: toggles.length };
 })()`);
-
-const readScriptMessage = (window) => window.webContents.executeJavaScript(
-  "document.querySelector('#scriptsMessage').textContent"
-);
 
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
@@ -110,6 +179,7 @@ app.whenReady().then(async () => {
   });
 
   try {
+    harnessDir = createHarness();
     await window.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
     await waitFor(window, 'window.pokeGridUserScriptManager && document.querySelectorAll(".panel").length === 4');
 
@@ -136,7 +206,7 @@ app.whenReady().then(async () => {
 
     // Siembra el estado que dejaría un script inyectado, ejecuta el código de
     // limpieza y comprueba que solo desaparece lo de ese script.
-    await harness.loadFile(harnessFile);
+    await harness.loadFile(path.join(harnessDir, 'harness.html'));
     const state = await harness.webContents.executeJavaScript(`(() => {
       const id = 'probe-1';
       const other = 'probe-2';
@@ -193,19 +263,32 @@ app.whenReady().then(async () => {
     if (state.otherStyles !== 1) throw new Error('La limpieza borro los <style> de otro script.');
     if (state.ownToasts !== 0) throw new Error('Quedaron toasts del script.');
     if (state.otherToasts !== 1) throw new Error('La limpieza borro los toasts de otro script.');
-    if (state.registryHasOwn) throw new Error('Quedo la entrada del script en el registro anti-duplicado.');
+    if (state.registryHasOwn) throw new Error('Quedó la entrada del script en el registro anti-duplicado.');
     if (!state.registryHasOther) throw new Error('La limpieza vacio el registro de otros scripts.');
     if (state.commandsHaveOwn) throw new Error('Quedaron comandos de menu del script.');
-    if (!state.commandsHaveOther) throw new Error('La limpio los comandos de menu de otro script.');
+    if (!state.commandsHaveOther) throw new Error('La limpieza borró los comandos de menu de otro script.');
 
     // cleanupScriptInPanels recorre todos los paneles registrados y resuelve sin
-    // lanzar aunque un webview no responda: borrar un script no puede quedarse
-    // a medias por culpa de una sesión.
+    // lanzar aunque un webview no responda.
+    //
+    // No basta con que devuelva 4 resultados: Promise.allSettled conserva la
+    // longitud y un panel que se rechaza también cuenta, así que la longitud es
+    // media tautología. Lo que se comprueba es que los cuatro webviews
+    // contestaron con un recuento real y que cada entrada dice qué panel es,
+    // porque si no, un fallo no se puede atribuir a ningún panel.
     const panelCleanup = await window.webContents.executeJavaScript(
-      "window.pokeGridUserScriptManager.cleanupScriptInPanels('probe-1').then((results) => results.length)"
+      "window.pokeGridUserScriptManager.cleanupScriptInPanels('probe-1')"
     );
-    if (panelCleanup !== 4) {
-      throw new Error(`La limpieza en paneles no cubrio los 4 paneles: ${panelCleanup}`);
+    if (!Array.isArray(panelCleanup) || panelCleanup.length !== 4) {
+      throw new Error(`La limpieza en paneles no devolvió un resultado por panel: ${JSON.stringify(panelCleanup)}`);
+    }
+    const contestaron = panelCleanup.filter((entry) => entry.removed && typeof entry.removed.storage === 'boolean');
+    if (contestaron.length !== 4) {
+      throw new Error(`Solo ${contestaron.length} de 4 webviews devolvieron la limpieza: ${JSON.stringify(panelCleanup)}`);
+    }
+    const sinIdentificar = panelCleanup.filter((entry) => !entry.instanceId || !Number.isInteger(entry.index));
+    if (sinIdentificar.length) {
+      throw new Error(`${sinIdentificar.length} resultados no dicen qué panel son: ${JSON.stringify(panelCleanup)}`);
     }
 
     // Arrastrar un .user.js mas antiguo no debe pisar la copia instalada: con una
@@ -217,16 +300,16 @@ app.whenReady().then(async () => {
       throw new Error(`La copia de partida no se sembró bien: ${JSON.stringify(installedBefore)}`);
     }
 
-    await dropProbeFile(window, '1.0.0');
-    await waitFor(window, "document.querySelector('#scriptsMessage').textContent.includes('es más antigua')");
+    const dropViejo = await dropProbeFile(window, '1.0.0');
+    const olderMessage = await waitForMessageToSettle(window, dropViejo);
     const afterOlder = await readStoredProbe(window);
 
-    await dropProbeFile(window, null);
-    await waitFor(window, "document.querySelector('#scriptsMessage').textContent.includes('no declara @version')");
+    const dropSinVersion = await dropProbeFile(window, null);
+    const missingVersionMessage = await waitForMessageToSettle(window, dropSinVersion);
     const afterMissingVersion = await readStoredProbe(window);
 
-    await dropProbeFile(window, '3.0.0');
-    await waitFor(window, "document.querySelector('#scriptsMessage').textContent.includes('1 actualizado')");
+    const dropNuevo = await dropProbeFile(window, '3.0.0');
+    const newerMessage = await waitForMessageToSettle(window, dropNuevo);
     const afterNewer = await readStoredProbe(window);
 
     if (afterOlder.probe !== '2.0.0') {
@@ -238,27 +321,31 @@ app.whenReady().then(async () => {
     if (afterNewer.probe !== '3.0.0' || afterNewer.version !== '3.0.0') {
       throw new Error(`Un archivo mas nuevo no actualizó la copia instalada: ${JSON.stringify(afterNewer)}`);
     }
+    // Rechazar sin decir cómo desbloquear deja al usuario atascado: el motivo
+    // tiene que decir qué añadir al archivo para poder volver a importarlo.
+    if (missingVersionMessage.indexOf('// @version') === -1) {
+      throw new Error(`El motivo del rechazo sin @version no dice cómo salir: ${missingVersionMessage}`);
+    }
 
     // BUG-08: el guard de saveEditor mira el interruptor de estado antes que las
     // cuentas. Un script encendido sin ninguna cuenta marcada se guarda, que antes
     // era imposible; apagado y sin cuentas sí se rechaza, con el motivo nuevo.
-    const togglesFound = await submitEditorWith(window, { enabled: true, accounts: false });
-    if (togglesFound !== 4) {
-      throw new Error(`El formulario no tenía los 4 controles de cuenta: ${togglesFound}`);
+    const guardadoEncendido = await submitEditorWith(window, { enabled: true, accounts: false });
+    if (guardadoEncendido.toggles !== 4) {
+      throw new Error(`El formulario no tenía los 4 controles de cuenta: ${guardadoEncendido.toggles}`);
     }
-    await waitFor(window, "document.querySelector('#scriptsMessage').textContent.includes('Script guardado')");
+    await waitForMessageToSettle(window, guardadoEncendido);
     const enabledWithoutAccounts = await readStoredProbe(window);
     if (enabledWithoutAccounts.enabled !== true || (enabledWithoutAccounts.accounts || []).some(Boolean)) {
       throw new Error(`Un script encendido sin cuentas no se guardó: ${JSON.stringify(enabledWithoutAccounts)}`);
     }
 
-    const guardToggles = await submitEditorWith(window, { enabled: false, accounts: false });
-    if (guardToggles !== 4) {
-      throw new Error(`El formulario no tenía los 4 controles de cuenta: ${guardToggles}`);
+    const guardadoApagado = await submitEditorWith(window, { enabled: false, accounts: false });
+    if (guardadoApagado.toggles !== 4) {
+      throw new Error(`El formulario no tenía los 4 controles de cuenta: ${guardadoApagado.toggles}`);
     }
-    await waitFor(window, "document.querySelector('#scriptsMessage').textContent.includes('Activa el script')");
+    const blockedMessage = await waitForMessageToSettle(window, guardadoApagado);
     const afterGuard = await readStoredProbe(window);
-    const blockedMessage = await readScriptMessage(window);
     if (blockedMessage.indexOf('Activa el script o marca al menos una cuenta donde ejecutarlo.') === -1) {
       throw new Error(`El guard no dio el motivo nuevo: ${blockedMessage}`);
     }
@@ -273,21 +360,30 @@ app.whenReady().then(async () => {
       ...state,
       panelCleanup,
       afterOlder,
+      olderMessage,
       afterMissingVersion,
+      missingVersionMessage,
       afterNewer,
+      newerMessage,
       enabledWithoutAccounts,
       afterGuard,
       blockedMessage
     }));
     harness.destroy();
     window.destroy();
-    fs.rmSync(harnessDir, { recursive: true, force: true });
+    removeHarness();
     app.exit(0);
   } catch (error) {
     console.error(error.stack || error.message);
     harness.destroy();
     window.destroy();
-    try { fs.rmSync(harnessDir, { recursive: true, force: true }); } catch {}
+    removeHarness();
     app.exit(1);
   }
+}).catch((error) => {
+  // Un fallo antes del try, el único candidato real es crear una ventana, no
+  // puede quedar sin manejar: la suite se quedaría colgando hasta que el runner
+  // la mate por timeout y el motivo real se perdería.
+  console.error(error && error.stack ? error.stack : String(error));
+  app.exit(1);
 });

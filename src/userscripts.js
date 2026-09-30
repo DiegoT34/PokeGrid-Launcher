@@ -133,12 +133,14 @@
   // leer como número cuenta como 0, así que una versión ausente o malformada se
   // trata como la más antigua. El prefijo "v" se quita porque "@version v1.2.0"
   // es tan válido como "@version 1.2.0" y sin esto contaría como 0.
+  // Devuelve -1, 0 o 1 y no una diferencia de segmentos: una función que promete
+  // un signo y devuelve una magnitud es una trampa para el que la use después.
   function compareVersions(left, right) {
     const segments = (value) => String(value ?? '').trim().replace(/^v/i, '').split('.');
     const a = segments(left).map((value) => Number(value) || 0);
     const b = segments(right).map((value) => Number(value) || 0);
     for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-      if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) - (b[index] || 0);
+      if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) > (b[index] || 0) ? 1 : -1;
     }
     return 0;
   }
@@ -760,7 +762,13 @@
       scripts = result.scripts || scripts;
       // Antes de recargar: si se recarga primero, el webview puede todavía estar
       // navehando y la orden de limpieza se quedaría sin ejecutar.
-      await cleanupScriptInPanels(installed?.id);
+      //
+      // El script ya está desinstalado. Si la limpieza fallara, avisar de un
+      // error aquí dejaría al usuario pensando que la desinstalación falló, así
+      // que un fallo de limpieza no puede convertirse en un error de Shop.
+      try {
+        await cleanupScriptInPanels(installed?.id);
+      } catch {}
       reloadScriptPanels(installed);
       renderList();
       setScriptShopMessage(`${item.name} fue desinstalado.`, 'ok');
@@ -913,7 +921,12 @@
     scripts = result.scripts || [];
     // El rastro vive en el webview, no en el disco: sin esta limpieza el script
     // vuelve a encontrarse su propio localStorage si algún día se reinstala.
-    await cleanupScriptInPanels(script.id);
+    //
+    // El script ya está borrado, así que un fallo aquí no puede impedir el
+    // `setMessage` de éxito ni dejar rechazada la promesa del manejador.
+    try {
+      await cleanupScriptInPanels(script.id);
+    } catch {}
     reloadScriptPanels(script);
     if (scripts.length) showDraft(scripts[0]);
     else showDraft();
@@ -975,10 +988,18 @@
         // antigua, que es lo seguro: no se pisa una copia que quizá sea más
         // nueva. El motivo entra en `failures` porque el mensaje final del lote
         // pisa cualquier setMessage de este bucle.
+        //
+        // Un archivo sin @version sí queda bloqueado, pero el motivo dice cómo
+        // salir: sin esa instrucción el usuario se queda atascado y solo puede
+        // borrar el script antes o editar el archivo a ciegas. Bloquear está
+        // justificado porque es justo el caso del que menos se sabe: sin
+        // versión no hay forma de saber si el archivo es más viejo que lo
+        // instalado, y dejarlo pasar devolvería el bug de pisar una copia
+        // nueva. Lo que no valía era bloquear en silencio.
         if (existing && compareVersions(identity.version || '0', existing.version) < 0) {
           const motivo = identity.version
             ? `la versión ${identity.version} es más antigua que la copia instalada (${existing.version})`
-            : `no declara @version, así que no se puede comprobar que sea más reciente que la copia instalada (${existing.version})`;
+            : `no declara @version y no se puede comprobar si es más reciente que la copia instalada (${existing.version}); añade // @version X.Y.Z al archivo para poder volver a importarlo`;
           failures.push(`${file.name}: ${motivo}. No se instaló.`);
           continue;
         }
@@ -1364,15 +1385,27 @@ ${script.code}
 
   // Aplica la limpieza en todos los paneles registrados. Nunca lanza: un webview
   // que está a medio navegar o que ya no existe no puede impedir borrar un
-  // script, así que su resultado llega como { index: -1, removed: null }.
+  // script, así que su resultado llega con removed: null.
+  //
+  // Cada entrada dice qué panel es, también cuando falló: sin eso un consumidor
+  // no puede distinguir "este panel no limpió" de "este panel no existe", que es
+  // justo lo que hace falta para diagnosticar. `index` es el número de cuenta
+  // dentro de la instancia; los paneles de una instancia secundaria llevan
+  // instanceIndex en vez de index, así que se normaliza aquí.
   async function cleanupScriptInPanels(scriptId) {
     if (!scriptId) return [];
     const source = buildGuestCleanupSource(scriptId);
-    const results = await Promise.allSettled(panelRows.map(async (panel) => {
-      const removed = await panel.webview.executeJavaScript(source);
-      return { index: panel.index, removed: removed || null };
-    }));
-    return results.map((result) => (result.status === 'fulfilled' ? result.value : { index: -1, removed: null }));
+    const results = await Promise.allSettled(panelRows.map((panel) =>
+      panel.webview.executeJavaScript(source)));
+    return results.map((result, position) => {
+      const panel = panelRows[position] || {};
+      const ordinal = Number.isInteger(panel.index) ? panel.index : panel.instanceIndex;
+      return {
+        instanceId: panelInstanceId(panel),
+        index: Number.isInteger(ordinal) ? ordinal : null,
+        removed: result.status === 'fulfilled' ? (result.value || null) : null
+      };
+    });
   }
 
   async function loadExtensionStatus() {
