@@ -292,6 +292,39 @@ function accountCount() {
   return accounts.length || DEFAULT_ACCOUNT_COUNT;
 }
 
+// "4 cuentas" o "32 cuentas", nunca un número escrito a mano: el launcher admite
+// hasta MAX_ACCOUNTS y varios textos seguían diciendo "las cuatro cuentas".
+function accountCountText() {
+  const count = accountCount();
+  return `${count} ${count === 1 ? 'cuenta' : 'cuentas'}`;
+}
+
+// Los textos que dependen del número de cuentas. Se reescriben siempre desde aquí
+// para que no puedan divergir entre sí: el HTML arranca con un texto honesto
+// ("Tus sesiones") porque hasta que loadAccounts responde no se sabe cuántas hay, y
+// un "4" en el HTML sería mentira en cuanto el launcher arranque con otra cosa.
+//
+// Se llama en los DOS embudos por los que ese número puede cambiar —rebuildGamePanels
+// y refreshPanelNames— y no solo en el segundo: accounts se reasigna al importar, al
+// sincronizar el archivo vinculado, al guardar el formulario y al arrancar, y las
+// cuatro vías terminan en rebuildGamePanels cuando el número se mueve. Con la llamada
+// solo en refreshPanelNames, importar o añadir una cuenta dejaba los textos con el
+// número anterior, que es justo el bug que esto arregla.
+//
+// La marca es el único que también depende de cuántas instancias de juego hay, así
+// que la cuenta con browserInstances y no con las pestañas dibujadas: quien añade o
+// quita una instancia llama aquí para que las dos mitades no se separen.
+function renderDynamicAccountLabels() {
+  const count = accountCount();
+  const juegos = browserInstances.length + 1;
+  const brand = document.querySelector('#brandSessionCount');
+  if (brand) brand.textContent = `${count} ${count === 1 ? 'cuenta' : 'cuentas'} · ${juegos} ${juegos === 1 ? 'juego' : 'juegos'}`;
+  ['#statisticsAccountCount', '#notificationAccountCount'].forEach((selector) => {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = accountCountText();
+  });
+}
+
 function defaultProxy() {
   return { enabled: false, protocol: '', host: '', port: 0, username: '', password: '' };
 }
@@ -7778,7 +7811,7 @@ async function refreshStatistics() {
   statisticsBusy = true;
   refreshStatisticsButton.disabled = true;
   statisticsStatus.className = 'statistics-status is-loading';
-  statisticsStatus.textContent = 'Leyendo Hunt Analyzer, perfiles y capturas de las cuatro cuentas…';
+  statisticsStatus.textContent = `Leyendo Hunt Analyzer, perfiles y capturas de ${accountCountText()}…`;
   try {
     const results = await Promise.allSettled(panels.map(readPanelStatistics));
     const rows = results.map((result, index) => result.status === 'fulfilled' ? result.value : {
@@ -8183,8 +8216,10 @@ function renderBrowserInstanceTabs() {
     }
     instanceTabs.appendChild(shell);
   });
-  const brandSummary = document.querySelector('.brand small');
-  if (brandSummary) brandSummary.textContent = `${accountCount()} cuentas · ${rows.length} ${rows.length === 1 ? 'juego' : 'juegos'}`;
+  // La marca resume cuentas e instancias, y las instancias son de aquí: se refresca
+  // desde el sitio único que escribe ese texto para que añadir o quitar una
+  // instancia no deje la cuenta a medias.
+  renderDynamicAccountLabels();
   updateBrowserInstanceSelection();
 }
 
@@ -8696,6 +8731,7 @@ function rebuildGamePanels() {
   for (let index = 0; index < accounts.length; index += 1) createPanel(index);
   setGridLayout();
   applyGridView(null, { persist: false });
+  renderDynamicAccountLabels();
   window.pokeGridUserScriptManager?.setAccounts(accounts);
   syncUserScriptPanels();
   refreshNotificationAccountOptions();
@@ -8745,6 +8781,7 @@ function refreshPanelNames() {
   refreshNotificationAccountOptions();
   renderCaptureGoals();
   renderNotifications();
+  renderDynamicAccountLabels();
   window.pokeGridUserScriptManager?.setAccounts(accounts);
 }
 
@@ -8870,11 +8907,52 @@ function openAccountsModal() {
   accountRowActions.replaceChildren(addButton);
 
   modalBackdrop.hidden = false;
-  accountsSourcePath.textContent = linkedAccountsSource
-    ? `Archivo vinculado: ${linkedAccountsSource}`
-    : 'Ningún archivo vinculado. Al importar un .txt, el launcher recordará su ruta absoluta y sincronizará futuros cambios.';
+  renderAccountsSourceRow();
   accountRows.querySelector('input')?.focus();
 }
+
+const unlinkAccountsButton = document.querySelector('#unlinkAccountsButton');
+
+// La fila del archivo vinculado tiene dos estados y solo se escribe desde aquí, para
+// que la ruta y el botón no puedan contradecirse: un botón visible sin ruta ofrecería
+// desvincular algo que no está, y una ruta visible con el botón escondido no dejaría
+// salir de ahí. El botón solo aparece con archivo, porque sin él no hay nada que
+// desvincular y ofrecerlo sería un botón decorativo.
+function renderAccountsSourceRow() {
+  accountsSourcePath.textContent = linkedAccountsSource
+    ? `Archivo vinculado: ${linkedAccountsSource}. El launcher lo relee cada 15 s y sincroniza los cambios.`
+    : 'Ningún archivo vinculado. Al importar un .txt, el launcher recordará su ruta absoluta y sincronizará futuros cambios.';
+  unlinkAccountsButton.hidden = !linkedAccountsSource;
+}
+
+// Desvincular corta algo en silencio —el launcher deja de releer un archivo con las
+// contraseñas en claro— así que pide confirmación, como el borrado de una cuenta.
+// Cancelar no toca nada. Aceptar borra accounts-source.json en el proceso principal;
+// con el archivo fuera, el sincronizador de 15 s ya no encuentra la ruta y devuelve
+// linked:false, así que no hace falta invalidar ninguna caché para que pare.
+unlinkAccountsButton?.addEventListener('click', async () => {
+  if (!linkedAccountsSource) return;
+  const aceptado = window.confirm(
+    '¿Desvincular el archivo .txt?\n\n' +
+    `${linkedAccountsSource}\n\n` +
+    'El launcher dejará de releerlo y los cambios futuros en ese archivo ya no se aplicarán. ' +
+    'Las cuentas ya importadas se conservan, cifradas.'
+  );
+  if (!aceptado) return;
+  unlinkAccountsButton.disabled = true;
+  try {
+    const result = await window.pokeGrid.unlinkAccountsSource();
+    if (!result?.ok) {
+      setModalMessage(result?.error || 'No se pudo desvincular el archivo.');
+      return;
+    }
+    linkedAccountsSource = '';
+    renderAccountsSourceRow();
+    setModalMessage('Archivo .txt desvinculado. El launcher ya no lo relee.', true);
+  } finally {
+    unlinkAccountsButton.disabled = false;
+  }
+});
 
 function closeAccountsModal() {
   modalBackdrop.hidden = true;
@@ -8905,7 +8983,7 @@ downloadAccountsTemplateButton.addEventListener('click', async () => {
 
 importAccountsButton.addEventListener('click', async () => {
   importAccountsButton.disabled = true;
-  setModalMessage('Leyendo y validando las cuentas…');
+  setModalMessage(`Leyendo y validando ${accountCountText()}…`);
   try {
     const result = await window.pokeGrid.importAccountsFile();
     if (result.canceled) {
@@ -8917,7 +8995,7 @@ importAccountsButton.addEventListener('click', async () => {
     const previousCount = accounts.length;
     accounts = normalizeAccounts(result.accounts);
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
-    accountsSourcePath.textContent = `Archivo vinculado: ${linkedAccountsSource}`;
+    renderAccountsSourceRow();
     // Importar una plantilla puede cambiar cuántas cuentas hay. Si cambian, los
     // paneles se reconstruyen; si no, basta con refrescar los nombres, porque
     // tirarlos abajo mataría webviews con sesión viva para renombrar cuentas.
@@ -8951,7 +9029,7 @@ async function syncLinkedAccounts() {
         setModalMessage('Cambios del archivo vinculado aplicados automáticamente.', true);
       }
     }
-    if (!modalBackdrop.hidden && linkedAccountsSource) accountsSourcePath.textContent = `Archivo vinculado: ${linkedAccountsSource}`;
+    if (!modalBackdrop.hidden) renderAccountsSourceRow();
   } finally {
     accountSourceSyncBusy = false;
   }
@@ -9793,6 +9871,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   await window.pokeGridUserScriptManager?.initialize();
   refreshNotificationAccountOptions();
   for (let index = 0; index < accounts.length; index += 1) createPanel(index);
+  renderDynamicAccountLabels();
   // Informe de proxies del arranque. configureGameSessions corre antes que
   // createWindow(), así que el resultado ya está poblado y no hace falta ningún
   // evento. Los paneles tienen que existir ya: se pinta sobre ellos, no sobre las

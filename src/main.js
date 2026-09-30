@@ -1433,6 +1433,24 @@ ipcMain.handle('accounts:import-file', async () => {
   }
 });
 
+// Desvincular BORRA accounts-source.json: no reescribe nada, así que no aplica la
+// escritura atómica de writeAccountSourceConfig — un borrado no deja un archivo a
+// medias. No hay ruta que invalidar en memoria porque readAccountSourceConfig() la
+// relee del disco en cada llamada (main.js:210) y syncAccountsFromSource() empieza
+// siempre por ahí (main.js:239): en cuanto el archivo no está, la siguiente pasada
+// del sincronizador devuelve linked:false y el .txt con las contraseñas deja de
+// leerse. Las cuentas ya importadas siguen en accounts.enc, cifradas.
+ipcMain.handle('accounts:unlink-source', () => {
+  try {
+    const file = accountSourcePath();
+    if (!fs.existsSync(file)) return { ok: true, alreadyUnlinked: true };
+    fs.rmSync(file, { force: true });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
 ipcMain.handle('assets:image-data-url', (_event, url) => loadAllowedImageDataUrl(url));
 ipcMain.handle('app:version', (event) => {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return '';

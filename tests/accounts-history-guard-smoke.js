@@ -264,13 +264,21 @@ const RECORRIDO = `(async () => {
   // nada de refreshPanelNames.
   await window.pokeGrid.setPreviewAccountCount(3);
   await abrir();
+  // Botón de desvincular: antes de importar no hay archivo vinculado, así que no
+  // puede verse. Importarlo lo pone. Es el estado que el usuario ve, no una
+  // aserción sobre que el nodo exista.
+  const botonDesvincular = () => document.querySelector('#unlinkAccountsButton');
+  const desvinculo = { antes: botonDesvincular()?.hidden !== false, ruta: document.querySelector('#accountsSourcePath')?.textContent || '' };
   document.querySelector('#importAccountsButton').click();
   await esperar(400);
+  desvinculo.despues = botonDesvincular()?.hidden !== false;
+  desvinculo.rutaDespues = document.querySelector('#accountsSourcePath')?.textContent || '';
   const estadosL = { nombres: nombresDePanel(), despues: estadosDePanel(), mensaje: mensaje() };
 
   return {
     problemas, etiquetasIniciales, panelesIniciales, aceptando, cancelando, ultimaFila, minimo,
-    listaVacia, filaIncompleta, plural, avisos, proxy: { estadosG, estadosH, estadosI, estadosJ, estadosK, estadosL }
+    listaVacia, filaIncompleta, plural, avisos, desvinculo,
+    proxy: { estadosG, estadosH, estadosI, estadosJ, estadosK, estadosL }
   };
 })()`;
 
@@ -296,7 +304,7 @@ app.whenReady().then(async () => {
     // El estado se imprime antes de comprobar nada: si algo falla, el recorrido
     // entero queda en la salida en vez de solo la comprobación que saltó.
     console.log(JSON.stringify(state));
-    const { aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, plural } = state;
+    const { aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, plural, desvinculo } = state;
 
     if (state.problemas.length) {
       throw new Error(`La página lanzó errores durante el recorrido: ${JSON.stringify(state.problemas)}`);
@@ -531,6 +539,21 @@ app.whenReady().then(async () => {
     }
     if (estadosL.despues.some((estado) => estado.vpn !== false)) {
       throw new Error(`L: una importación sin proxy dejó la etiqueta de VPN puesta: ${JSON.stringify(estadosL.despues)}`);
+    }
+
+    // 10. El botón de desvincular solo aparece con archivo vinculado. El estado se
+    // mide antes y después de la importación de la fase L, que es lo que dispara el
+    // "Archivo vinculado: …" sin pasar por el formulario.
+    //
+    // Esto no puede probar el resto del desvinculado —el aviso, el cancelar y el
+    // borrado de accounts-source.json necesitan el proceso principal—, así que eso
+    // lo hace accounts-source-unlink-smoke.js contra el launcher real. Aquí solo se
+    // vigila que el botón no aparezca ofreciendo algo que no existe.
+    if (!desvinculo.antes || desvinculo.despues !== false) {
+      throw new Error(`El botón de desvincular no acompaña al archivo vinculado: ${JSON.stringify(desvinculo)}`);
+    }
+    if (!/Ningún archivo vinculado/.test(desvinculo.ruta) || !/cuentas-prueba\.txt/.test(desvinculo.rutaDespues)) {
+      throw new Error(`La ruta del archivo vinculado no cambió al importar: ${JSON.stringify(desvinculo)}`);
     }
 
     window.destroy();

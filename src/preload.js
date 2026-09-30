@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   saveAccounts: (accounts) => ipcRenderer.invoke('accounts:save', accounts),
   downloadAccountsTemplate: () => ipcRenderer.invoke('accounts:download-template'),
   importAccountsFile: () => ipcRenderer.invoke('accounts:import-file'),
+  unlinkAccountsSource: () => ipcRenderer.invoke('accounts:unlink-source'),
   cleanupMemory: () => ipcRenderer.invoke('app:cleanup-memory'),
   loadProxyResults: () => ipcRenderer.invoke('app:proxy-results'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),

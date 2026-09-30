@@ -18,7 +18,7 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <div>
           <strong>IDLE POKE LAUNCHER</strong>
-          <small>4 sesiones · 1 launcher</small>
+          <small id="brandSessionCount">Tus sesiones · 1 launcher</small>
         </div>
       </div>
 
@@ -107,7 +107,7 @@
           <div>
             <span class="eyebrow">RESUMEN MULTICUENTA ACTUAL</span>
             <h1 id="statisticsTitle">Estad&iacute;sticas generales</h1>
-            <p>Totales combinados y detalle individual de las cuatro cuentas.</p>
+            <p>Totales combinados y detalle individual de <span id="statisticsAccountCount">tus cuentas</span>.</p>
           </div>
           <div class="statistics-heading-actions">
             <button id="refreshStatisticsButton" class="button button-secondary" type="button">Actualizar</button>
@@ -180,7 +180,7 @@
       </section>
 
       <footer class="notification-panel-foot">
-        <span>El launcher revisa derrotas y capturas de las cuatro cuentas.</span>
+        <span>El launcher revisa derrotas y capturas de <span id="notificationAccountCount">tus cuentas</span>.</span>
         <button id="clearNotificationsButton" class="notification-text-button is-danger" type="button">Borrar historial</button>
       </footer>
     </aside>
@@ -273,7 +273,10 @@
             </div>
             <small>El archivo vinculado contiene contraseñas en texto plano. Guárdalo de forma privada; no se borrará mientras permanezca vinculado.</small>
           </section>
-          <p id="accountsSourcePath" class="accounts-source-path">Ning&uacute;n archivo vinculado. Al importar un .txt, el launcher recordar&aacute; su ruta absoluta y sincronizar&aacute; futuros cambios.</p>
+          <div class="accounts-source-row">
+            <p id="accountsSourcePath" class="accounts-source-path">Ning&uacute;n archivo vinculado. Al importar un .txt, el launcher recordar&aacute; su ruta absoluta y sincronizar&aacute; futuros cambios.</p>
+            <button id="unlinkAccountsButton" class="button button-secondary accounts-source-unlink" type="button" hidden>Desvincular archivo .txt</button>
+          </div>
           <div id="accountRows" class="account-rows"></div>
           <div id="accountRowActions" class="account-row-actions"></div>
           <p id="modalMessage" class="modal-message" role="status"></p>
