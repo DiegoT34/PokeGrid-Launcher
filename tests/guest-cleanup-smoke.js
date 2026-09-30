@@ -55,6 +55,14 @@ const readScriptMessage = (window) => window.webContents.executeJavaScript(
 // Textos que el producto pone mientras todavía está trabajando. No se espera a
 // ninguno en concreto: solo sirven para no tomar un estado intermedio por un
 // resultado. La condición que decide es la estabilidad, que es lo que importa.
+//
+// Ojo: esta lista está atada al vocabulario de mensajes del producto. Si un
+// nombre de archivo arrastrado o un texto de error contuviera alguna de estas tres
+// palabras, un mensaje final legítimo se tomaría por trabajo en curso, el asentar
+// colgaría quince segundos y saldría un falso rojo que no está en el producto sino
+// aquí. Hoy no es alcanzable porque el nombre del archivo de prueba es fijo y no
+// se repite en el mensaje, pero si alguna vez se parametrizase, este es el sitio
+// donde se rompe.
 const MENSAJES_A_OJAL = ['Revisando', 'Validando e instalando', 'Sintaxis JavaScript correcta'];
 
 // Espera a que la barra de mensajes se acomode: que se haya visto trabajando y
@@ -320,6 +328,13 @@ app.whenReady().then(async () => {
     }
     if (afterNewer.probe !== '3.0.0' || afterNewer.version !== '3.0.0') {
       throw new Error(`Un archivo mas nuevo no actualizó la copia instalada: ${JSON.stringify(afterNewer)}`);
+    }
+    // Rechazar sin decir por qué deja al usuario igual de atascado que rechazar sin
+    // decir cómo desbloquear, así que las dos ramas de rechazo tienen que explicar su
+    // motivo y no solo negarse. Antes esta rama no comprobaba nada del texto: se
+    // capturaba y se imprimía, y el mismo defecto en la otra rama sí se detectaba.
+    if (olderMessage.indexOf('es más antigua que la copia instalada') === -1) {
+      throw new Error(`El motivo del rechazo por versión antigua no lo dice: ${olderMessage}`);
     }
     // Rechazar sin decir cómo desbloquear deja al usuario atascado: el motivo
     // tiene que decir qué añadir al archivo para poder volver a importarlo.
