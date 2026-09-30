@@ -31,6 +31,10 @@ const EXCLUDED = new Map([
   ['capture-api-history-diagnostic.js', 'diagnostico contra el juego real, no es una prueba'],
   ['capture-live-diagnostic.js', 'diagnostico contra el juego real, no es una prueba'],
   ['farm-live-diagnostic.js', 'diagnostico contra el juego real, no es una prueba'],
+
+  // Criterio: la suite necesita una dependencia que este proyecto no tiene.
+  ['portable-depot.smoke.cjs', 'requiere playwright, que no es dependencia de este proyecto'],
+
   ['launcher-updater-integration.js', 'requiere red; se ejecuta aparte con pnpm test:net'],
   ['launcher-updater-detached-integration.js', 'requiere red; se ejecuta aparte con pnpm test:net'],
   ['script-shop-live-smoke.js', 'requiere red; se ejecuta aparte con pnpm test:net'],
