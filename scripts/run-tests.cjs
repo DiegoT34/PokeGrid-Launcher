@@ -92,8 +92,9 @@ function run({ name, file, kind }) {
       if (killed) {
         console.error(`[${name}] árbol de procesos terminado: taskkill /PID ${child.pid} /T /F`);
       } else {
-        // El process.exit(1) de la rama de fallo ya tapaba el cuelgue, sin ser para esto:
-        // un cuelgue en CI es peor que un test rojo.
+        // El process.exit(1) de la rama de fallo ya cubría la salida del proceso,
+        // así que el runner no se colgaba. El fallback quita la dependencia frágil
+        // de ese exit de aguas abajo, que no se puso para esto.
         try { child.kill(); } catch {}
         child.unref();
         console.error(`[${name}] no se pudo terminar el árbol; se intentó matar solo el proceso hijo ${child.pid}`);
@@ -157,8 +158,8 @@ async function main() {
   console.log('Todo verde.');
 }
 
-// Sin esto, una excepción pendiente sería una unhandled rejection: Node la
-// imprime, pero el mensaje y el código de salida los pone el runner, no Node.
+// El catch deja el mensaje y el código de salida bajo control del runner, con un
+// texto en español propio en vez de lo que imponga la plataforma.
 main().catch((error) => {
   console.error(`El runner falló con un error inesperado: ${error && error.message ? error.message : error}`);
   process.exit(1);
