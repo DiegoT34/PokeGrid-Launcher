@@ -4570,20 +4570,30 @@ function loadPanelOrder() {
     const valid = stored.filter((index) => index >= 0 && index < total);
     // Un guardado con índices repetidos o fuera de rango no define un orden.
     if (valid.length && new Set(valid).size === valid.length) {
+      // Sin repetidos y dentro de rango, medir `total` ya es ser una permutación
+      // de 0..total-1 por construcción. No hace falta que el registro diga cuántas
+      // cuentas había: al borrar cuentas, un orden que aún es válido se conserva
+      // en vez de descartarse.
+      if (valid.length === total) return valid;
       const saved = savedAccountCount();
       if (saved < total) {
         // El guardado es de cuando había menos cuentas: se conserva tal cual y se
         // completan las que no existían todavía, para no perder el orden elegido.
+        // Solo si cubre los índices previos: un registro heredado al que le falta
+        // uno no se puede completar, y rellenar solo los huecos del final dejaba
+        // un panel sin order.
         const seen = new Set(valid);
-        for (let index = saved; index < total; index += 1) {
-          if (!seen.has(index)) valid.push(index);
+        let coversPrevious = true;
+        for (let index = 0; index < saved; index += 1) {
+          if (!seen.has(index)) { coversPrevious = false; break; }
         }
-        return valid;
+        if (coversPrevious) {
+          for (let index = saved; index < total; index += 1) {
+            if (!seen.has(index)) valid.push(index);
+          }
+          return valid;
+        }
       }
-      // saved === total: el registro es coherente y el guardado es la permutación
-      // completa. saved > total: el registro dice que había más cuentas de las que
-      // hay, así que está desincronizado y no se fía de él.
-      if (saved === total && valid.length === total) return valid;
     }
   } catch {}
   // Identidad: panelOrder siempre es una permutación de 0..total-1, o si no los
@@ -8533,6 +8543,13 @@ function rebuildGamePanels() {
   });
   panels.length = 0;
   resetFarmContexts();
+  // farmConfigs se dimensiona a accountCount() cuando se lee, y se leía solo al
+  // arrancar. Sin esto, renderFarmAccounts recorre panelOrder —que ya mide el
+  // número nuevo— y hace config.enabled sobre un undefined: abrir "Modo farmeo"
+  // con más cuentas de las que había al arrancar lanzaba TypeError.
+  // normalizeFarmConfigs ya repone la configuración por defecto de las cuentas
+  // nuevas, porque rows[index] ausente cae en defaultFarmConfig().
+  farmConfigs = normalizeFarmConfigs(farmConfigs);
   // El número de cuentas acaba de cambiar, así que el orden guardado se vuelve a
   // leer contra la cuenta nueva: las cuentas que se acaban de añadir entran
   // visibles y al final, sin descolocar las que el usuario ya había ordenado.
