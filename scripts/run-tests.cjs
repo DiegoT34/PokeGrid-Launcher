@@ -45,6 +45,20 @@ const EXCLUDED = new Map([
   ['userscript-network-smoke.js', 'se reescribe en el Plan 2; se excluye hasta entonces']
 ]);
 
+// Suites que necesitan más que SUITE_TIMEOUT_MS, con el motivo. El presupuesto
+// por defecto está puesto para una suite que abre una ventana y no sale a
+// internet. Estas esperan a que los webviews del juego resuelvan y agoten sus
+// propios tiempos, y sin red de salida se quedan esperando a los timeouts del
+// navegador en vez de fallar rápido. Subir el presupuesto global escondería que
+// el resto de suites lo necesitan holgado, así que la excepción va por suite.
+const TIMEOUT_OVERRIDES = new Map([
+  ['dynamic-accounts-proxy-smoke.js', 900_000]
+]);
+
+function suiteTimeout(name) {
+  return TIMEOUT_OVERRIDES.get(name) || SUITE_TIMEOUT_MS;
+}
+
 function classify(source) {
   if (/^\s*\/\/ ==UserScript==/m.test(source) || /require\(['"]electron['"]\)/.test(source)) {
     return 'electron';
@@ -84,11 +98,12 @@ function run({ name, file, kind }) {
     const command = kind === 'electron' ? electronBinary : process.execPath;
     const args = [file];
     const child = spawn(command, args, { stdio: 'inherit', cwd: root });
+    const budget = suiteTimeout(name);
     let settled = false;
 
     const timer = setTimeout(() => {
       settled = true;
-      console.error(`[${name}] se pasó de ${SUITE_TIMEOUT_MS / 1000} s.`);
+      console.error(`[${name}] se pasó de ${budget / 1000} s.`);
       const killed = killProcessTree(child.pid);
       if (killed) {
         console.error(`[${name}] árbol de procesos terminado: taskkill /PID ${child.pid} /T /F`);
@@ -101,7 +116,7 @@ function run({ name, file, kind }) {
         console.error(`[${name}] no se pudo terminar el árbol; se intentó matar solo el proceso hijo ${child.pid}`);
       }
       resolve(false);
-    }, SUITE_TIMEOUT_MS);
+    }, budget);
 
     child.on('error', (error) => {
       if (settled) return;
