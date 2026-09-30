@@ -92,16 +92,13 @@ const RECORRIDO = `(async () => {
   aceptar = false;
   await abrir();
   const etiquetasAntesDeCancelar = etiquetas();
-  const panelesAntesDeCancelar = { total: paneles().length, nombres: nombresDePanel() };
   const pulsadoB = await pulsarEliminar(0);
   const cancelando = {
     pulsado: pulsadoB,
     etiquetasAntes: etiquetasAntesDeCancelar,
     etiquetasDespues: etiquetas(),
     filas: filas().length,
-    aviso: avisos.at(-1) || '',
-    paneles: { total: paneles().length, nombres: nombresDePanel() },
-    panelesAntes: panelesAntesDeCancelar
+    aviso: avisos.at(-1) || ''
   };
 
   // --- C: la última de la lista se avisa como tal y la única no se puede borrar ---
@@ -157,10 +154,17 @@ const RECORRIDO = `(async () => {
   // "2 filas están", no "1 filas están": es el mensaje que el usuario lee cuando ha
   // metido la pata, y si se contradice parece que el launcher está roto.
   // Las dos filas son las que quedan tras la fase A, que sí llegó a guardar.
+  //
+  // Una de las dos se renombra, por el mismo motivo que en la fase E: el aserto va
+  // sobre el NOMBRE del panel. Contar paneles no serviría de nada — con el guard
+  // roto el guardado conserva las filas y sus accountId, así que structureChanged
+  // es false, el número no se mueve y la comprobación pasaría con el bug presente.
   await abrir();
+  const renombradaEnPlural = rellenar(0, 'label', 'PLURAL-RENOMBRADA');
   const rellenadas = [rellenar(0, 'username', 'usuario2'), rellenar(1, 'password', 'clave2')];
   const panelesAntesDelPlural = { total: paneles().length, nombres: nombresDePanel() };
   const plural = {
+    renombrada: renombradaEnPlural,
     rellenadas,
     filas: filas().length,
     mensaje: await enviar(),
@@ -307,14 +311,19 @@ app.whenReady().then(async () => {
       throw new Error(`Una fila a medio rellenar llegó a guardarse: ${JSON.stringify(filaIncompleta)}`);
     }
 
-    // 9. El plural del recuento se ejercita con dos filas a medias.
-    if (!plural.rellenadas.every(Boolean)) {
-      throw new Error(`No se pudieron rellenar las dos filas del caso de plural: ${JSON.stringify(plural)}`);
+    // 9. El plural del recuento se ejercita con dos filas a medias. El aserto de
+    // guardado va sobre el nombre del panel, no sobre su número: con el guard roto
+    // las filas y sus accountId no cambian, así que el número de paneles tampoco y
+    // una comparación por cantidad pasaría con el bug presente. El nombre sí cambia:
+    // la fila se renombra a propósito, y refreshPanelNames lo escribiría en el panel
+    // si el guardado llegara a pasar.
+    if (!plural.renombrada || !plural.rellenadas.every(Boolean)) {
+      throw new Error(`No se pudo montar el caso de plural: ${JSON.stringify(plural)}`);
     }
     if (!/2 filas están a medio rellenar/.test(plural.mensaje)) {
       throw new Error(`Con dos filas incompletas el mensaje no concuerda: ${JSON.stringify(plural.mensaje)}`);
     }
-    if (plural.paneles.total !== plural.panelesAntes.total) {
+    if (plural.paneles.nombres.join(',') !== plural.panelesAntes.nombres.join(',')) {
       throw new Error(`Con dos filas incompletas se guardó algo: ${JSON.stringify(plural)}`);
     }
 
