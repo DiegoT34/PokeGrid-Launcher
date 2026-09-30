@@ -185,6 +185,10 @@ const notificationToastLayer = document.querySelector('#notificationToastLayer')
 
 let accounts = [];
 let linkedAccountsSource = '';
+// Si hay una generación anterior distinta de lo que está guardado. Lo manda el proceso
+// principal porque el renderer no puede mirar el disco: sin este dato el botón de
+// restaurar no sabría si tiene algo que hacer, y esconderlo siempre lo deja muerto.
+let accountsBackupAvailable = false;
 let accountSourceSyncBusy = false;
 let accountProfilePollBusy = false;
 const panels = [];
@@ -8912,17 +8916,28 @@ function openAccountsModal() {
 }
 
 const unlinkAccountsButton = document.querySelector('#unlinkAccountsButton');
+const restoreAccountsButton = document.querySelector('#restoreAccountsButton');
 
 // La fila del archivo vinculado tiene dos estados y solo se escribe desde aquí, para
 // que la ruta y el botón no puedan contradecirse: un botón visible sin ruta ofrecería
 // desvincular algo que no está, y una ruta visible con el botón escondido no dejaría
 // salir de ahí. El botón solo aparece con archivo, porque sin él no hay nada que
 // desvincular y ofrecerlo sería un botón decorativo.
+//
+// El botón de restaurar se rige por la misma regla pero con otro dato: no depende del
+// archivo vinculado, sino de accountsBackupAvailable, que dice si existe una
+// generación anterior DISTINTA de la guardada. Con el botón siempre visible, un
+// accounts.enc en su primera generación dejaría un botón que al pulsarlo solo diría
+// que no hay nada que restaurar; con el botón siempre escondido, la recuperación sería
+// código muerto. Lo que manda es la tercera: visible exactamente cuando hay algo que
+// recuperar, y la promoción atómica de la copia vuelve a esconderlo porque a partir de
+// ese momento ambas son el mismo contenido.
 function renderAccountsSourceRow() {
   accountsSourcePath.textContent = linkedAccountsSource
     ? `Archivo vinculado: ${linkedAccountsSource}. El launcher lo relee cada 15 s y sincroniza los cambios.`
     : 'Ningún archivo vinculado. Al importar un .txt, el launcher recordará su ruta absoluta y sincronizará futuros cambios.';
   unlinkAccountsButton.hidden = !linkedAccountsSource;
+  restoreAccountsButton.hidden = !accountsBackupAvailable;
 }
 
 // Desvincular corta algo en silencio —el launcher deja de releer un archivo con las
@@ -8951,6 +8966,54 @@ unlinkAccountsButton?.addEventListener('click', async () => {
     setModalMessage('Archivo .txt desvinculado. El launcher ya no lo relee.', true);
   } finally {
     unlinkAccountsButton.disabled = false;
+  }
+});
+
+// Restaurar devuelve las cuentas guardadas justo antes del último guardado. Cubre los
+// dos casos: recuperar de un accounts.enc ilegible y deshacer un guardado que salió mal
+// con cuentas que sí se leen. Pide confirmación por lo mismo que el borrado de una
+// cuenta: sustituye el estado actual por el anterior, y equivocarse al pulsarlo
+// significa volver a teclear contraseñas.
+//
+// Tras restaurar hay que releer del proceso principal en vez de dar por buenos los
+// valores que ya tenía accounts en memoria. Así es como accountsBackupAvailable se
+// vuelve a publicar: como la copia y el principal pasan a ser el mismo contenido, el
+// botón se esconde solo, sin que nadie tenga que quitarlo de la fila a mano.
+restoreAccountsButton?.addEventListener('click', async () => {
+  if (!accountsBackupAvailable) return;
+  const aceptado = window.confirm(
+    '¿Restaurar la copia anterior de las cuentas?\n\n' +
+    'Se volverá a la versión guardada justo antes de la última, con sus usuarios y contraseñas. ' +
+    'Si acabas de corregir algo, se pierde.\n\n' +
+    'El archivo .txt vinculado, si lo hay, se sincronizará después con esos mismos datos.'
+  );
+  if (!aceptado) return;
+  restoreAccountsButton.disabled = true;
+  setModalMessage('Restaurando la copia anterior…');
+  try {
+    const result = await window.pokeGrid.restoreAccountsBackup();
+    if (!result?.ok) {
+      setModalMessage(result?.error || 'No se pudo restaurar la copia anterior.');
+      return;
+    }
+    const cargado = await window.pokeGrid.loadAccounts();
+    accounts = normalizeAccounts(cargado.accounts);
+    accountsBackupAvailable = Boolean(cargado.hasBackup);
+    linkedAccountsSource = cargado.sourcePath || linkedAccountsSource;
+    fillAccountForm(accounts);
+    const anteriorCount = accounts.length;
+    rebuildGamePanels();
+    window.pokeGridUserScriptManager?.setAccounts(accounts);
+    setModalMessage(
+      `Copia anterior restaurada: ${anteriorCount} ${anteriorCount === 1 ? 'cuenta' : 'cuentas'}.` +
+      (cargado.recoveredFromBackup ? ' El archivo principal estaba dañado: sus cuentas se recuperaron de la copia y ahora el archivo bueno es el principal.' : ''),
+      true
+    );
+    renderAccountsSourceRow();
+  } catch (error) {
+    setModalMessage(error.message || 'No se pudo restaurar la copia anterior.');
+  } finally {
+    restoreAccountsButton.disabled = false;
   }
 });
 
@@ -8995,6 +9058,9 @@ importAccountsButton.addEventListener('click', async () => {
     const previousCount = accounts.length;
     accounts = normalizeAccounts(result.accounts);
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
+    // Importar también deja una generación anterior, así que el botón de restaurar
+    // tiene que actualizarse aquí igual que en el guardado.
+    accountsBackupAvailable = Boolean(result.hasBackup);
     renderAccountsSourceRow();
     // Importar una plantilla puede cambiar cuántas cuentas hay. Si cambian, los
     // paneles se reconstruyen; si no, basta con refrescar los nombres, porque
@@ -9016,6 +9082,11 @@ async function syncLinkedAccounts() {
   try {
     const result = await window.pokeGrid.syncAccountsSource();
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
+    // El sincronizador de 15 s también escribe cuentas, así que es otra fuente de
+    // cambios en hasBackup. Sin esto, restaurar un accounts.enc que se recuperó del
+    // backup dejaría el botón visible hasta el siguiente arranque.
+    accountsBackupAvailable = Boolean(result.hasBackup);
+    renderAccountsSourceRow();
     if (result.ok && result.changed) {
       // Mismo criterio que la importación: el archivo vinculado puede traer más o
       // menos cuentas, y sin reconstruirlos la rejilla se queda con el recuento
@@ -9082,6 +9153,11 @@ accountsForm.addEventListener('submit', async (event) => {
   }
 
   accounts = normalizeAccounts(result.accounts || nextAccounts);
+  // El guardado es el momento en que aparece la copia anterior, así que es también el
+  // momento de publicarlo: sin esto el botón de restaurar seguiría escondido hasta el
+  // siguiente arranque aunque ya hubiera algo que recuperar.
+  accountsBackupAvailable = Boolean(result.hasBackup);
+  renderAccountsSourceRow();
   const structureChanged = accounts.length !== panels.length ||
     accounts.some((account, index) => Number(panels[index]?.accountId) !== account.id);
   // applyAccountProxies ya ha llamado a session.setProxy por su cuenta, y eso solo
@@ -9118,14 +9194,18 @@ accountsForm.addEventListener('submit', async (event) => {
   const avisoFallos = proxyFailures.length
     ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s), se avisa en su panel.`
     : '';
-  if (structureChanged) {
-    setModalMessage('Cuentas guardadas y paneles actualizados.' + avisoFallos, true);
-  } else if (proxyRecargadas.length) {
-    const cuantas = `${proxyRecargadas.length} ${proxyRecargadas.length === 1 ? 'sesión' : 'sesiones'}`;
-    setModalMessage(`Cuentas guardadas. Recargando ${cuantas} para aplicar la nueva conexión.` + avisoFallos, true);
-  } else {
-    setModalMessage('Cuentas guardadas de forma segura.' + avisoFallos, true);
-  }
+  // El proceso principal devuelve lo que no pudo dejar la copia anterior. No se
+  // descarta: son las cuentas las que se acabaron de guardar, y que la red de seguridad
+  // no exista es justo lo que el usuario tiene que saber antes de cerrar el modal.
+  const avisoCopia = (result.avisos || []).length ? ` · ${result.avisos.join(' ')}` : '';
+  const cierre = structureChanged
+    ? 'Cuentas guardadas y paneles actualizados.'
+    : proxyRecargadas.length
+      ? `Cuentas guardadas. Recargando ${proxyRecargadas.length} ${proxyRecargadas.length === 1 ? 'sesión' : 'sesiones'} para aplicar la nueva conexión.`
+      : 'Cuentas guardadas de forma segura.';
+  // Con el aviso de la copia el mensaje no puede ir en verde: el guardado está bien,
+  // pero la red de seguridad no.
+  setModalMessage(cierre + avisoFallos + avisoCopia, !avisoCopia);
   window.setTimeout(closeAccountsModal, structureChanged ? 900 : 500);
 });
 
@@ -9864,6 +9944,18 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   visibleAccountIndexes = loadVisibleAccountIndexes();
   panelOrder = loadPanelOrder();
   linkedAccountsSource = result.sourcePath || '';
+  // Las dos cosas que el renderer no puede deducir solo y que deciden si el botón de
+  // restaurar existe: si hay una generación anterior distinta, y si las cuentas que se
+  // están mostrando salieron de esa copia porque el archivo principal no se pudo leer.
+  accountsBackupAvailable = Boolean(result.hasBackup);
+  if (result.recoveredFromBackup) {
+    openAccountsModal();
+    setModalMessage(
+      'El archivo de cuentas estaba dañado y sus cuentas se recuperaron de la copia anterior. ' +
+      'Revísalas y vuelve a guardar para dejar el archivo en buen estado.',
+      true
+    );
+  }
   farmConfigs = loadFarmConfigs();
   resetFarmContexts();
   setGridLayout();

@@ -648,9 +648,14 @@ input:focus-visible {
 .accounts-source-path { margin: 7px 0 12px; padding: 7px 9px; border: 1px solid rgba(67, 131, 157, .3); border-radius: 7px; color: #79a7ba; font-size: 9px; overflow-wrap: anywhere; }
 .accounts-source-row { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
 .accounts-source-row .accounts-source-path { flex: 1 1 260px; }
+/* Los dos botones van en un span para que compartan fila: el de desvincular y el de
+   restaurar la copia anterior nunca se contradicen entre sí, pero sí pueden convivir
+   (hay archivo vinculado y además una generación anterior distinta). */
+.accounts-source-actions { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
 /* El botón va alineado con la primera línea de la ruta, no centrado en su alto: la
    ruta puede ocupar tres líneas con rutas largas y el botón quedaría flotando. */
 .accounts-source-unlink { flex: 0 0 auto; margin: 7px 0 12px; }
+.accounts-source-restore { flex: 0 0 auto; margin: 7px 0 12px; }
 
 .capture-goals-section { flex: 0 0 auto; max-height: 125px; display: flex; flex-direction: column; border-bottom: 1px solid rgba(66, 112, 150, .25); }
 .notification-section-heading { min-height: 30px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between; background: rgba(5, 16, 27, .78); }

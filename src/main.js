@@ -8,6 +8,7 @@ const { userScriptResponseTarget } = require('./userscript-network');
 const { accountTemplateText, parseAccountsTemplate } = require('./account-transfer');
 const { prepareUpdate, launchPreparedUpdate } = require('./updater');
 const { DEFAULT_ACCOUNT_COUNT, MAX_ACCOUNTS, accountPartition, buildProxyRules, normalizeAccounts } = require('./account-model');
+const { hasAccountsBackup, readAccountsFile, restoreAccountsBackup, writeAccountsFile } = require('./credentials');
 
 const GAME_ORIGIN = 'https://poke.idleworld.online';
 const POKEPEDIA_URL = `${GAME_ORIGIN}/pokepedia`;
@@ -101,6 +102,55 @@ function openExternal(rawUrl) {
   if (/^https?:\/\//i.test(rawUrl)) shell.openExternal(rawUrl);
 }
 
+// Contrato de los guards de emisor, en un solo sitio para que no se apliquen a mano.
+//
+// 1. Los canales de la lista 1 de MAIN_WINDOW_ONLY_CHANNELS solo los invoca el preload
+//    de la ventana principal (src/preload.js), que es el unico que los expone. Un
+//    webview del juego usa src/guest-preload.js, y ese no expone ninguno de ellos. La
+//    comprobacion es por identidad de webContents, no por URL, porque la ventana
+//    principal carga un file:// local.
+//
+// 2. userscripts:request, userscripts:shared-get, userscripts:shared-set y
+//    userscripts:shared-delete SI los invocan los webviews del juego a traves de
+//    src/guest-preload.js. Se autorizan por otro mecanismo,
+//    authorizeUserScriptRuntime: origen del juego + particion persist:pokegrid-<id> +
+//    script habilitado en esa cuenta + @grant. Ponerles este guard los rechazaria
+//    siempre, porque event.sender seria el webContents del webview y no el de la
+//    ventana principal, y el puente GM dejaria de funcionar. No se les pone.
+//
+//    Comprobado leyendo src/guest-preload.js: sus cuatro ipcRenderer.invoke son
+//    exactamente esos cuatro canales.
+//
+// 3. pokepedia:minimize y pokepedia:close los manda la ventana de Pokepedia, que es
+//    otra ventana: ya comparan contra pokepediaWindow. app:cleanup-memory no lleva
+//    guard a proposito: lo llama el renderer principal y no protege nada que un
+//    invitado pueda aprovechar. app:proxy-results (Tarea 8) ya traia su propia
+//    comprobacion y no se toca.
+//
+// tests/ipc-sender-guard-smoke.js falla si esta lista y el codigo dejan de coincidir,
+// incluido el caso de que un canal nuevo aparezca sin clasificar.
+function isMainWindowSender(event) {
+  return Boolean(mainWindow) && !mainWindow.isDestroyed() && event?.sender === mainWindow.webContents;
+}
+
+// Para canales cuyo resultado ya es { ok: false, error } y que el renderer lee con
+// `if (!result.ok)`. Se devuelve el mismo contrato en vez de lanzar: hay llamadas con
+// asincrono sin await y una promesa rechazada ahi es ruido que nadie ve.
+function mainWindowSenderRefusal(event, extra = {}) {
+  return isMainWindowSender(event)
+    ? null
+    : { ok: false, error: 'Solicitud no autorizada: el emisor no es la ventana principal del launcher.', ...extra };
+}
+
+// Para canales cuyo resultado es un valor suelto (assets:*, userscripts:guest-preload),
+// donde no hay { ok: false } que devolver y la excepcion es el unico rechazo posible.
+function assertMainWindowSender(event) {
+  if (!isMainWindowSender(event)) {
+    throw new Error('Solicitud no autorizada: el emisor no es la ventana principal del launcher.');
+  }
+  return true;
+}
+
 async function loadAllowedImageDataUrl(rawUrl) {
   let url;
   try {
@@ -160,30 +210,55 @@ function accountSourcePath() {
   return path.join(app.getPath('userData'), 'accounts-source.json');
 }
 
+// accounts.enc y su copia. La copia no es un adorno: writeAccounts sustituye el
+// archivo principal en cada guardado, y sin una generación anterior que leer, un
+// accounts.enc ilegible se llevaba por delante las 32 cuentas con sus contraseñas.
+function accountsBackupPath() {
+  return `${credentialPath()}.bak`;
+}
+
+// La última lectura y de dónde salieron las cuentas. No es caché de cuentas —eso lo
+// sigue siendo readAccounts()—, es solo el dato de "salieron de la copia" que
+// accounts:load necesita para poder avisar. Se sobrescribe en cada lectura, que es lo
+// que importa: el renderer solo pregunta justo después de arrancar.
+let lastAccountsRead = { recovered: false, corruptPreserved: false };
+
+function readAccountsReport() {
+  const report = readAccountsFile({
+    file: credentialPath(),
+    backupFile: accountsBackupPath(),
+    fs,
+    safeStorage,
+    defaults: DEFAULT_ACCOUNT_COUNT,
+    normalize: normalizeAccounts
+  });
+  lastAccountsRead = { recovered: report.recovered, corruptPreserved: report.corruptPreserved };
+  return report;
+}
+
 function readAccounts() {
-  const file = credentialPath();
-  if (!fs.existsSync(file)) {
-    return normalizeAccounts(Array.from({ length: DEFAULT_ACCOUNT_COUNT }, (_, index) => ({ id: index + 1 })));
-  }
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('El cifrado seguro del sistema no está disponible.');
-  }
-  const decrypted = safeStorage.decryptString(fs.readFileSync(file));
-  return normalizeAccounts(JSON.parse(decrypted));
+  return readAccountsReport().accounts;
+}
+
+function lastReadRecoveredFromBackup() {
+  return lastAccountsRead.recovered;
+}
+
+function accountsBackupStatus() {
+  return hasAccountsBackup({ file: credentialPath(), backupFile: accountsBackupPath(), fs });
 }
 
 function writeAccounts(accounts) {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('El cifrado seguro del sistema no está disponible. No se guardó ninguna contraseña.');
-  }
-
-  const file = credentialPath();
-  const temporary = `${file}.tmp`;
-  const encrypted = safeStorage.encryptString(JSON.stringify(normalizeAccounts(accounts)));
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(temporary, encrypted);
-  fs.renameSync(temporary, file);
-  return true;
+  const avisos = [];
+  writeAccountsFile({
+    file: credentialPath(),
+    fs,
+    safeStorage,
+    accounts,
+    normalize: normalizeAccounts,
+    onWarning: (message) => avisos.push(message)
+  });
+  return avisos;
 }
 
 async function applyAccountProxies(accounts) {
@@ -247,9 +322,9 @@ function syncAccountsFromSource({ force = false } = {}) {
     return { linked: true, changed: false, accounts: readAccounts(), sourcePath: config.sourcePath };
   }
   const accounts = preserveAccountIds(parseAccountsTemplate(fs.readFileSync(config.sourcePath, 'utf8')));
-  writeAccounts(accounts);
+  const avisos = writeAccounts(accounts);
   writeAccountSourceConfig(config.sourcePath, stats.mtimeMs);
-  return { linked: true, changed: true, accounts, sourcePath: config.sourcePath };
+  return { linked: true, changed: true, accounts, sourcePath: config.sourcePath, avisos };
 }
 
 function userScriptsPath() {
@@ -1360,26 +1435,41 @@ ipcMain.on('pokepedia:close', (event) => {
   pokepediaWindow.close();
 });
 
-ipcMain.handle('accounts:load', () => {
+// accounts:load y accounts:sync-source devuelven tambien si hay una copia anterior
+// distinta de lo guardado (hasBackup) y de donde salieron las cuentas
+// (recoveredFromBackup). El renderer lo necesita para el boton de restaurar: sin ese
+// dato no hay forma de saber si el boton debe verse, y un boton escondido siempre es
+// una feature inexistente. recoveredFromBackup en cambio evita el fallo contrario:
+// tapar que las cuentas salieron de la copia sin avisar.
+ipcMain.handle('accounts:load', (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { accounts: normalizeAccounts([]) });
+  if (rechazo) return rechazo;
   try {
-    return { ok: true, ...syncAccountsFromSource() };
+    return { ok: true, ...syncAccountsFromSource(), recoveredFromBackup: lastReadRecoveredFromBackup(), hasBackup: accountsBackupStatus() };
   } catch (error) {
-    return { ok: false, accounts: normalizeAccounts([]), error: error.message };
+    return { ok: false, accounts: normalizeAccounts([]), recoveredFromBackup: lastReadRecoveredFromBackup(), hasBackup: accountsBackupStatus(), error: error.message };
   }
 });
 
-ipcMain.handle('accounts:sync-source', () => {
+ipcMain.handle('accounts:sync-source', (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { changed: false, accounts: normalizeAccounts([]), sourcePath: '' });
+  if (rechazo) return rechazo;
   try {
-    return { ok: true, ...syncAccountsFromSource() };
+    return { ok: true, ...syncAccountsFromSource(), recoveredFromBackup: lastReadRecoveredFromBackup(), hasBackup: accountsBackupStatus() };
   } catch (error) {
     const config = readAccountSourceConfig();
-    return { ok: false, changed: false, accounts: readAccounts(), sourcePath: config?.sourcePath || '', error: error.message };
+    return { ok: false, changed: false, accounts: readAccounts(), sourcePath: config?.sourcePath || '', recoveredFromBackup: lastReadRecoveredFromBackup(), hasBackup: accountsBackupStatus(), error: error.message };
   }
 });
 
-ipcMain.handle('accounts:save', async (_event, accounts) => {
+ipcMain.handle('accounts:save', async (event, accounts) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try {
-    writeAccounts(accounts);
+    // Los avisos de writeAccounts no se descartan: si la copia de seguridad no se pudo
+    // escribir, el guardado tiene exito pero el usuario pierde su unica red de
+    // seguridad, y eso no puede salir de aqui como un ok limpio.
+    const avisos = writeAccounts(accounts);
     const saved = readAccounts();
     let proxyResults = [];
     try { proxyResults = await applyAccountProxies(saved); } catch (error) {
@@ -1388,13 +1478,15 @@ ipcMain.handle('accounts:save', async (_event, accounts) => {
     // El informe que lee el renderer al arrancar tiene que reflejar el último
     // guardado, no el del arranque anterior.
     lastProxyResults = proxyResults;
-    return { ok: true, accounts: saved, proxyResults };
+    return { ok: true, accounts: saved, proxyResults, hasBackup: accountsBackupStatus(), avisos };
   } catch (error) {
     return { ok: false, error: error.message };
   }
 });
 
-ipcMain.handle('accounts:download-template', async () => {
+ipcMain.handle('accounts:download-template', async (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { canceled: true });
+  if (rechazo) return rechazo;
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Guardar plantilla de cuentas',
     defaultPath: 'PokeGrid-cuentas-plantilla.txt',
@@ -1414,7 +1506,9 @@ ipcMain.handle('accounts:download-template', async () => {
   }
 });
 
-ipcMain.handle('accounts:import-file', async () => {
+ipcMain.handle('accounts:import-file', async (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { canceled: true });
+  if (rechazo) return rechazo;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Importar cuentas',
     properties: ['openFile'],
@@ -1425,9 +1519,9 @@ ipcMain.handle('accounts:import-file', async () => {
     const file = path.resolve(result.filePaths[0]);
     if (fs.statSync(file).size > 64 * 1024) throw new Error('El archivo supera el límite de 64 KB.');
     const accounts = preserveAccountIds(parseAccountsTemplate(fs.readFileSync(file, 'utf8')));
-    writeAccounts(accounts);
+    const avisos = writeAccounts(accounts);
     writeAccountSourceConfig(file, fs.statSync(file).mtimeMs);
-    return { ok: true, accounts, file: path.basename(file), sourcePath: file, linked: true };
+    return { ok: true, accounts, file: path.basename(file), sourcePath: file, linked: true, hasBackup: accountsBackupStatus(), avisos };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -1440,7 +1534,9 @@ ipcMain.handle('accounts:import-file', async () => {
 // siempre por ahí (main.js:239): en cuanto el archivo no está, la siguiente pasada
 // del sincronizador devuelve linked:false y el .txt con las contraseñas deja de
 // leerse. Las cuentas ya importadas siguen en accounts.enc, cifradas.
-ipcMain.handle('accounts:unlink-source', () => {
+ipcMain.handle('accounts:unlink-source', (event) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try {
     const file = accountSourcePath();
     if (!fs.existsSync(file)) return { ok: true, alreadyUnlinked: true };
@@ -1451,13 +1547,44 @@ ipcMain.handle('accounts:unlink-source', () => {
   }
 });
 
-ipcMain.handle('assets:image-data-url', (_event, url) => loadAllowedImageDataUrl(url));
+// Restaurar la copia anterior. La decisión de si hay algo que restaurar vive entera
+// en src/credentials.js (hasAccountsBackup y restoreAccountsBackup), incluida la
+// promoción atómica con .tmp + rename: aquí solo se pasa el emisor y se copia el
+// contrato. Con el botón visible pero sin copia, restore responde { ok: false } con
+// un motivo, y no finge haber restaurado.
+ipcMain.handle('accounts:restore-backup', (event) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
+  try {
+    return restoreAccountsBackup({
+      file: credentialPath(),
+      backupFile: accountsBackupPath(),
+      fs,
+      safeStorage,
+      normalize: normalizeAccounts
+    });
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+});
+
+// assets:* devuelven un valor suelto, no { ok }, así que aquí no hay contrato de
+// rechazo que respetar y la forma de negar el acceso es lanzar. Los dos únicos
+// llamadores del renderer (loadPokeApiSpriteData y resolvePokeApiSpeciesId) ya
+// envuelven la llamada, incluida una de ellas con .catch() explícito.
+ipcMain.handle('assets:image-data-url', (event, url) => {
+  assertMainWindowSender(event);
+  return loadAllowedImageDataUrl(url);
+});
+// Estos dos ya traían su propia comprobación en línea. Se pasan al helper compartido
+// sin cambiar sus contratos: app:version devuelve '' y app:check-update devuelve
+// { ok: false, error }.
 ipcMain.handle('app:version', (event) => {
-  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return '';
+  if (!isMainWindowSender(event)) return '';
   return app.getVersion();
 });
 ipcMain.handle('app:check-update', async (event) => {
-  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+  if (!isMainWindowSender(event)) {
     return { ok: false, error: 'Solicitud de actualización no autorizada.' };
   }
   if (!app.isPackaged && !process.env.POKEGRID_ALLOW_DEV_UPDATE_CHECK) {
@@ -1520,13 +1647,20 @@ ipcMain.handle('app:proxy-results', (event) => {
   }
   return { ok: true, results: lastProxyResults };
 });
-ipcMain.handle('assets:pokemon-species', (_event, slug) => resolvePokeApiSpecies(slug));
-ipcMain.handle('userscripts:list', () => {
+ipcMain.handle('assets:pokemon-species', (event, slug) => {
+  assertMainWindowSender(event);
+  return resolvePokeApiSpecies(slug);
+});
+ipcMain.handle('userscripts:list', (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { scripts: [] });
+  if (rechazo) return rechazo;
   try { return { ok: true, scripts: readUserScripts() }; } catch (error) {
     return { ok: false, scripts: [], error: error.message };
   }
 });
-ipcMain.handle('userscripts:validate-syntax', (_event, code) => {
+ipcMain.handle('userscripts:validate-syntax', (event, code) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try {
     const source = String(code || '').slice(0, USER_SCRIPT_CODE_LIMIT);
     new vm.Script(`async function __pokeGridValidateUserscript__() {\n${source}\n}`, {
@@ -1540,17 +1674,23 @@ ipcMain.handle('userscripts:validate-syntax', (_event, code) => {
     return { ok: false, error: message, line: line ? Math.max(1, line - 1) : null };
   }
 });
-ipcMain.handle('userscripts:save', (_event, value) => {
+ipcMain.handle('userscripts:save', (event, value) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { return { ok: true, script: saveUserScript(value), scripts: readUserScripts() }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:delete', (_event, id) => {
+ipcMain.handle('userscripts:delete', (event, id) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { removeUserScript(id); return { ok: true, scripts: readUserScripts() }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:import-file', async () => {
+ipcMain.handle('userscripts:import-file', async (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { canceled: true });
+  if (rechazo) return rechazo;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Importar userscript',
     properties: ['openFile'],
@@ -1568,7 +1708,9 @@ ipcMain.handle('userscripts:import-file', async () => {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:export-file', async (_event, value) => {
+ipcMain.handle('userscripts:export-file', async (event, value) => {
+  const rechazo = mainWindowSenderRefusal(event, { canceled: true });
+  if (rechazo) return rechazo;
   try {
     const code = String(value?.code || '');
     if (!code.trim()) throw new Error('El script está vacío.');
@@ -1594,7 +1736,9 @@ ipcMain.handle('userscripts:export-file', async (_event, value) => {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:bundled-telegram', () => {
+ipcMain.handle('userscripts:bundled-telegram', (event) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try {
     const filename = 'PokeGrid-Telegram-Alerts.user.js';
     const file = path.join(bundledUserScriptsPath(), filename);
@@ -1609,12 +1753,16 @@ ipcMain.handle('userscripts:bundled-telegram', () => {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:fetch-url', async (_event, url) => {
+ipcMain.handle('userscripts:fetch-url', async (event, url) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { return { ok: true, ...(await readUserScriptFromUrl(url)) }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:shop-catalog', async (_event, refresh) => {
+ipcMain.handle('userscripts:shop-catalog', async (event, refresh) => {
+  const rechazo = mainWindowSenderRefusal(event, { catalog: null, scripts: [] });
+  if (rechazo) return rechazo;
   try {
     const catalog = await loadScriptShopCatalog(Boolean(refresh));
     return { ok: true, catalog, scripts: readUserScripts(), launcherVersion: app.getVersion() };
@@ -1622,22 +1770,39 @@ ipcMain.handle('userscripts:shop-catalog', async (_event, refresh) => {
     return { ok: false, catalog: null, scripts: readUserScripts(), error: error.message };
   }
 });
-ipcMain.handle('userscripts:shop-install', async (_event, value) => {
+ipcMain.handle('userscripts:shop-install', async (event, value) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { return { ok: true, ...(await installScriptShopItem(value)) }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:shop-uninstall', (_event, shopId) => {
+ipcMain.handle('userscripts:shop-uninstall', (event, shopId) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { return { ok: true, ...uninstallScriptShopItem(shopId) }; } catch (error) {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:guest-preload', () => pathToFileURL(path.join(__dirname, 'guest-preload.js')).href);
+// Devuelve una URL suelta, no { ok }, y su único llamador (userscripts.js initialize)
+// no la envuelve: lanzar aquí dejaría los scripts sin instalar al arrancar entero. Por
+// eso este canal devuelve '' en vez de lanzar, y el aviso de por qué está aquí.
+ipcMain.handle('userscripts:guest-preload', (event) => {
+  if (!isMainWindowSender(event)) return '';
+  return pathToFileURL(path.join(__dirname, 'guest-preload.js')).href;
+});
+
+// SIN GUARD de ventana principal, a propósito. Los invocan los webviews del juego a
+// través de src/guest-preload.js y se autorizan con authorizeUserScriptRuntime
+// (origen + particion + script habilitado). Añadirles el guard los rechazaría siempre
+// y rompería el puente GM dentro del juego.
 ipcMain.handle('userscripts:request', performUserScriptRequest);
 ipcMain.handle('userscripts:shared-get', getUserScriptSharedValue);
 ipcMain.handle('userscripts:shared-set', setUserScriptSharedValue);
 ipcMain.handle('userscripts:shared-delete', deleteUserScriptSharedValue);
-ipcMain.handle('extensions:pick-folder', async () => {
+ipcMain.handle('extensions:pick-folder', async (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { canceled: true });
+  if (rechazo) return rechazo;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Seleccionar extensión desempaquetada',
     properties: ['openDirectory']
@@ -1654,17 +1819,23 @@ ipcMain.handle('extensions:pick-folder', async () => {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('extensions:status', () => ({
-  ok: true,
-  config: readExtensionConfig(),
-  results: loadedUnpackedExtensions.map((entry, account) => ({
-    account,
-    loaded: Boolean(entry),
-    name: entry?.name || '',
-    id: entry?.id || ''
-  }))
-}));
-ipcMain.handle('extensions:apply', async (_event, value) => {
+ipcMain.handle('extensions:status', (event) => {
+  const rechazo = mainWindowSenderRefusal(event, { config: readExtensionConfig(), results: [] });
+  if (rechazo) return rechazo;
+  return {
+    ok: true,
+    config: readExtensionConfig(),
+    results: loadedUnpackedExtensions.map((entry, account) => ({
+      account,
+      loaded: Boolean(entry),
+      name: entry?.name || '',
+      id: entry?.id || ''
+    }))
+  };
+});
+ipcMain.handle('extensions:apply', async (event, value) => {
+  const rechazo = mainWindowSenderRefusal(event);
+  if (rechazo) return rechazo;
   try { return { ok: true, ...(await applyUnpackedExtensionConfig(value, true)) }; } catch (error) {
     return { ok: false, error: error.message };
   }
