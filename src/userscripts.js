@@ -798,7 +798,11 @@
     const url = currentPanelUrl(panel);
     if (!url || !scriptMatchesUrl(script, url)) return false;
     if (panelInstanceId(panel) !== PRIMARY_INSTANCE_ID) return true;
-    return script.accounts?.[panel.index] === true;
+    // Semántica opt-out: la ausencia de entrada significa habilitado. Coincide
+    // con la documentación y con authorizeUserScriptRuntime en main.js, que
+    // bloquea solo cuando el valor es exactamente false. Así un script guardado
+    // cuando había menos cuentas sigue funcionando en las cuentas nuevas.
+    return script.accounts?.[panel.index] !== false;
   }
 
   function reloadScriptPanels(...changedScripts) {

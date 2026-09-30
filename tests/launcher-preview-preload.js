@@ -5,6 +5,29 @@ let userScripts = [];
 const previewImageCache = new Map();
 const previewSpeciesCache = new Map();
 
+// Número de cuentas que ve el renderer en previsualización. Las pruebas necesitan
+// 1, 5, 12 y 32 cuentas, así que el valor por defecto (4) se puede cambiar con
+// pokeGrid.setPreviewAccountCount() desde el mundo principal.
+const previewState = { accountCount: 4 };
+
+function previewAccountCount() {
+  // window.__pokeGridPreviewAccountCount solo es visible aquí si se asigna desde el
+  // propio preload: con contextIsolation el mundo principal tiene otro objeto global.
+  const requested = Number(window.__pokeGridPreviewAccountCount ?? previewState.accountCount);
+  const count = Math.floor(requested);
+  return Math.max(1, Math.min(32, Number.isFinite(count) ? count : 4));
+}
+
+function previewAccount(index) {
+  return {
+    id: index + 1,
+    label: ['SHOCKVOR', 'SHOCKOR', 'DIEGO20', 'SHOCKVINY'][index] || `Cuenta ${index + 1}`,
+    username: '',
+    password: '',
+    proxy: { enabled: false, protocol: '', host: '', port: 0, username: '', password: '' }
+  };
+}
+
 async function previewImageDataUrl(rawUrl) {
   const url = new URL(String(rawUrl || ''));
   const match = url.pathname.match(/^\/PokeAPI\/sprites\/master\/sprites\/pokemon\/(?:other\/official-artwork\/)?([1-9]\d{0,3})\.png$/);
@@ -52,7 +75,9 @@ function normalizePreviewScript(value) {
     sourceUrl: value.sourceUrl || existing?.sourceUrl || '',
     code: value.code,
     enabled: value.enabled !== false,
-    accounts: Array.from({ length: 4 }, (_, index) => value.accounts?.[index] !== false),
+    accounts: Array.isArray(value.accounts)
+      ? value.accounts.slice(0, 32).map((entry) => entry === true)
+      : [],
     matches: [...(metadata.match || []), ...(metadata.include || [])],
     excludes: metadata.exclude || [],
     grants: metadata.grant || [],
@@ -67,13 +92,20 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   previewMode: true,
   loadAccounts: async () => ({
     ok: true,
-    accounts: Array.from({ length: 4 }, (_, index) => ({
-      label: ['SHOCKVOR', 'SHOCKOR', 'DIEGO20', 'SHOCKVINY'][index],
-      username: '',
-      password: ''
-    }))
+    accounts: Array.from({ length: previewAccountCount() }, (_, index) => previewAccount(index))
   }),
-  saveAccounts: async () => ({ ok: true }),
+  saveAccounts: async (value) => {
+    const accounts = Array.isArray(value) ? value : [];
+    return {
+      ok: true,
+      accounts,
+      proxyResults: accounts.map((row) => ({ id: Number(row.id) || 0, ok: true }))
+    };
+  },
+  setPreviewAccountCount: async (count) => {
+    previewState.accountCount = Math.floor(Number(count)) || 4;
+    return { ok: true, count: previewAccountCount() };
+  },
   syncAccountsSource: async () => ({ ok: true, changed: false, accounts: [], sourcePath: '' }),
   downloadAccountsTemplate: async () => ({ ok: false, canceled: true }),
   importAccountsFile: async () => ({
