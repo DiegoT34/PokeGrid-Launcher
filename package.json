@@ -38,7 +38,7 @@
     "test:script-shop-live": "electron tests/script-shop-live-smoke.js",
     "test:script-shop-ui": "electron tests/script-shop-visual-smoke.js",
     "dist": "electron-builder --win zip",
-    "clean": "node -e \"const{rmSync}=require('fs');for(const d of['dist','dist-0230','.build-diagnostics','artifacts'])rmSync(d,{recursive:true,force:true})\"",
+    "clean": "node -e \"const{readdirSync,rmSync}=require('fs');const dirs=readdirSync('.',{withFileTypes:true}).filter(e=>e.isDirectory()&&/^dist/.test(e.name)).map(e=>e.name).concat(['.build-diagnostics','artifacts']);for(const d of dirs)rmSync(d,{recursive:true,force:true})\"",
     "test": "node scripts/run-tests.cjs node",
     "test:e2e": "node scripts/run-tests.cjs electron",
     "test:all": "node scripts/run-tests.cjs all",

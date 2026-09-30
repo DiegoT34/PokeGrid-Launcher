@@ -8,12 +8,14 @@
 //
 // Exit code 0 = todas pasan, 1 = alguna falla.
 
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const electronBinary = path.join(root, 'node_modules', 'electron', 'dist', 'electron.exe');
+const SUITE_TIMEOUT_MS = 180_000;
+const MODES = ['node', 'electron', 'all'];
 
 // Suites excluidas, con el motivo. Cada exclusion debe ser deliberada:
 // o el fichero esta en .gitignore (tests de scripts personales del autor),
@@ -57,38 +59,90 @@ function discover() {
     if (EXCLUDED.has(name)) continue;
     const file = path.join(dir, name);
     const source = fs.readFileSync(file, 'utf8');
-    if (/^\s*fixture/m.test(name)) continue;
     rows.push({ name, file, kind: classify(source) });
   }
   return rows;
 }
 
-function run({ file, kind }) {
-  const command = kind === 'electron' ? electronBinary : process.execPath;
-  const args = kind === 'electron' ? [file] : [file];
-  const result = spawnSync(command, args, { stdio: 'inherit', cwd: root, timeout: 180_000 });
+// taskkill /T solo alcanza a los hijos si el padre sigue vivo, asi que el
+// timeout se gestiona aqui y no con la opcion timeout de spawnSync: esta
+// mataria antes al hijo directo y dejaria el arbol huerfano.
+function killProcessTree(pid) {
+  const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
   return result.status === 0;
 }
 
-const mode = String(process.argv[2] || 'all').toLowerCase();
-const wanted = mode === 'node' ? ['node'] : mode === 'electron' ? ['electron'] : ['node', 'electron'];
-const suites = discover().filter((suite) => wanted.includes(suite.kind));
+function run({ name, file, kind }) {
+  return new Promise((resolve) => {
+    const command = kind === 'electron' ? electronBinary : process.execPath;
+    const args = [file];
+    const child = spawn(command, args, { stdio: 'inherit', cwd: root });
+    let settled = false;
 
-if (!suites.length) {
-  console.error('No se encontró ninguna suite. Revisa tests/ y la lista EXCLUDED.');
-  process.exit(1);
+    const timer = setTimeout(() => {
+      settled = true;
+      console.error(`[${name}] se paso de ${SUITE_TIMEOUT_MS / 1000} s.`);
+      const killed = killProcessTree(child.pid);
+      console.error(killed
+        ? `[${name}] arbol de procesos terminado: taskkill /PID ${child.pid} /T /F`
+        : `[${name}] taskkill /PID ${child.pid} /T /F no llego al arbol; puede quedar un proceso huerfano`);
+      resolve(false);
+    }, SUITE_TIMEOUT_MS);
+
+    child.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      console.error(`[${name}] no se pudo ejecutar ${command}: ${error.message}`);
+      resolve(false);
+    });
+
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
+  });
 }
 
-const failures = [];
-for (const suite of suites) {
-  console.log(`\n=== ${suite.name} (${suite.kind}) ===`);
-  if (!run(suite)) failures.push(suite.name);
+async function main() {
+  const mode = String(process.argv[2] || 'all').toLowerCase();
+  if (!MODES.includes(mode)) {
+    console.error(`Modo "${mode}" no valido. Los modos validos son: ${MODES.join(', ')}.`);
+    process.exit(1);
+  }
+
+  const wanted = mode === 'all' ? ['node', 'electron'] : [mode];
+
+  // Sin binario no hay suites ejecutables: se dice por que, en vez de dejar que
+  // las 18 de Electron fallen sin diagnostico.
+  if (wanted.includes('electron') && !fs.existsSync(electronBinary)) {
+    console.error(`No se encontro el binario de Electron: ${electronBinary}`);
+    console.error('Instala las dependencias del proyecto y vuelve a intentarlo: npm install');
+    process.exit(1);
+  }
+
+  const suites = discover().filter((suite) => wanted.includes(suite.kind));
+
+  if (!suites.length) {
+    console.error('No se encontró ninguna suite. Revisa tests/ y la lista EXCLUDED.');
+    process.exit(1);
+  }
+
+  const failures = [];
+  for (const suite of suites) {
+    console.log(`\n=== ${suite.name} (${suite.kind}) ===`);
+    if (!(await run(suite))) failures.push(suite.name);
+  }
+
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`${suites.length - failures.length}/${suites.length} suites verdes.`);
+  if (failures.length) {
+    console.error(`FALLAN: ${failures.join(', ')}`);
+    process.exit(1);
+  }
+  console.log('Todo verde.');
 }
 
-console.log(`\n${'='.repeat(60)}`);
-console.log(`${suites.length - failures.length}/${suites.length} suites verdes.`);
-if (failures.length) {
-  console.error(`FALLAN: ${failures.join(', ')}`);
-  process.exit(1);
-}
-console.log('Todo verde.');
+main();
