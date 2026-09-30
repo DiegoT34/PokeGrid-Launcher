@@ -128,9 +128,15 @@
     return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
   }
 
+  // Comparador único de versiones de @version: lo usa el módulo de Telegram, la
+  // Shop y el arrastre de archivos. Segmento a segmento, y lo que no se puede
+  // leer como número cuenta como 0, así que una versión ausente o malformada se
+  // trata como la más antigua. El prefijo "v" se quita porque "@version v1.2.0"
+  // es tan válido como "@version 1.2.0" y sin esto contaría como 0.
   function compareVersions(left, right) {
-    const a = String(left || '').split('.').map((value) => Number(value) || 0);
-    const b = String(right || '').split('.').map((value) => Number(value) || 0);
+    const segments = (value) => String(value ?? '').trim().replace(/^v/i, '').split('.');
+    const a = segments(left).map((value) => Number(value) || 0);
+    const b = segments(right).map((value) => Number(value) || 0);
     for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
       if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) - (b[index] || 0);
     }
@@ -752,6 +758,9 @@
       const result = await window.pokeGrid.uninstallScriptShopItem(item.id);
       if (!result?.ok) throw new Error(result?.error || 'No se pudo desinstalar el script.');
       scripts = result.scripts || scripts;
+      // Antes de recargar: si se recarga primero, el webview puede todavía estar
+      // navehando y la orden de limpieza se quedaría sin ejecutar.
+      await cleanupScriptInPanels(installed?.id);
       reloadScriptPanels(installed);
       renderList();
       setScriptShopMessage(`${item.name} fue desinstalado.`, 'ok');
@@ -865,8 +874,12 @@
     const previous = scripts.find((script) => script.id === selectedId);
     const nextAccounts = currentAccountSelection();
     const scope = scriptScope(codeInput.value);
-    if (!nextAccounts.some(Boolean) && !scope.external && !scope.customGames.length) {
-      setMessage('Selecciona al menos una cuenta o declara un @match compatible con otra instancia.');
+    // El interruptor de estado se mira antes que las cuentas: un script apagado
+    // se puede guardar aunque no tenga ninguna cuenta marcada, que es como se
+    // prepara antes de activarlo. Solo se bloquea cuando no se puede ejecutar en
+    // ningún sitio, esté apagado o no.
+    if (!enabledInput.checked && !nextAccounts.some(Boolean) && !scope.external && !scope.customGames.length) {
+      setMessage('Activa el script o marca al menos una cuenta donde ejecutarlo.');
       return;
     }
     setMessage('Validando e instalando…');
@@ -898,6 +911,9 @@
       return;
     }
     scripts = result.scripts || [];
+    // El rastro vive en el webview, no en el disco: sin esta limpieza el script
+    // vuelve a encontrarse su propio localStorage si algún día se reinstala.
+    await cleanupScriptInPanels(script.id);
     reloadScriptPanels(script);
     if (scripts.length) showDraft(scripts[0]);
     else showDraft();
@@ -919,7 +935,8 @@
     const metadata = parseMetadata(code);
     return {
       name: metadata.name?.[0]?.trim() || '',
-      namespace: metadata.namespace?.[0]?.trim() || 'pokegrid.local'
+      namespace: metadata.namespace?.[0]?.trim() || 'pokegrid.local',
+      version: metadata.version?.[0]?.trim() || ''
     };
   }
 
@@ -953,6 +970,18 @@
         const existing = scripts.find((script) =>
           script.namespace === identity.namespace && script.name === identity.name
         );
+        // Solo pisa la copia instalada si el archivo no es más antiguo. Con la
+        // versión ausente o malformada el comparador la trata como la más
+        // antigua, que es lo seguro: no se pisa una copia que quizá sea más
+        // nueva. El motivo entra en `failures` porque el mensaje final del lote
+        // pisa cualquier setMessage de este bucle.
+        if (existing && compareVersions(identity.version || '0', existing.version) < 0) {
+          const motivo = identity.version
+            ? `la versión ${identity.version} es más antigua que la copia instalada (${existing.version})`
+            : `no declara @version, así que no se puede comprobar que sea más reciente que la copia instalada (${existing.version})`;
+          failures.push(`${file.name}: ${motivo}. No se instaló.`);
+          continue;
+        }
         const accountFlags = existing?.accounts || draftAccounts();
         const result = await window.pokeGrid.saveUserScript({
           id: existing?.id,
@@ -1300,6 +1329,52 @@ ${script.code}
     }
   }
 
+  // Genera el código que se ejecuta dentro de cada webview para borrar el rastro
+  // de un script: su almacenamiento, sus <style>, sus toasts, su entrada del
+  // registro anti-duplicado y sus comandos de menú. Todo lo que no sea de este
+  // script se deja intacto a propósito: una limpieza que se lleva por delante lo
+  // de otros scripts es peor que no limpiar. El id va embebido con JSON.stringify
+  // para que un nombre con comillas no pueda inyectar código en el guest.
+  function buildGuestCleanupSource(scriptId) {
+    const id = JSON.stringify(String(scriptId || ''));
+    return `(() => {
+      const id = ${id};
+      const removed = { storage: false, styles: 0, toasts: 0, registry: 0, commands: 0 };
+      const key = 'pokegrid:userscript:' + id + ':storage';
+      try {
+        if (localStorage.getItem(key) !== null) { localStorage.removeItem(key); removed.storage = true; }
+      } catch {}
+      document.querySelectorAll('style[data-pokegrid-userscript="' + id + '"]').forEach((node) => { node.remove(); removed.styles += 1; });
+      document.querySelectorAll('[data-pokegrid-userscript-toast="' + id + '"]').forEach((node) => { node.remove(); removed.toasts += 1; });
+      const registry = window.__pokeGridUserScriptsRuntime;
+      if (registry && typeof registry.forEach === 'function') {
+        [...registry].forEach((entry) => {
+          if (String(entry).startsWith(id + '::')) { registry.delete(entry); removed.registry += 1; }
+        });
+      }
+      const commands = window.__pokeGridUserScriptCommands;
+      if (Array.isArray(commands)) {
+        for (let index = commands.length - 1; index >= 0; index -= 1) {
+          if (commands[index] && commands[index].scriptId === id) { commands.splice(index, 1); removed.commands += 1; }
+        }
+      }
+      return removed;
+    })()`;
+  }
+
+  // Aplica la limpieza en todos los paneles registrados. Nunca lanza: un webview
+  // que está a medio navegar o que ya no existe no puede impedir borrar un
+  // script, así que su resultado llega como { index: -1, removed: null }.
+  async function cleanupScriptInPanels(scriptId) {
+    if (!scriptId) return [];
+    const source = buildGuestCleanupSource(scriptId);
+    const results = await Promise.allSettled(panelRows.map(async (panel) => {
+      const removed = await panel.webview.executeJavaScript(source);
+      return { index: panel.index, removed: removed || null };
+    }));
+    return results.map((result) => (result.status === 'fulfilled' ? result.value : { index: -1, removed: null }));
+  }
+
   async function loadExtensionStatus() {
     const result = await window.pokeGrid.getUnpackedExtensionStatus();
     if (!result.ok) return;
@@ -1493,6 +1568,8 @@ ${script.code}
     open,
     close,
     installIntoPanel,
+    cleanupScriptInPanels,
+    buildGuestCleanupSource,
     getGuestPreloadUrl: () => guestPreloadUrl,
     setAccounts(value) {
       const rows = Array.isArray(value) ? value : [];
