@@ -178,7 +178,89 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(removed.panels, 5, `Eliminar una cuenta debe dejar 5 paneles: ${JSON.stringify(removed)}`);
 
-    console.log(JSON.stringify({ ok: true, state, callsAfterSave, restored: { ...restored, actualOrder }, keptHidden, removed }));
+    // El importador y el sincronizador cambian el número de cuentas sin pasar por
+    // el formulario, así que tienen su propio camino. Se baja a 4 cuentas para
+    // importar después una plantilla de 6 sobre el estado documentado.
+    const toFour = await mainWindow.webContents.executeJavaScript(`(async () => {
+      document.querySelector('#accountsButton').click();
+      const rows = [...document.querySelectorAll('.account-row')];
+      if (rows.length !== 5) throw new Error('Se esperaban 5 filas al reabrir el modal');
+      rows[rows.length - 1].querySelector('.account-row-remove').click();
+      document.querySelector('#accountsForm').requestSubmit();
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      return { panels: document.querySelectorAll('#grid .panel').length };
+    })()`);
+    assert.equal(toFour.panels, 4, `Dejar 4 cuentas debe dejar 4 paneles: ${JSON.stringify(toFour)}`);
+
+    // El importador real abre un diálogo nativo: se sustituye por la ruta de una
+    // plantilla escrita aquí. El IPC, preserveAccountIds, parseAccountsTemplate y
+    // writeAccounts son los de producción.
+    const dialog = require('electron').dialog;
+    const originalShowOpenDialog = dialog.showOpenDialog;
+    function plantilla(cuentas, sufijo) {
+      const lines = ['# plantilla de prueba'];
+      for (let index = 0; index < cuentas; index += 1) {
+        lines.push(`[CUENTA ${index + 1}]`, `nombre_panel=Importada${index + 1}${sufijo}`, `usuario=import${index + 1}`, `contrasena=clave${index + 1}`, '');
+      }
+      return `\uFEFF${lines.join('\r\n')}`;
+    }
+    const templateSix = path.join(userDataDir, 'plantilla-6.txt');
+    const templateSixAgain = path.join(userDataDir, 'plantilla-6-otra.txt');
+    fs.writeFileSync(templateSix, plantilla(6, ''), 'utf8');
+    fs.writeFileSync(templateSixAgain, plantilla(6, 'B'), 'utf8');
+
+    let imported = null;
+    let reimported = null;
+    let beforeCount = 0;
+    try {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [templateSix] });
+      imported = await mainWindow.webContents.executeJavaScript(`(async () => {
+        document.querySelector('#importAccountsButton').click();
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        return {
+          ok: document.querySelector('#modalMessage').classList.contains('is-ok'),
+          panels: document.querySelectorAll('#grid .panel').length,
+          viewMenuEntries: document.querySelectorAll('#viewModeAccounts label').length,
+          names: [...document.querySelectorAll('#grid .panel')].map((panel) => panel.querySelector('.panel-name').textContent)
+        };
+      })()`);
+
+      // Importar de nuevo 6 cuentas no cambia el número: los paneles no se tocan.
+      // Se comparan los nodos DOM, no su texto: otros nodos con el mismo texto
+      // significaría que se reconstruyeron y se perdieron las sesiones.
+      const beforeNodes = await mainWindow.webContents.executeJavaScript(`(() => {
+        window.__panelNodesBefore = [...document.querySelectorAll('#grid .panel')];
+        return window.__panelNodesBefore.length;
+      })()`);
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [templateSixAgain] });
+      reimported = await mainWindow.webContents.executeJavaScript(`(async () => {
+        document.querySelector('#importAccountsButton').click();
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const nodes = [...document.querySelectorAll('#grid .panel')];
+        return {
+          ok: document.querySelector('#modalMessage').classList.contains('is-ok'),
+          panels: nodes.length,
+          sameNodes: nodes.length === window.__panelNodesBefore.length
+            && nodes.every((node, index) => node === window.__panelNodesBefore[index]),
+          names: nodes.map((node) => node.querySelector('.panel-name').textContent)
+        };
+      })()`);
+      beforeCount = beforeNodes;
+    } finally {
+      dialog.showOpenDialog = originalShowOpenDialog;
+    }
+
+    assert.ok(imported.ok, `La importación debe salir con éxito: ${JSON.stringify(imported)}`);
+    assert.equal(imported.panels, 6, `Importar una plantilla de 6 debe dejar 6 paneles: ${JSON.stringify(imported)}`);
+    assert.equal(imported.viewMenuEntries, 6, `"Modo vista" debe listar las 6 cuentas importadas: ${imported.viewMenuEntries}`);
+    assert.equal(beforeCount, 6, `La primera importación debe dejar 6 paneles: ${beforeCount}`);
+
+    assert.ok(reimported.ok, `La segunda importación debe salir con éxito: ${JSON.stringify(reimported)}`);
+    assert.equal(reimported.panels, 6, `Reimportar 6 cuentas debe dejar 6 paneles: ${JSON.stringify(reimported)}`);
+    assert.ok(reimported.sameNodes, `Un import que no cambia el número no debe reconstruir los paneles: ${JSON.stringify(reimported)}`);
+    assert.deepEqual(reimported.names, imported.names.map((name) => `${name}B`), `Los nombres deben refrescarse sin reconstruir: ${JSON.stringify(reimported.names)}`);
+
+    console.log(JSON.stringify({ ok: true, state, callsAfterSave, restored: { ...restored, actualOrder }, keptHidden, removed, toFour, imported, reimported }));
     app.exit(0);
   } catch (error) {
     console.error(error.stack || error.message);

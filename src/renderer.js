@@ -4591,16 +4591,6 @@ function loadPanelOrder() {
   return Array.from({ length: total }, (_, index) => index);
 }
 
-// Importar una plantilla o sincronizar el archivo vinculado cambia el número de
-// cuentas sin reconstruir los paneles, así que el estado de rejilla se relee aquí:
-// en memoria panelOrder se quedaba con el recuento anterior, más corto, y el
-// relleno ya no volvía a ejecutarse hasta el siguiente arranque.
-function reloadGridState() {
-  visibleAccountIndexes = loadVisibleAccountIndexes();
-  panelOrder = loadPanelOrder();
-  if (panelOrder.length < accounts.length) applyGridView(null, { persist: false });
-}
-
 function renderViewModeMenu() {
   viewModeAccounts.replaceChildren();
   panelOrder.forEach((index) => {
@@ -8697,11 +8687,15 @@ importAccountsButton.addEventListener('click', async () => {
     }
     if (!result.ok) throw new Error(result.error || 'No se pudo importar el archivo.');
     fillAccountForm(result.accounts);
+    const previousCount = accounts.length;
     accounts = normalizeAccounts(result.accounts);
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
     accountsSourcePath.textContent = `Archivo vinculado: ${linkedAccountsSource}`;
-    reloadGridState();
-    refreshPanelNames();
+    // Importar una plantilla puede cambiar cuántas cuentas hay. Si cambian, los
+    // paneles se reconstruyen; si no, basta con refrescar los nombres, porque
+    // tirarlos abajo mataría webviews con sesión viva para renombrar cuentas.
+    if (accounts.length !== previousCount) rebuildGamePanels();
+    else refreshPanelNames();
     modalMessage.textContent = `${result.file}: cuatro cuentas importadas y vinculadas. Los cambios futuros se sincronizarán automáticamente.`;
     modalMessage.classList.add('is-ok');
   } catch (error) {
@@ -8718,9 +8712,13 @@ async function syncLinkedAccounts() {
     const result = await window.pokeGrid.syncAccountsSource();
     linkedAccountsSource = result.sourcePath || linkedAccountsSource;
     if (result.ok && result.changed) {
+      // Mismo criterio que la importación: el archivo vinculado puede traer más o
+      // menos cuentas, y sin reconstruirlos la rejilla se queda con el recuento
+      // anterior mientras el menú de vista lista el nuevo.
+      const previousCount = accounts.length;
       accounts = normalizeAccounts(result.accounts);
-      reloadGridState();
-      refreshPanelNames();
+      if (accounts.length !== previousCount) rebuildGamePanels();
+      else refreshPanelNames();
       if (!modalBackdrop.hidden) {
         fillAccountForm(accounts);
         modalMessage.textContent = 'Cambios del archivo vinculado aplicados automáticamente.';
