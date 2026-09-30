@@ -52,13 +52,15 @@ assert.match(renderer, /candidate\.id !== item\.id/);
 
 // Aviso antes de sobrescribir un script editado localmente. El aviso va antes de
 // marcar scriptShopBusyId, y cancelar devuelve sin llegar a installScriptShopItem,
-// así que cancelar no toca lo guardado. La condición se apoya en el estado de la
-// tarjeta, y además cubre el caso en que la Shop publica una versión más nueva
-// (scriptShopState dice "update" y no "modified", pero instalar también tira la
-// edición local). Esto fija el cableado, no el comportamiento: el recorrido con
-// window.confirm está diferido, ver task-5-report.md.
-assert.match(renderer, /const estado = previous \? scriptShopState\(item\) : null/);
-assert.match(renderer, /if \(previous && \(estado\.key === 'modified' \|\| editado\)\)/);
+// así que cancelar no toca lo guardado.
+//
+// Estas aserciones fijan el AVISO (que existe y dice la verdad), no la condición que
+// lo dispara. La condición es una comparación de sha sobre el script instalado, y no
+// se comprueba aquí a propósito: no es algo que este fichero pueda evaluar, y atarla
+// al texto convertiría una línea muerta en contrato de test —el siguiente que
+// intente limpiarla rompería una suite verde y concluiría que era necesaria. La
+// comprobación de que el aviso NO aparece cuando el sha coincide es lo que le falta,
+// y está diferida con su motivo en task-5-report.md.
 assert.match(renderer, /Has editado «\$\{previous\.name\}» de la Shop/);
 assert.match(renderer, /Actualizar a \$\{item\.version\} descarta tus cambios y no se puede deshacer/);
 assert.match(renderer, /if \(!accepted\) return;/);

@@ -136,10 +136,16 @@ const RECORRIDO = `(async () => {
   const listaVacia = { mensaje: await enviar(), panelesAntes: panelesAntesDeVacia, paneles: { total: paneles().length, nombres: nombresDePanel() } };
 
   // --- E: una fila a medio rellenar tampoco se guarda ---
+  // La fila se renombra además de rellenarse a medias, y el aserto mira el nombre
+  // del panel: si el guard fallara, la cuenta se guardaría, structureChanged sería
+  // false (mismas filas, mismos accountId) y refreshPanelNames escribiría el nombre
+  // nuevo en el panel. Contar paneles NO serviría, porque no cambiarían; el nombre sí.
   await abrir();
+  const renombrada = rellenar(1, 'label', 'SHOCKOR-RENOMBRADA');
   const rellenada = rellenar(1, 'username', 'usuario2');
   const panelesAntesDeIncompleta = { total: paneles().length, nombres: nombresDePanel() };
   const filaIncompleta = {
+    renombrada,
     rellenada,
     filas: filas().length,
     mensaje: await enviar(),
@@ -147,7 +153,22 @@ const RECORRIDO = `(async () => {
     paneles: { total: paneles().length, nombres: nombresDePanel() }
   };
 
-  return { problemas, etiquetasIniciales, panelesIniciales, aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, avisos };
+  // --- F: el plural del recuento. Con dos filas a medias tiene que decir
+  // "2 filas están", no "1 filas están": es el mensaje que el usuario lee cuando ha
+  // metido la pata, y si se contradice parece que el launcher está roto.
+  // Las dos filas son las que quedan tras la fase A, que sí llegó a guardar.
+  await abrir();
+  const rellenadas = [rellenar(0, 'username', 'usuario2'), rellenar(1, 'password', 'clave2')];
+  const panelesAntesDelPlural = { total: paneles().length, nombres: nombresDePanel() };
+  const plural = {
+    rellenadas,
+    filas: filas().length,
+    mensaje: await enviar(),
+    panelesAntes: panelesAntesDelPlural,
+    paneles: { total: paneles().length, nombres: nombresDePanel() }
+  };
+
+  return { problemas, etiquetasIniciales, panelesIniciales, aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, plural, avisos };
 })()`;
 
 app.whenReady().then(async () => {
@@ -172,7 +193,7 @@ app.whenReady().then(async () => {
     // El estado se imprime antes de comprobar nada: si algo falla, el recorrido
     // entero queda en la salida en vez de solo la comprobación que saltó.
     console.log(JSON.stringify(state));
-    const { aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta } = state;
+    const { aceptando, cancelando, ultimaFila, minimo, listaVacia, filaIncompleta, plural } = state;
 
     if (state.problemas.length) {
       throw new Error(`La página lanzó errores durante el recorrido: ${JSON.stringify(state.problemas)}`);
@@ -203,7 +224,7 @@ app.whenReady().then(async () => {
     // si faltara un botón, el fallo sería del arnés y no del launcher.
     const pulsados = {
       phaseA: aceptando.pulsados, cancelando: cancelando.pulsado, ultimaFila: ultimaFila.pulsado,
-      minimo: minimo.pulsado, rellenada: filaIncompleta.rellenada
+      minimo: minimo.pulsado, rellenada: filaIncompleta.rellenada, renombrada: filaIncompleta.renombrada
     };
     if (Object.values(pulsados).some((value) => Array.isArray(value) ? value.includes(false) : !value)) {
       throw new Error(`El recorrido no encontró los controles que necesitaba: ${JSON.stringify(pulsados)}`);
@@ -236,15 +257,15 @@ app.whenReady().then(async () => {
       throw new Error(`Las cuentas borradas no se guardaron: ${JSON.stringify(aceptando.paneles)}`);
     }
 
-    // 5. Cancelar no borra nada: es lo que le da dientes al aviso.
+    // 5. Cancelar no borra nada: es lo que le da dientes al aviso. Se comprueba el
+    // DOM, no los paneles: esta fase no envía el formulario, así que nada podría
+    // cambiar la rejilla y una aserción sobre paneles aquí no podría fallar nunca.
+    // Lo que de verdad se verifica es que la fila sigue puesta tras cancelar.
     if (cancelando.filas !== 2 || cancelando.etiquetasDespues.join(',') !== cancelando.etiquetasAntes.join(',')) {
       throw new Error(`Cancelar el aviso borró la cuenta: ${JSON.stringify(cancelando)}`);
     }
     if (!cancelando.aviso || !cancelando.aviso.includes('SHOCKOR') || !cancelando.aviso.includes('SHOCKVINY')) {
       throw new Error(`El aviso de cancelación no dice a quién pasaría el historial: ${JSON.stringify(cancelando.aviso)}`);
-    }
-    if (cancelando.paneles.total !== cancelando.panelesAntes.total) {
-      throw new Error(`Cancelar el aviso cambió los paneles: ${JSON.stringify(cancelando)}`);
     }
 
     // 6. La última de la lista se avisa como tal, y la única no se puede borrar:
@@ -273,12 +294,28 @@ app.whenReady().then(async () => {
       throw new Error(`Una lista vacía llegó a guardarse: ${JSON.stringify(listaVacia)}`);
     }
 
-    // 8. Una fila con usuario y sin contraseña tampoco se guarda.
+    // 8. Una fila con usuario y sin contraseña tampoco se guarda. El aserto mira el
+    // NOMBRE del panel, no su número: si el guard se rompiera, la cuenta se guardaría
+    // con los mismos id y accountId, así que structureChanged sería false y el número
+    // de paneles no cambiaría (por eso se quitó el aserto por cantidad, que habría
+    // pasado con el bug presente). refreshPanelNames sí escribiría el nombre nuevo, y
+    // eso ya no puede pasar: el guard corta antes de llegar a guardar.
     if (!/1 fila está a medio rellenar/.test(filaIncompleta.mensaje)) {
       throw new Error(`El mensaje de fila incompleta no explica el problema: ${JSON.stringify(filaIncompleta.mensaje)}`);
     }
-    if (filaIncompleta.paneles.total !== filaIncompleta.panelesAntes.total) {
+    if (filaIncompleta.paneles.nombres.join(',') !== filaIncompleta.panelesAntes.nombres.join(',')) {
       throw new Error(`Una fila a medio rellenar llegó a guardarse: ${JSON.stringify(filaIncompleta)}`);
+    }
+
+    // 9. El plural del recuento se ejercita con dos filas a medias.
+    if (!plural.rellenadas.every(Boolean)) {
+      throw new Error(`No se pudieron rellenar las dos filas del caso de plural: ${JSON.stringify(plural)}`);
+    }
+    if (!/2 filas están a medio rellenar/.test(plural.mensaje)) {
+      throw new Error(`Con dos filas incompletas el mensaje no concuerda: ${JSON.stringify(plural.mensaje)}`);
+    }
+    if (plural.paneles.total !== plural.panelesAntes.total) {
+      throw new Error(`Con dos filas incompletas se guardó algo: ${JSON.stringify(plural)}`);
     }
 
     window.destroy();

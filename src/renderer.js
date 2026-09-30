@@ -8749,7 +8749,7 @@ importAccountsButton.addEventListener('click', async () => {
     // tirarlos abajo mataría webviews con sesión viva para renombrar cuentas.
     if (accounts.length !== previousCount) rebuildGamePanels();
     else refreshPanelNames();
-    const total = accounts.length || result.accounts.length || 0;
+    const total = accounts.length;
     setModalMessage(`${result.file}: ${total} cuenta${total === 1 ? '' : 's'} importada${total === 1 ? '' : 's'} y vinculada${total === 1 ? '' : 's'}. Los cambios futuros se sincronizarán automáticamente.`, true);
   } catch (error) {
     setModalMessage(error.message || 'El archivo no contiene una plantilla válida.');
@@ -9601,6 +9601,6 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   window.setInterval(syncLinkedAccounts, 15000);
   if (!result.ok) {
     openAccountsModal();
-    modalMessage.textContent = result.error || 'No se pudieron leer las cuentas guardadas.';
+    setModalMessage(result.error || 'No se pudieron leer las cuentas guardadas.');
   }
 })();

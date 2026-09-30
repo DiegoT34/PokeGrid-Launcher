@@ -695,19 +695,19 @@
 
   async function installFromScriptShop(item) {
     const previous = installedShopScript(item.id);
-    // Si la tarjeta dice "Modificado localmente", el código guardado ya no es el
-    // publicado y actualizar lo sobrescribe sin vuelta atrás. Se usa el mismo
-    // estado que pinta la tarjeta, no una comparación propia, para que el aviso
-    // aparezca exactamente cuando la interfaz dice que el script está editado.
-    const estado = previous ? scriptShopState(item) : null;
-    // scriptShopState devuelve "update" en cuanto la Shop publica una versión más
-    // nueva, sin llegar a mirar si el código guardado sigue siendo el publicado:
-    // la tarjeta pasa a decir "Actualización 1.3.0" y no avisa de nada, pero
-    // instalar sigue tirando la edición local. Ese caso es el más habitual (se
-    // edita, y luego publica la Shop), así que el aviso no puede depender solo del
-    // estado de la tarjeta.
+    // El aviso va por su cuenta en vez de apoyarse en el estado de la tarjeta, y no
+    // es una comparación redundante: scriptShopState devuelve "update" en cuanto la
+    // Shop publica una versión más nueva, sin llegar a mirar el sha guardado. La
+    // tarjeta pasa entonces a decir "Actualización 1.3.0" sin ninguna pista de que lo
+    // guardado está editado, pero instalar sigue pisando esa edición. Ese caso —se
+    // edita, y luego la Shop publica— es el más habitual, y es justo el que cubre esta
+    // comprobación y no cubre el estado de la tarjeta.
+    //
+    // Ojo a lo que mide: shopSha256 se conserva mientras el código no cambie
+    // (main.js:339), así que la señal es "el catálogo se movió" más que "tú has
+    // editado". Es la misma señal que usa la tarjeta, solo que sin cortocircuitarse.
     const editado = Boolean(previous?.shopVersion) && String(previous?.shopSha256 || '') !== String(item?.sha256 || '');
-    if (previous && (estado.key === 'modified' || editado)) {
+    if (previous && editado) {
       const accepted = window.confirm(
         `Has editado «${previous.name}» de la Shop (versión ${previous.shopVersion || '—'}).\n\n` +
         `Actualizar a ${item.version} descarta tus cambios y no se puede deshacer.\n\n¿Continuar?`
