@@ -7,6 +7,9 @@ smoke.png
 accounts.enc
 accounts-source.json
 
+# Estado local del script de VPN por cuenta (core, configs y PIDs): nunca subir.
+.vpn/
+
 # Userscripts personales de la carpeta raíz: no pertenecen al launcher público.
 /Better Market and More.user.js
 /Breeding Center - Breeding calculator.user.js
@@ -26,3 +29,10 @@ accounts-source.json
 /mobile-android/*.apk
 /mobile-android/*.png
 /mobile-android/.kotlin/
+
+# Builds antiguas y salidas de diagnóstico.
+dist-*/
+*.log
+
+# Repositorio anidado de la Script Shop: nunca se versiona aqui.
+PokeGrid-Script-Shop/
