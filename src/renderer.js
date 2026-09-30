@@ -327,6 +327,17 @@ function renderDynamicAccountLabels() {
     const node = document.querySelector(selector);
     if (node) node.textContent = accountCountText();
   });
+  // "Iniciar todas: 12 cuentas". El HTML arranca sin número porque hasta que
+  // loadAccounts responde no se sabe cuántas hay, igual que los otros tres textos.
+  // El prefijo "Iniciar todas" es el que se ve en el botón y tiene que seguir
+  // siendo el arranque del nombre accesible: si el aria-label no lo contuviera,
+  // el lector de pantalla anunciaría una etiqueta distinta de la que el usuario lee.
+  const loginAll = document.querySelector('#loginAllButton');
+  if (loginAll) {
+    const etiqueta = `Iniciar todas: ${accountCountText()}`;
+    loginAll.setAttribute('aria-label', etiqueta);
+    loginAll.title = etiqueta;
+  }
 }
 
 function defaultProxy() {

@@ -1112,10 +1112,14 @@
       enabled: true
     });
     selectedSnapshot = { ...(existing || {}), sourceUrl: result.sourceUrl };
+    // El mensaje dice cuántas cuentas hay de verdad: el launcher admite hasta
+    // 32 y esta pantalla no tenía el número a mano al escribir el texto.
+    const total = accountRows.length;
+    const destino = `${total} ${total === 1 ? 'cuenta' : 'cuentas'}`;
     setMessage(
       existing
-        ? 'Actualización cargada. Pulsa “Guardar e instalar” para aplicarla en las cuatro cuentas.'
-        : 'Módulo cargado y preseleccionado para las cuatro cuentas. Pulsa “Guardar e instalar”.',
+        ? `Actualización cargada. Pulsa “Guardar e instalar” para aplicarla ${total === 1 ? `en la ${destino}` : `en las ${destino}`}.`
+        : `Módulo cargado y preseleccionado ${total === 1 ? `para la ${destino}` : `para las ${destino}`}. Pulsa “Guardar e instalar”.`,
       'ok'
     );
   }

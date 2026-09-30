@@ -83,7 +83,7 @@ app.whenReady().then(async () => {
     if (!toolbarState.pokepediaText.endsWith('Pokepedia') ||
         !toolbarState.pokepediaClass.includes('button-pokepedia') ||
         toolbarState.launchText !== 'Iniciar todas' ||
-        toolbarState.launchLabel !== 'Iniciar las cuatro cuentas' ||
+        toolbarState.launchLabel !== 'Iniciar todas: 4 cuentas' ||
         toolbarState.playIcons !== 1 || toolbarState.hamburgerLines !== 3 ||
         toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
         !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.7') ||

@@ -36,7 +36,9 @@ Admite de **1 a 32 perfiles** para Poke Idle World en la misma instalación. Las
 
 - El botón **+ Añadir cuenta (IP/VPN propia)** crea una fila nueva; el tope es 32 por memoria (cada webview carga el juego completo).
 - Cada cuenta conserva su **identidad estable**: aunque se añadan o eliminen otras, la partición de cookies y sesión de cada una no cambia.
-- Al eliminar una cuenta, las siguientes heredan su posición. El historial asociado a esa posición (Capture Log, metas, notificaciones) pasa a la cuenta que ocupe ese lugar; tenlo en cuenta antes de borrar cuentas intermedias.
+- Al eliminar una cuenta, el launcher pide confirmación y avisa de que el historial de esa posición (Capture Log, metas, notificaciones) pasará a la cuenta que ocupe ese lugar. Eliminar una cuenta intermedia **reasigna el historial**: el registro de la posición desplazada queda ligado a otra cuenta, así que tenlo en cuenta antes de borrar. Si la cuenta que eliminas es la última de la lista, el aviso lo dice en vez de nombrar a nadie.
+- Al cambiar el proxy de una cuenta que ya está cargada, el launcher recarga solo esa sesión: las conexiones ya abiertas seguirían saliendo por la IP anterior.
+- La barra del panel muestra una etiqueta **VPN** mientras la cuenta usa proxy, con el protocolo y el destino en el tooltip (por ejemplo `SOCKS5 · 127.0.0.1:1080`). Si el proxy no llegó a aplicarse, la etiqueta se oculta y el motivo aparece en la barra de estado del panel, para que la etiqueta y el error no se contradigan.
 - La importación por plantilla `.txt` admite de 1 a 32 secciones `[CUENTA N]` consecutivas. Al re-sincronizar un archivo vinculado, las identidades existentes se conservan por posición para no perder sesiones.
 
 ### VPN / IP distinta por cuenta

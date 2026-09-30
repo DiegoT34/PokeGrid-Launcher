@@ -103,6 +103,15 @@ pnpm dist
 
 El resultado se crea en `dist/`. Los scripts personales que se encuentren junto al proyecto no forman parte del repositorio ni de las Releases.
 
+Verificar que nada se rompió:
+
+```powershell
+pnpm check
+pnpm test      # suites de Node, rápido
+pnpm test:e2e  # suites de Electron
+pnpm test:all  # ambas
+```
+
 ## Privacidad y seguridad
 
 - Las contraseñas no se publican ni se incluyen en los paquetes.
@@ -112,6 +121,39 @@ El resultado se crea en `dist/`. Los scripts personales que se encuentren junto 
 - No se incluye telemetría propia del launcher.
 
 Consulta [SECURITY.md](SECURITY.md) para informar problemas de seguridad.
+
+### Aviso de Windows (SmartScreen)
+
+El ejecutable del launcher no está firmado con un certificado comercial, así que
+Windows SmartScreen puede mostrar «Windows ha protegido su PC» la primera vez
+que lo abres en un equipo nuevo. Es el comportamiento normal de cualquier
+aplicación portable sin firmar.
+
+**Qué hacer:** pulsa **Más información** y luego **Ejecutar de todas formas**.
+
+El aviso no aparece en las actualizaciones posteriores: el actualizador descarga
+el ZIP con la red de Node y lo descomprime con PowerShell, sin la marca de
+descarga que el navegador añade a los archivos y que es la que dispara el aviso.
+Ese comportamiento depende de la configuración de cada equipo, así que si en
+algún Windows vuelve a salir, aplica el mismo **Más información** →
+**Ejecutar de todas formas**.
+
+**Verificar la integridad antes de ejecutar:** descarga también el archivo
+`IDLE-POKE-LAUNCHER-x.y.z-portatil.zip.sha256` de la misma Release y compara el
+hash con el del ZIP. Puedes calcularlo con:
+
+```powershell
+Get-FileHash .\IDLE-POKE-LAUNCHER-x.y.z-portatil.zip -Algorithm SHA256
+```
+
+En la **primera descarga manual** esa comparación la tienes que hacer tú: el
+launcher no comprueba el ZIP que descargaste a mano. La verificación automática
+sí existe, pero solo dentro del actualizador, que rechaza el paquete y no
+descomprime nada cuando el hash no coincide (ver
+[Actualizaciones automáticas](#actualizaciones-automáticas)).
+
+Guía completa y notas para quien mantenga el proyecto en
+[docs/RECOMENDACIONES-SMART-SCREEN.md](docs/RECOMENDACIONES-SMART-SCREEN.md).
 
 ## Licencia
 
