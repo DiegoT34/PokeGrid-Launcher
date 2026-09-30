@@ -239,7 +239,14 @@ let statisticsView = 'summary';
 const STATISTICS_REFRESH_INTERVAL_MS = 5_000;
 const STATISTICS_CONTEXT_INTERVAL_MS = 15_000;
 const STATISTICS_PROFILE_INTERVAL_MS = 30_000;
-const STATISTICS_ACCOUNT_COLORS = ['#49c8e8', '#ff806b', '#a889ff', '#e1b74e'];
+// Color estable por indice de cuenta, sin paleta fija ni tope. El angulo aureo
+// reparte los tonos lo mas lejos posible entre si, de modo que las 32 cuentas
+// del tope real (MAX_ACCOUNTS en account-model.js) no repiten ninguno: un
+// modulo sobre un array de 4 colores ya repetia en la quinta cuenta.
+function accountColor(index) {
+  const hue = ((Math.round((Number(index) || 0) * 137.508) % 360) + 360) % 360;
+  return `hsl(${hue} 72% 64%)`;
+}
 const statisticsAccountViews = new Map();
 const huntDropIconCache = new Map();
 const pokeApiSpeciesCache = new Map();
@@ -7632,7 +7639,7 @@ function renderStatisticsComparison(rows) {
   }).join('');
   statisticsComparisonHighlights.querySelectorAll('[data-comparison-account-index]').forEach((card) => {
     const index = Number(card.dataset.comparisonAccountIndex) || 0;
-    card.style.setProperty('--account-color', STATISTICS_ACCOUNT_COLORS[index % STATISTICS_ACCOUNT_COLORS.length]);
+    card.style.setProperty('--account-color', accountColor(index));
   });
 
   const columns = [
@@ -7661,7 +7668,7 @@ function renderStatisticsComparison(rows) {
   statisticsComparisonTable.innerHTML = `${header}${body}`;
   statisticsComparisonTable.querySelectorAll('[data-comparison-account-index]').forEach((row) => {
     const index = Number(row.dataset.comparisonAccountIndex) || 0;
-    row.style.setProperty('--account-color', STATISTICS_ACCOUNT_COLORS[index % STATISTICS_ACCOUNT_COLORS.length]);
+    row.style.setProperty('--account-color', accountColor(index));
   });
 }
 
@@ -7689,7 +7696,7 @@ function renderStatistics(rows) {
     const card = document.createElement('article');
     card.className = `statistics-account-card${row.online ? '' : ' is-unavailable'}`;
     card.dataset.accountIndex = String(row.index);
-    card.style.setProperty('--account-color', STATISTICS_ACCOUNT_COLORS[row.index % STATISTICS_ACCOUNT_COLORS.length]);
+    card.style.setProperty('--account-color', accountColor(row.index));
     const huntAvailable = Boolean(row.hunt?.ok);
     const drops = statisticsDropRows(row);
     const accountView = statisticsAccountViews.get(row.index) === 'drops' ? 'drops' : 'summary';

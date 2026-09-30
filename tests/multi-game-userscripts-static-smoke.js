@@ -26,4 +26,27 @@ assert.match(html, /EJECUTAR EN JUEGOS E INSTANCIAS/);
 assert.match(css, /\.script-list-games/);
 assert.match(css, /\.script-auto-target/);
 
-console.log('Multi-game userscript static smoke passed: scope, preload, injection, refresh and game labels are wired.');
+// La paleta de cuentas no puede tener un tope: con 32 cuentas un array fijo
+// de 4 colores hace que dos cuentas compartan color.
+assert.doesNotMatch(renderer, /const STATISTICS_ACCOUNT_COLORS = \[/);
+assert.match(renderer, /function accountColor\(index\)/);
+// El arranque del modulo de scripts debe validar el DOM en vez de abortar.
+assert.match(manager, /const missing = REQUIRED_SCRIPT_ELEMENTS\.filter/);
+
+// Un assert sobre el literal no detectaria un rename de id: estos si.
+// Cada id que el modulo declara obligatorio tiene que existir en index.html.
+const requiredBlock = manager.match(/const REQUIRED_SCRIPT_ELEMENTS = \[([\s\S]*?)\];/);
+assert.ok(requiredBlock, 'userscripts.js debe declarar REQUIRED_SCRIPT_ELEMENTS antes de resolver el DOM.');
+const requiredSelectors = [...requiredBlock[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
+assert.ok(requiredSelectors.length > 0, 'REQUIRED_SCRIPT_ELEMENTS no puede estar vacia.');
+const htmlHasId = (selector) => new RegExp(`id\\s*=\\s*["']${selector.slice(1)}["']`).test(html);
+const unknownSelectors = requiredSelectors.filter((selector) => !htmlHasId(selector));
+assert.deepEqual(unknownSelectors, [], `REQUIRED_SCRIPT_ELEMENTS apunta a ids que no existen en index.html: ${unknownSelectors.join(', ')}`);
+
+// Y al reves: ningun id que el modulo resuelve puede quedarse fuera de la
+// lista, que es justo como un id nuevo se escapaba del aviso del modulo.
+const queriedIds = [...manager.matchAll(/document\.querySelector\('#([^']+)'\)/g)].map((match) => `#${match[1]}`);
+const uncoveredIds = [...new Set(queriedIds)].filter((selector) => !requiredSelectors.includes(selector));
+assert.deepEqual(uncoveredIds, [], `ids resueltos por el modulo y ausentes de REQUIRED_SCRIPT_ELEMENTS: ${uncoveredIds.join(', ')}`);
+
+console.log(`Multi-game userscript static smoke passed: scope, preload, injection, refresh, game labels and ${requiredSelectors.length} required script elements are wired.`);

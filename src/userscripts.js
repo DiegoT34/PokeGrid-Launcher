@@ -20,6 +20,35 @@
 })();
 `;
 
+  // Ids del DOM que el modulo necesita para exponer el Centro de scripts. Si
+  // alguno falta, se avisa de forma explicita por consola en vez de abortar el
+  // parseo del modulo y dejar window.pokeGridUserScriptManager indefinido: por el
+  // optional chaining del renderer eso era un Centro de scripts y una inyeccion
+  // que desaparecian sin ningun error visible. La lista esta verificada contra
+  // src/index.html en tests/multi-game-userscripts-static-smoke.js.
+  const REQUIRED_SCRIPT_ELEMENTS = [
+    '#scriptsButton', '#hamburgerScriptBadge', '#scriptsMenuBadge', '#scriptsBackdrop',
+    '#closeScriptsButton', '#newScriptButton', '#importScriptButton', '#installTelegramAlertsButton',
+    '#scriptUrlForm', '#scriptUrlInput', '#scriptDropZone', '#scriptsList', '#scriptCount',
+    '#scriptEditorForm', '#scriptEditorKicker', '#scriptEditorName', '#scriptEditorMeta',
+    '#scriptEnabledInput', '#scriptAccountToggles', '#scriptCodeInput', '#scriptCodeEditor',
+    '#scriptLineNumbers', '#scriptSyntaxStatus', '#scriptCursorStatus', '#validateScriptButton',
+    '#undoScriptButton', '#redoScriptButton', '#commentScriptButton', '#duplicateScriptLineButton',
+    '#findScriptButton', '#scriptFindBar', '#scriptFindInput', '#scriptFindCount',
+    '#scriptFindPreviousButton', '#scriptFindNextButton', '#closeScriptFindButton',
+    '#scriptPermissionSummary', '#scriptsMessage', '#deleteScriptButton', '#exportScriptButton',
+    '#cancelScriptChangesButton', '#pickExtensionButton', '#extensionPathOutput',
+    '#extensionAccountToggles', '#extensionStatus', '#applyExtensionButton',
+    '#installedScriptsTab', '#scriptShopTab', '#installedScriptsView', '#scriptShopView',
+    '#scriptShopUpdateBadge', '#scriptShopSearch', '#refreshScriptShopButton',
+    '#scriptShopSummary', '#scriptShopGrid', '#scriptShopMessage'
+  ];
+
+  const missing = REQUIRED_SCRIPT_ELEMENTS.filter((selector) => !document.querySelector(selector));
+  if (missing.length) {
+    console.error(`[PokeGrid] Centro de scripts incompleto: faltan ${missing.length} de ${REQUIRED_SCRIPT_ELEMENTS.length} elementos -> ${missing.join(', ')}`);
+  }
+
   const scriptsButton = document.querySelector('#scriptsButton');
   const hamburgerScriptBadge = document.querySelector('#hamburgerScriptBadge');
   const scriptsMenuBadge = document.querySelector('#scriptsMenuBadge');
