@@ -11,7 +11,7 @@ require('../src/main.js'); // Launcher real: IPC, sesiones y ventana principal.
 
 const http = require('node:http');
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
 
 async function waitFor(window, expression, timeoutMs = 20_000) {
   const started = Date.now();
@@ -33,6 +33,20 @@ app.whenReady().then(async () => {
     }
     assert.ok(mainWindow, 'La ventana principal no se creó');
     await waitFor(mainWindow, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 4`);
+
+    // Contador de setProxy. fromPartition devuelve siempre la misma instancia por
+    // partición, así que parchear esa instancia cuenta las llamadas que hace el
+    // launcher sin tocar src/main.js. Se instala con 4 cuentas ya arrancadas, para
+    // que el contador mida solo lo que se haga desde aquí en adelante.
+    const setProxyCalls = [];
+    for (let id = 1; id <= 8; id += 1) {
+      const sesion = session.fromPartition(`persist:pokegrid-${id}`);
+      const original = sesion.setProxy;
+      sesion.setProxy = function contandoSetProxy(config) {
+        setProxyCalls.push({ id, rules: String(config?.proxyRules || '') });
+        return original.call(this, config);
+      };
+    }
 
     // Servidor de sonda local: solo recibe tráfico si la sesión enruta por el proxy.
     const probeHits = [];
@@ -62,12 +76,30 @@ app.whenReady().then(async () => {
       return {
         panels: document.querySelectorAll('#grid .panel').length,
         gridColumns: getComputedStyle(document.querySelector('#grid')).gridTemplateColumns.split(' ').filter(Boolean).length,
-        message: document.querySelector('#modalMessage').textContent
+        message: document.querySelector('#modalMessage').textContent,
+        orders: [...document.querySelectorAll('#grid .panel')].map((panel) => panel.style.order),
+        viewMenuEntries: document.querySelectorAll('#viewModeAccounts label').length,
+        hiddenPanels: document.querySelectorAll('#grid .panel.is-grid-hidden').length
       };
     })()`);
 
     assert.equal(state.panels, 6, `Se esperaban 6 paneles: ${JSON.stringify(state)}`);
     assert.equal(state.gridColumns, 3, 'El grid de 6 cuentas debe usar 3 columnas');
+
+    // Los 6 paneles necesitan un order propio: los que se quedan sin él computan a
+    // 0 y se renderizan antes que los ordenados.
+    assert.equal(state.orders.length, 6, `Se esperaban 6 paneles con order: ${JSON.stringify(state.orders)}`);
+    assert.equal(state.orders.filter((order) => order === '').length, 0, `Ningún panel puede quedarse sin order: ${JSON.stringify(state.orders)}`);
+    assert.equal(new Set(state.orders).size, 6, `Los 6 paneles deben tener order distinto: ${JSON.stringify(state.orders)}`);
+    assert.equal(state.viewMenuEntries, 6, `"Modo vista" debe listar las 6 cuentas: ${state.viewMenuEntries}`);
+    assert.equal(state.hiddenPanels, 0, 'Las 6 cuentas nuevas deben quedar visibles');
+
+    // Sin proxy propio no debe tocarse la sesión: forzar direct:// sacaba al juego
+    // del proxy del sistema. Solo la cuenta con proxy genera una llamada.
+    const callsAfterSave = setProxyCalls.slice();
+    assert.equal(callsAfterSave.length, 1, `Solo la cuenta con proxy debe recibir setProxy: ${JSON.stringify(callsAfterSave)}`);
+    assert.equal(callsAfterSave[0].id, 6, `El setProxy debe ser el de la cuenta 6: ${JSON.stringify(callsAfterSave)}`);
+    assert.ok(!/^direct:\/\//.test(callsAfterSave[0].rules), `Ninguna cuenta debe forzarse a conexión directa: ${JSON.stringify(callsAfterSave)}`);
 
     // Prueba conductual: un dominio inresoluble solo carga si la sesión pasa por el proxy.
     const probeUrl = 'http://pokegrid-proxy-probe.invalid/probe';
@@ -93,6 +125,47 @@ app.whenReady().then(async () => {
 
     probeServer.close();
 
+    // Arranque en frío con un orden guardado de 4 índices y 6 cuentas: el guardado
+    // del usuario debe completarse, no descartarse. Se comprueba en el siguiente
+    // arranque, que es donde se leía el guardado antes de conocer las cuentas.
+    const storedOrder = [3, 1, 0, 2];
+    async function reloadWithGridState(visible) {
+      await mainWindow.webContents.executeJavaScript(`(() => {
+        localStorage.setItem('idle-poke:grid-order:v1', ${JSON.stringify(JSON.stringify(storedOrder))});
+        localStorage.setItem('idle-poke:grid-visible:v1', ${JSON.stringify(JSON.stringify(visible))});
+        localStorage.setItem('idle-poke:grid-accounts:v1', '4');
+      })()`);
+      mainWindow.webContents.reload();
+      await waitFor(mainWindow, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 6`);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return mainWindow.webContents.executeJavaScript(`(() => {
+        const panels = [...document.querySelectorAll('#grid .panel')];
+        return {
+          orders: panels.map((panel) => panel.style.order),
+          viewMenuEntries: document.querySelectorAll('#viewModeAccounts label').length,
+          hiddenPanels: document.querySelectorAll('#grid .panel.is-grid-hidden').length
+        };
+      })()`);
+    }
+
+    const restored = await reloadWithGridState([0, 1, 2, 3]);
+
+    // orders viene en orden de panel, y lo que importa es qué panel ocupa cada
+    // posición: se invierte para comparar contra el orden guardado.
+    const actualOrder = [];
+    restored.orders.forEach((order, panelIndex) => { actualOrder[Number(order)] = panelIndex; });
+    const expectedOrder = [...storedOrder, 4, 5];
+    assert.deepEqual(actualOrder, expectedOrder, `El orden guardado debe conservarse y completarse: ${JSON.stringify({ orders: restored.orders, actualOrder })}`);
+    assert.equal(new Set(restored.orders).size, 6, `Los 6 paneles deben tener order distinto tras recargar: ${JSON.stringify(restored.orders)}`);
+    assert.equal(restored.viewMenuEntries, 6, `"Modo vista" debe listar las 6 cuentas tras recargar: ${restored.viewMenuEntries}`);
+    assert.equal(restored.hiddenPanels, 0, 'Las cuentas que no estaban en el guardado deben quedar visibles');
+
+    // Con 4 cuentas, una cuenta oculta a propósito tiene que seguir oculta. Solo se
+    // dan por visibles las que no existían cuando se guardó.
+    const keptHidden = await reloadWithGridState([0, 2]);
+    assert.equal(keptHidden.hiddenPanels, 2, `Las cuentas ocultadas a propósito deben seguir ocultas: ${JSON.stringify(keptHidden)}`);
+    assert.equal(keptHidden.viewMenuEntries, 6, `"Modo vista" debe listar las 6 cuentas: ${keptHidden.viewMenuEntries}`);
+
     // Eliminar la última cuenta deja 5 paneles y conserva las sesiones anteriores.
     const removed = await mainWindow.webContents.executeJavaScript(`(async () => {
       document.querySelector('#accountsButton').click();
@@ -105,7 +178,7 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(removed.panels, 5, `Eliminar una cuenta debe dejar 5 paneles: ${JSON.stringify(removed)}`);
 
-    console.log(JSON.stringify({ ok: true, state, removed }));
+    console.log(JSON.stringify({ ok: true, state, callsAfterSave, restored: { ...restored, actualOrder }, keptHidden, removed }));
     app.exit(0);
   } catch (error) {
     console.error(error.stack || error.message);

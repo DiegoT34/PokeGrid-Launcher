@@ -11,6 +11,7 @@ const CAPTURE_GOAL_KEY = 'pokegrid:capture-goals:v1';
 const GRID_VIEW_KEY = 'pokegrid:grid-view:v1';
 const GRID_VISIBLE_KEY = 'idle-poke:grid-visible:v1';
 const GRID_ORDER_KEY = 'idle-poke:grid-order:v1';
+const GRID_SAVED_ACCOUNTS_KEY = 'idle-poke:grid-accounts:v1';
 const BROWSER_INSTANCES_KEY = 'pokegrid:browser-instances:v1';
 const ACTIVE_BROWSER_INSTANCE_KEY = 'pokegrid:active-browser-instance:v1';
 const PRIMARY_BROWSER_INSTANCE_ID = 'poke-idle-world';
@@ -4537,22 +4538,48 @@ function restoreGrid() {
   if (expandedPanel) toggleExpanded(expandedPanel);
 }
 
+// Cuántas cuentas había cuando se guardó el orden y la visibilidad. Sin ese dato no
+// se puede distinguir una cuenta que el usuario ocultó a propósito de una que aún no
+// existía al guardar, y dar por visibles todas las que falten rompería "Modo vista".
+// Se asume DEFAULT_ACCOUNT_COUNT porque las instalaciones anteriores a las cuentas
+// dinámicas nunca pasaron de ese número.
+function savedAccountCount() {
+  const stored = Number(localStorage.getItem(GRID_SAVED_ACCOUNTS_KEY));
+  return Number.isInteger(stored) && stored >= 1 ? stored : DEFAULT_ACCOUNT_COUNT;
+}
+
 function loadVisibleAccountIndexes() {
+  const total = accountCount();
   try {
     const stored = JSON.parse(localStorage.getItem(GRID_VISIBLE_KEY) || '[]');
-    const valid = [...new Set(stored.map(Number).filter((index) => index >= 0 && index < accountCount()))];
-    if (valid.length) return new Set(valid);
+    const valid = new Set(stored.map(Number).filter((index) => index >= 0 && index < total));
+    if (valid.size) {
+      // Solo se dan por visibles las cuentas posteriores a las que había al guardar.
+      for (let index = Math.min(savedAccountCount(), total); index < total; index += 1) valid.add(index);
+      return valid;
+    }
   } catch {}
-  const legacyCount = Math.max(1, Math.min(accountCount(), Number(localStorage.getItem(GRID_VIEW_KEY)) || accountCount()));
+  const legacyCount = Math.max(1, Math.min(total, Number(localStorage.getItem(GRID_VIEW_KEY)) || total));
   return new Set(Array.from({ length: legacyCount }, (_, index) => index));
 }
 
 function loadPanelOrder() {
+  const total = accountCount();
   try {
     const stored = JSON.parse(localStorage.getItem(GRID_ORDER_KEY) || '[]').map(Number);
-    if (stored.length === accountCount() && new Set(stored).size === accountCount() && stored.every((index) => index >= 0 && index < accountCount())) return stored;
+    const valid = stored.filter((index) => index >= 0 && index < total);
+    // Igual que la visibilidad: se conserva el orden elegido y las cuentas que no
+    // existían al guardar se añaden al final. Un guardado con índices repetidos sí
+    // se descarta, porque no define un orden.
+    if (valid.length && new Set(valid).size === valid.length) {
+      const seen = new Set(valid);
+      for (let index = Math.min(savedAccountCount(), total); index < total; index += 1) {
+        if (!seen.has(index)) valid.push(index);
+      }
+      return valid;
+    }
   } catch {}
-  return Array.from({ length: accountCount() }, (_, index) => index);
+  return Array.from({ length: total }, (_, index) => index);
 }
 
 function renderViewModeMenu() {
@@ -4613,6 +4640,7 @@ function applyGridView(_value = null, { persist = true } = {}) {
   if (persist) {
     localStorage.setItem(GRID_VISIBLE_KEY, JSON.stringify([...visibleAccountIndexes]));
     localStorage.setItem(GRID_ORDER_KEY, JSON.stringify(panelOrder));
+    localStorage.setItem(GRID_SAVED_ACCOUNTS_KEY, String(accountCount()));
   }
   renderViewModeMenu();
   positionViewModeMenu();
@@ -8496,9 +8524,13 @@ function rebuildGamePanels() {
   });
   panels.length = 0;
   resetFarmContexts();
+  // El número de cuentas acaba de cambiar, así que el orden guardado se vuelve a
+  // leer contra la cuenta nueva: las cuentas que se acaban de añadir entran
+  // visibles y al final, sin descolocar las que el usuario ya había ordenado.
+  visibleAccountIndexes = loadVisibleAccountIndexes();
+  panelOrder = loadPanelOrder();
   for (let index = 0; index < accounts.length; index += 1) createPanel(index);
   setGridLayout();
-  visibleAccountIndexes = new Set(Array.from({ length: accounts.length }, (_, index) => index));
   applyGridView(null, { persist: false });
   window.pokeGridUserScriptManager?.setAccounts(accounts);
   syncUserScriptPanels();
@@ -9454,6 +9486,11 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   renderNotifications();
   const result = await window.pokeGrid.loadAccounts();
   accounts = normalizeAccounts(result.accounts);
+  // accounts ya está poblado, así que el orden y la visibilidad guardados se releen
+  // aquí: en ámbito de módulo se leyeron con la lista vacía y accountCount() devolvía
+  // DEFAULT_ACCOUNT_COUNT, con lo que un usuario con más cuentas perdía su orden.
+  visibleAccountIndexes = loadVisibleAccountIndexes();
+  panelOrder = loadPanelOrder();
   linkedAccountsSource = result.sourcePath || '';
   farmConfigs = loadFarmConfigs();
   resetFarmContexts();

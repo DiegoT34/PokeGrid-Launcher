@@ -184,9 +184,13 @@ async function applyAccountProxies(accounts) {
   const results = [];
   for (const account of accounts || []) {
     try {
-      const gameSession = session.fromPartition(accountPartition(account.id));
-      if (account.proxy?.enabled) await gameSession.setProxy({ proxyRules: buildProxyRules(account.proxy) });
-      else await gameSession.setProxy({ proxyRules: 'direct://' });
+      // Sin proxy propio no se toca la sesión, para que siga heredando el proxy del
+      // sistema como antes de esta feature. Forzar direct:// sacaba al juego del
+      // túnel de quien usa Clash en modo sistema, TUN o un proxy corporativo.
+      if (account.proxy?.enabled) {
+        const gameSession = session.fromPartition(accountPartition(account.id));
+        await gameSession.setProxy({ proxyRules: buildProxyRules(account.proxy) });
+      }
       results.push({ id: account.id, ok: true });
     } catch (error) {
       results.push({ id: account.id, ok: false, error: error.message });
@@ -1377,7 +1381,12 @@ ipcMain.handle('accounts:download-template', async () => {
   });
   if (result.canceled || !result.filePath) return { ok: false, canceled: true };
   try {
-    fs.writeFileSync(result.filePath, accountTemplateText(), 'utf8');
+    // La plantilla sale con el número de cuentas actual. Sin argumento, la llamada
+    // en producción sacaba siempre 4 secciones. Si no se pueden leer las cuentas
+    // cifradas se cae al valor por defecto, que es lo que tiene una instalación nueva.
+    let count = DEFAULT_ACCOUNT_COUNT;
+    try { count = readAccounts().length; } catch {}
+    fs.writeFileSync(result.filePath, accountTemplateText(count), 'utf8');
     return { ok: true, file: path.basename(result.filePath) };
   } catch (error) {
     return { ok: false, error: error.message };
