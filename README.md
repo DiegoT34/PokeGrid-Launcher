@@ -36,9 +36,10 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Centro de userscripts multijuego con editor, permisos, instalación por URL, importación y arrastrar/soltar.
 - Detección automática por `@match`/`@include`: cada script se instala, actualiza y recarga en las pantallas compatibles de su juego.
 - Etiquetas de juego inferidas por dominio o declaradas con la directiva opcional `@game`.
-- Shop online con catálogo actualizado desde GitHub, información, instalación, actualización, desinstalación y verificación SHA-256.
+- Shop online con catálogo actualizado desde GitHub, información, instalación, actualización, desinstalación y verificación SHA-256. El catálogo se ordena con los destacados primero y, dentro de cada grupo, del más reciente al más antiguo.
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
 - Actualizador integrado que guarda ZIP y firma en Descargas, reintenta el arranque, confirma la ventana nueva y restaura la versión anterior si algo falla.
+- Bolitas de aviso en el botón de menú: Shop en ámbar, notificaciones en rojo y actualizaciones del launcher en verde. Los avisos de contenido se apagan al entrar; el de actualización, solo al instalar.
 
 ## Cuentas ilimitadas y VPN/IP por cuenta
 
@@ -72,15 +73,19 @@ Analiza el Pokémon líder detectado, nivel, tipos, mapas y compatibilidad para 
 
 ## Actualizaciones automáticas
 
-El menú lateral incluye **Actualizaciones**. Al pulsarlo:
+El menú lateral incluye **Actualizaciones**. El launcher comprueba por su cuenta al arrancar y cada seis horas, y avisa con una bolita verde en el botón de menú cuando hay versión nueva. Ese aviso **no se apaga al mirarlo**: sigue ahí hasta que la actualización se instala de verdad, porque si no, quien cerrara el aviso y no volviera a él perdería la única señal de que la tenía pendiente. Un arranque sin conexión no lo apaga tampoco.
+
+Al pulsar el botón:
 
 1. Consulta la Release estable más reciente de este repositorio.
 2. Compara la versión instalada.
-3. Descarga el ZIP cuando existe una versión superior y lo conserva en **Descargas**.
-4. Verifica su archivo `.sha256` antes de descomprimirlo.
-5. Cierra el launcher y abre la nueva versión en una carpeta portátil independiente.
-6. Confirma que la nueva ventana está preparada antes de retirar la versión anterior.
-7. Si el arranque no se confirma, reintenta y restaura automáticamente la versión anterior.
+3. Si hay versión superior, **pregunta antes de descargar nada**, indicando la versión instalada y la disponible.
+4. Si cancelas, no ocurre nada más y el aviso sigue pendiente.
+5. Si aceptas, descarga el ZIP y lo conserva en **Descargas**.
+6. Verifica su archivo `.sha256` antes de descomprimirlo.
+7. Cierra el launcher y abre la nueva versión en una carpeta portátil independiente.
+8. Confirma que la nueva ventana está preparada antes de retirar la versión anterior.
+9. Si el arranque no se confirma, reintenta y restaura automáticamente la versión anterior.
 
 Consulta [cómo funcionan las actualizaciones](docs/ACTUALIZACIONES.md), la [guía completa de funciones](docs/FUNCIONES.md) y [cómo publicar scripts en la Shop](docs/SCRIPT_SHOP.md).
 
