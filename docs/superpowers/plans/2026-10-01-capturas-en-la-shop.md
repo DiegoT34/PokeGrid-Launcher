@@ -116,7 +116,14 @@ const rechazos = [
   ['con credenciales', `https://user:pass@raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png`, 'Con credenciales no vale.'],
   ['otra extension', buena('market-helper-1.exe'), 'Solo imagenes.'],
   ['sin extension', buena('market-helper-1'), 'Sin extension no se sabe que es.'],
-  ['id equivocado', buena('otro-script-1.png'), 'No puede usar las capturas de otro script.']
+  ['id equivocado', buena('otro-script-1.png'), 'No puede usar las capturas de otro script.'],
+  // El host se comprueba aparte de la ruta, y por eso necesita su propia linea: un host
+  // ajeno con la ruta EXACTAMENTE igual es lo que un catálogo escrito a mano podría
+  // colar, y es justo lo que la revision de la tarea 1 encontró ausente.
+  ['host ajeno', 'https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Un host que no es GitHub no vale, aunque la ruta sea exacta.'],
+  ['host que imita al bueno', 'https://raw.githubusercontent.com.otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Un host que empieza por el bueno no vale.'],
+  ['otro esquema', 'ftp://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Solo https.'],
+  ['prefijo sin guion', buena('market-helperx-1.png'), 'El guion separa los prefijos: market-helper no puede usar las capturas de market-helperx.']
 ];
 for (const [nombre, url, motivo] of rechazos) {
   assert.equal(esCapturaDeShop(url, id), false, `${nombre}: ${motivo} (${url})`);
@@ -207,6 +214,13 @@ function esCapturaDeShop(rawUrl, id) {
   } catch {
     return false;
   }
+  // El host se comprueba **aparte de** la ruta, y es lo más importante de esta función.
+  // La ruta sola no dice nada: un catálogo escrito a mano puede apuntar a
+  // `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png`,
+  // que tiene la ruta exactamente igual y un host que no es el nuestro. En la Tarea 2
+  // esta comprobación es la frontera de seguridad del `net.fetch` del proceso principal,
+  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que hay.
+  if (url.hostname !== 'raw.githubusercontent.com') return false;
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return false;
   const encontrado = RUTA_CAPTURA.exec(url.pathname);
   if (!encontrado) return false;
@@ -283,10 +297,15 @@ prueba y lo restaura comprobando `git hash-object src/script-shop-screenshots.js
 | 2 | Cambia `(?:main\|[a-f0-9]{40})` por `[a-z0-9]{0,40}` | `Una rama suelta no vale.` |
 | 3 | Cambia `CAPTURAS_LIMITE` por `12` | `El tope son 6 capturas, no 12.` |
 | 4 | Quita `.slice(0, CAPTURAS_LIMITE)` y usa la lista entera | `Con 12 capturas se muestran 6.` |
-| 5 | Cambia `has(url)` por `get(url)` en la comprobación de protocolo, que siempre da verdad | `Con undefined se rechaza sin reventar.` |
+| 5 | Quita el `try/catch` del `new URL`, que es lo que protege el caso `undefined` | `Con undefined se rechaza sin reventar.` |
+| 6 | **Quita la comprobación de `url.hostname`** | `Un host que no es GitHub no vale, aunque la ruta sea exacta.` |
 
-El 5 es el más traicionero: `undefined === 'https:'` es `false` pero `get` devuelve la
-cadena, así que una URL mal formada pasa. Por eso está el `try/catch` alrededor del `new URL`.
+El 5 lo escribí mal en el plan: describía un `has`/`get` que el código no tiene. Lo que
+protege ese caso es el `try/catch` alrededor de `new URL`.
+
+El 6 es el que encontró la revisión de la tarea 1, y es el más importante: sin él, un host
+ajeno con la ruta exacta pasaba, y en la Tarea 2 esa comprobación es la frontera de
+seguridad del `net.fetch` del proceso principal.
 
 - [ ] **Paso 8: Commit**
 
