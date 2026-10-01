@@ -40,6 +40,7 @@ Admite de **1 a 32 perfiles** para Poke Idle World en la misma instalación. Las
 - Al cambiar el proxy de una cuenta que ya está cargada, el launcher recarga solo esa sesión: las conexiones ya abiertas seguirían saliendo por la IP anterior.
 - La barra del panel muestra una etiqueta **VPN** mientras la cuenta usa proxy, con el protocolo y el destino en el tooltip (por ejemplo `SOCKS5 · 127.0.0.1:1080`). Si el proxy no llegó a aplicarse, la etiqueta se oculta y el motivo aparece en la barra de estado del panel, para que la etiqueta y el error no se contradigan.
 - La importación por plantilla `.txt` admite de 1 a 32 secciones `[CUENTA N]` consecutivas. Al re-sincronizar un archivo vinculado, las identidades existentes se conservan por posición para no perder sesiones.
+- El archivo `.txt` vinculado **no se relee solo**. Se sincroniza cuando pulses **Sincronizar ahora**, en el modal de cuentas. Antes se comprobaba cada 15 segundos, lo que recargaba las cuentas sin que nadie hubiera tocado nada y releía doscientas veces por hora un archivo con contraseñas en texto plano. Si al pulsar el botón el archivo ya no está donde estaba, el modal lo dice.
 
 ### VPN / IP distinta por cuenta
 

@@ -3,10 +3,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-// Sincronizar el .txt vinculado cada 15 s no puede reescribir las cuentas cuando
-// el archivo no ha cambiado de verdad. Cualquier cosa que toque el archivo sin
-// tocar su contenido —una copia de seguridad, OneDrive, el explorador al
-// abrirlo— llegaba a reescribir accounts.enc y su copia cada quince segundos.
+// Sincronizar el .txt vinculado no puede reescribir las cuentas cuando el archivo
+// no ha cambiado de verdad. Con el sondeo de 15 s, cualquier cosa que tocase el
+// archivo sin tocar su contenido —una copia de seguridad, OneDrive, el explorador
+// al abrirlo— llegaba a reescribir accounts.enc y su copia. El sondeo ya no
+// existe, pero la decisión sigue siendo por contenido y no por fecha, porque el
+// botón se puede pulsar en cualquier momento y el archivo puede haber cambiado de
+// fecha sin cambiar de contenido.
 
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-linked-source-'));
 process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;

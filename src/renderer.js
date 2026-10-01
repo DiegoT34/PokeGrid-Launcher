@@ -189,7 +189,6 @@ let linkedAccountsSource = '';
 // principal porque el renderer no puede mirar el disco: sin este dato el botón de
 // restaurar no sabría si tiene algo que hacer, y esconderlo siempre lo deja muerto.
 let accountsBackupAvailable = false;
-let accountSourceSyncBusy = false;
 let accountProfilePollBusy = false;
 const panels = [];
 const browserInstanceViews = new Map();
@@ -8755,8 +8754,8 @@ function rebuildGamePanels() {
 
 // La etiqueta de proxy del panel se pinta desde la cuenta, no con la cuenta, para que:
 //   - una importación que cambia el proxy la actualice en vez de dejar la etiqueta de
-//     la cuenta anterior (importAccountsFile y syncLinkedAccounts pasan por aquí y no
-//     por el formulario),
+//     la cuenta anterior (importAccountsFile y la sincronización manual pasan por
+//     aquí y no por el formulario),
 //   - rebuildGamePanels no pueda duplicarla nunca, porque el nodo está en la plantilla
 //     y estas funciones solo le cambian el contenido.
 // Si el proxy no llegó a aplicarse se oculta, porque la etiqueta con destino y el
@@ -8928,6 +8927,7 @@ function openAccountsModal() {
 
 const unlinkAccountsButton = document.querySelector('#unlinkAccountsButton');
 const restoreAccountsButton = document.querySelector('#restoreAccountsButton');
+const syncAccountsSourceButton = document.querySelector('#syncAccountsSourceButton');
 
 // La fila del archivo vinculado tiene dos estados y solo se escribe desde aquí, para
 // que la ruta y el botón no puedan contradecirse: un botón visible sin ruta ofrecería
@@ -8945,16 +8945,48 @@ const restoreAccountsButton = document.querySelector('#restoreAccountsButton');
 // ese momento ambas son el mismo contenido.
 function renderAccountsSourceRow() {
   accountsSourcePath.textContent = linkedAccountsSource
-    ? `Archivo vinculado: ${linkedAccountsSource}. El launcher lo relee cada 15 s y sincroniza los cambios.`
-    : 'Ningún archivo vinculado. Al importar un .txt, el launcher recordará su ruta absoluta y sincronizará futuros cambios.';
+    ? `Archivo vinculado: ${linkedAccountsSource}. Pulsa "Sincronizar ahora" después de editarlo.`
+    : 'Ningún archivo vinculado. Al importar un .txt, el launcher recordará su ruta absoluta para que puedas sincronizarlo cuando quieras.';
   unlinkAccountsButton.hidden = !linkedAccountsSource;
   restoreAccountsButton.hidden = !accountsBackupAvailable;
+  syncAccountsSourceButton.hidden = !linkedAccountsSource;
 }
+
+// El archivo vinculado ya no se relee por su cuenta. Antes había un poller cada
+// 15 s que lo abría, descifraba accounts.enc y comparaba, para nada: el usuario
+// veía recargarse las cuentas sin haber tocado nada, y con un archivo de
+// credenciales en claro releído doscientas veces por hora. Ahora solo se lee
+// cuando se pide, y se avisa del resultado, que antes se descartaba en silencio.
+syncAccountsSourceButton?.addEventListener('click', async () => {
+  if (!linkedAccountsSource) return;
+  syncAccountsSourceButton.disabled = true;
+  try {
+    const result = await window.pokeGrid.syncAccountsSource();
+    if (result.error) {
+      setModalMessage(result.error, false);
+      return;
+    }
+    if (!result.changed) {
+      setModalMessage('El archivo ya coincide con las cuentas guardadas.', true);
+      return;
+    }
+    const previousCount = accounts.length;
+    accounts = normalizeAccounts(result.accounts);
+    if (accounts.length !== previousCount) rebuildGamePanels();
+    else refreshPanelNames();
+    fillAccountForm(accounts);
+    setModalMessage(`Archivo sincronizado: ${accountCountText()}.`, true);
+  } catch (error) {
+    setModalMessage(error.message || 'No se pudo sincronizar el archivo vinculado.');
+  } finally {
+    syncAccountsSourceButton.disabled = false;
+  }
+});
 
 // Desvincular corta algo en silencio —el launcher deja de releer un archivo con las
 // contraseñas en claro— así que pide confirmación, como el borrado de una cuenta.
 // Cancelar no toca nada. Aceptar borra accounts-source.json en el proceso principal;
-// con el archivo fuera, el sincronizador de 15 s ya no encuentra la ruta y devuelve
+// con el archivo fuera, el sincronizador ya no encuentra la ruta y devuelve
 // linked:false, así que no hace falta invalidar ninguna caché para que pare.
 unlinkAccountsButton?.addEventListener('click', async () => {
   if (!linkedAccountsSource) return;
@@ -9087,35 +9119,9 @@ importAccountsButton.addEventListener('click', async () => {
   }
 });
 
-async function syncLinkedAccounts() {
-  if (accountSourceSyncBusy || !window.pokeGrid.syncAccountsSource) return;
-  accountSourceSyncBusy = true;
-  try {
-    const result = await window.pokeGrid.syncAccountsSource();
-    linkedAccountsSource = result.sourcePath || linkedAccountsSource;
-    // El sincronizador de 15 s también escribe cuentas, así que es otra fuente de
-    // cambios en hasBackup. Sin esto, restaurar un accounts.enc que se recuperó del
-    // backup dejaría el botón visible hasta el siguiente arranque.
-    accountsBackupAvailable = Boolean(result.hasBackup);
-    renderAccountsSourceRow();
-    if (result.ok && result.changed) {
-      // Mismo criterio que la importación: el archivo vinculado puede traer más o
-      // menos cuentas, y sin reconstruirlos la rejilla se queda con el recuento
-      // anterior mientras el menú de vista lista el nuevo.
-      const previousCount = accounts.length;
-      accounts = normalizeAccounts(result.accounts);
-      if (accounts.length !== previousCount) rebuildGamePanels();
-      else refreshPanelNames();
-      if (!modalBackdrop.hidden) {
-        fillAccountForm(accounts);
-        setModalMessage('Cambios del archivo vinculado aplicados automáticamente.', true);
-      }
-    }
-    if (!modalBackdrop.hidden) renderAccountsSourceRow();
-  } finally {
-    accountSourceSyncBusy = false;
-  }
-}
+// syncLinkedAccounts() desapareció con el sondeo de 15 s: ya no hay ningún
+// llamador, y dejarlo sería código muerto justo en el sitio donde antes vivía el
+// problema. La sincronización a petición la hace el botón "Sincronizar ahora".
 
 accountsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -9990,7 +9996,9 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   window.setInterval(pollHuntAnalyzers, 1500);
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
-  window.setInterval(syncLinkedAccounts, 15000);
+  // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a
+  // petición del usuario. Aquí no hay ningún setInterval a propósito, y añadirlo
+  // otra vez volvería a recargar las cuentas cada 15 s sin que nadie lo pida.
   if (!result.ok) {
     openAccountsModal();
     setModalMessage(result.error || 'No se pudieron leer las cuentas guardadas.');

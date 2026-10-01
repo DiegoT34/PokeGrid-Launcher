@@ -134,13 +134,26 @@ app.whenReady().then(async () => {
     assert.equal(conArchivo.estadisticas, '3 cuentas', `Importar debe reescribir el texto de estadísticas: ${JSON.stringify(conArchivo)}`);
     assert.equal(conArchivo.notificaciones, '3 cuentas', `Importar debe reescribir el texto de notificaciones: ${JSON.stringify(conArchivo)}`);
 
-    // --- El poller corre cada 15 s desde el arranque, así que antes de desvincular
-    // hay que dejarlo leer el archivo una vez. Esto no es decorativo: es lo que
-    // calienta cualquier caché que alguien pudiera añadir en main.js. Si la ruta
-    // se guardara en memoria, este leer la llenaría y el desvinculado —que solo
-    // borra el archivo— no bastaría para parar el sincronizador.
+    // --- Ya no hay sondeo: el archivo solo se lee al pulsar "Sincronizar ahora".
+    // Antes había un poller de 15 s que lo releía sin parar, y esta comprobación
+    // le daba una pasada. Ahora lo que importa es que el botón existe y que al
+    // pulsarlo lee el archivo de verdad, que es lo mismo que hacía el poller pero
+    // cuando alguien lo pide.
+    const hayBoton = await mainWindow.webContents.executeJavaScript(`(() => {
+      const boton = document.querySelector('#syncAccountsSourceButton');
+      return { existe: Boolean(boton), oculto: boton ? boton.hidden : null };
+    })()`);
+    assert.equal(hayBoton.existe, true, `Tiene que existir el botón de sincronizar: ${JSON.stringify(hayBoton)}`);
+    assert.equal(hayBoton.oculto, false, `Con archivo vinculado el botón tiene que verse: ${JSON.stringify(hayBoton)}`);
+
+    const textoSinSondeo = await mainWindow.webContents.executeJavaScript(`(() =>
+      ({ ruta: document.querySelector('#accountsSourcePath').textContent })
+    )()`);
+    assert.ok(!/cada 15 s/i.test(textoSinSondeo.ruta), `La interfaz no puede prometer un sondeo que ya no existe: ${JSON.stringify(textoSinSondeo)}`);
+
     await mainWindow.webContents.executeJavaScript(`(async () => {
-      await syncLinkedAccounts();
+      document.querySelector('#syncAccountsSourceButton').click();
+      await new Promise((resolve) => setTimeout(resolve, 400));
       return true;
     })()`);
     const enlazado = await mainWindow.webContents.executeJavaScript(`(async () => {
@@ -203,12 +216,20 @@ app.whenReady().then(async () => {
     assert.equal(despuesDeUnlink.changed, false, `El archivo cambiado no puede volver a aplicarse: ${JSON.stringify(despuesDeUnlink)}`);
     assert.equal(despuesDeUnlink.cuentas, 3, `Las cuentas deben seguir siendo las 3 importadas, no las 9 del archivo: ${JSON.stringify(despuesDeUnlink)}`);
 
-    // Y por el camino del renderer, que es el que dispara el poller cada 15 s.
-    const trasElPoller = await mainWindow.webContents.executeJavaScript(`(async () => {
-      await syncLinkedAccounts();
-      return { paneles: document.querySelectorAll('#grid .panel').length };
+    // Y por el camino del renderer: con el botón ya no queda ninguna lectura
+    // automática, así que el archivo desvinculado no puede reaplicarse ni por
+    // error ni porque el usuario pulse sin querer.
+    const trasElBoton = await mainWindow.webContents.executeJavaScript(`(async () => {
+      const boton = document.querySelector('#syncAccountsSourceButton');
+      if (boton && !boton.hidden) boton.click();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return {
+        paneles: document.querySelectorAll('#grid .panel').length,
+        botonOculto: boton ? boton.hidden : null
+      };
     })()`);
-    assert.equal(trasElPoller.paneles, 3, `El poller no puede volver a aplicar el archivo desvinculado: ${JSON.stringify(trasElPoller)}`);
+    assert.equal(trasElBoton.paneles, 3, `El archivo desvinculado no puede volver a aplicarse: ${JSON.stringify(trasElBoton)}`);
+    assert.equal(trasElBoton.botonOculto, true, `Sin archivo vinculado el botón tiene que esconderse: ${JSON.stringify(trasElBoton)}`);
 
     // --- Los textos dinámicos, en singular y en plural, bajando por el formulario ---
     await abrirModal(mainWindow);
@@ -227,7 +248,7 @@ app.whenReady().then(async () => {
       assert.equal(estado.notificaciones, estado.estadisticas, `Notificaciones debe concordar con estadísticas: ${JSON.stringify(estado)}`);
     }
 
-    console.log(JSON.stringify({ ok: true, arranque, conArchivo, cancelando, desvinculando, despuesDeUnlink, trasElPoller }));
+    console.log(JSON.stringify({ ok: true, arranque, conArchivo, cancelando, desvinculando, despuesDeUnlink, trasElBoton }));
     app.exit(0);
   } catch (error) {
     console.error(error.stack || error.message);

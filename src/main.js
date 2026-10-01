@@ -346,8 +346,9 @@ function syncAccountsFromSource() {
   // cada quince segundos sin motivo. Y al revés: si la fecha va atrás —una
   // restauración desde otra máquina, un reloj corregido por NTP— el archivo
   // parecía más viejo que lo guardado y un cambio real se descartaba en
-  // silencio, que es peor. Leer 64 KB cada 15 s no cuesta nada y evita las dos
-  // cosas; la fecha se sigue guardando, pero solo como dato.
+  // silencio, que es peor. Con la sincronización a petición, leer 64 KB solo
+  // cuando se pulsa el botón no cuesta nada y evita las dos cosas; la fecha se
+  // sigue guardando, pero solo como dato.
   let saved = [];
   try { saved = readAccounts(); } catch {}
   if (accountsSignature(accounts) === accountsSignature(saved)) {
