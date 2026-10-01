@@ -41,4 +41,13 @@ return String((a && a.name) || '').localeCompare(String((b && b.name) || ''), 'e
   });
 }
 
-module.exports = { publicationDate, orderShopCatalog };
+// Vive en los dos sitios. En Node se prueba con require; en el navegador lo carga una
+// etiqueta <script>, y ahí `module` no existe: sin este typeof, la línea de abajo es un
+// ReferenceError y el fichero entero deja de cargarse. La comprobación del typeof va
+// porque el fallo es silencioso desde fuera: el módulo siguiente simplemente no aparece.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { publicationDate, orderShopCatalog };
+}
+if (typeof window !== 'undefined') {
+  window.pokeGridShopOrder = { publicationDate, orderShopCatalog };
+}

@@ -45,7 +45,14 @@ assert.match(renderer, /function renderScriptShop/);
 assert.match(renderer, /function installFromScriptShop/);
 assert.match(renderer, /function uninstallFromScriptShop/);
 assert.match(renderer, /function switchScriptsView/);
-assert.match(renderer, /item\.games/);
+// La lista de campos por la que se busca ya no está en userscripts.js: vive en el módulo
+// puro, que es donde se puede probar de verdad. Comprobarlo aquí apuntaba al código
+// viejo y falló el día que la búsqueda se movió, que no es el día que se rompió nada.
+const shopView = fs.readFileSync(path.join(root, 'src', 'script-shop-view.js'), 'utf8');
+for (const campo of ['name', 'summary', 'description', 'category', 'author', 'tags', 'games']) {
+  assert.match(shopView, new RegExp(`item && item\\.${campo}`) , `La búsqueda tiene que mirar item.${campo}.`);
+}
+assert.match(shopView, /coincideBusqueda/, 'La búsqueda tiene que estar en el módulo de la vista, no en línea.');
 assert.match(renderer, /<span class="is-game">/);
 assert.match(renderer, /fue retirado de la Shop/);
 assert.match(renderer, /candidate\.id !== item\.id/);
@@ -70,5 +77,32 @@ assert.ok(
 );
 assert.match(css, /\.script-shop-grid/);
 assert.match(css, /@media \(max-width: 620px\)/);
+
+// El debounce de la búsqueda. Se comprueba estáticamente porque con el catálogo del
+// harness, de un script, no hay forma de medir un retardo real: la sensación no se
+// prueba. Lo que sí se prueba es que el input pase por el debounce, y si alguien
+// revierte esto a una llamada directa, la puerta falla.
+assert.match(renderer, /pokeGridShopView\.debounce\(renderScriptShop,\s*SCRIPT_SHOP_DEBOUNCE_MS\)/,
+  'El render de la Shop tiene que ir envuelto en debounce.');
+assert.match(renderer, /const SCRIPT_SHOP_DEBOUNCE_MS = 250;/,
+  'El plazo del debounce son 250 ms: por debajo se nota el tirón al teclear y por encima la lista tarda en responder.');
+assert.doesNotMatch(renderer, /scriptShopSearch\.addEventListener\('input',\s*renderScriptShop\s*\)/,
+  'El input de la búsqueda no puede llamar al render directamente: eso es justo lo que rehace las tarjetas en cada tecla.');
+assert.match(renderer, /renderScriptShopDebounced\.ahora\(\)/,
+  'La tecla Enter tiene que saltarse la espera: quien pulsa Enter espera ya.');
+assert.match(renderer, /renderScriptShopDebounced\.cancelar\(\)/,
+  'Al cambiar de pestaña hay que cancelar la espera, o el render salta dentro de un panel ya oculto.');
+assert.match(renderer, /buildShopView\(\{/,
+  'La vista tiene que construirse con buildShopView, no a mano.');
+assert.match(renderer, /buildShopView\(\{[^}]*view:\s*activeScriptsView/,
+  'buildShopView tiene que recibir la vista activa.');
+// Ver lo nuevo se marca al abrir Shop, y solo al abrir Shop. Si se marcara al abrir
+// cualquier pestaña, el contador de Shop se vaciaría sin que el usuario hubiera pasado
+// por Shop nunca. Es un `if` de una línea y se pierde en cualquier refactor.
+assert.match(renderer, /if \(enShop\) markScriptShopCatalogSeen\(\);/,
+  'Marcar lo visto tiene que estar condicionado a abrir Shop, no a abrir cualquier pestaña.');
+// El desglose al registro: sin esto, la pestaña de Actualizaciones pinta el total.
+assert.match(renderer, /set\('scripts',\s*counts\.total,\s*\{[^}]*newScripts[^}]*updates[^}]*\}\)/,
+  'La fuente scripts se publica con el desglose: la pestaña Shop lleva los nuevos y la de Actualizaciones las actualizaciones.');
 
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');

@@ -9,7 +9,27 @@
 // depende de lo instalado y de lo que el usuario ya ha visto, y eso vive dentro de
 // userscripts.js.
 
-const { orderShopCatalog } = require('./script-shop-order');
+// El orden viene de otro módulo, y en Node se pide con require y en el navegador se
+// lee de window, porque un script cargado con <script> no puede hacer require.
+//
+// El binding local no se llama igual que la función, a propósito: script-shop-order.js
+// declara `orderShopCatalog` como función de primer nivel, y al cargarlo con <script>
+// esa función vive en el ámbito global. Un `let orderShopCatalog` aquí choca con ella y
+// el navegador responde «Identifier has already been declared», que es un error de
+// carga: el módulo entero no aparece y el fallo se ve lejos, en quien usa pokeGridShopView.
+const resolverOrden = () => {
+  if (typeof module !== 'undefined' && module.exports) {
+    return require('./script-shop-order').orderShopCatalog;
+  }
+  if (typeof window !== 'undefined' && window.pokeGridShopOrder) {
+    return window.pokeGridShopOrder.orderShopCatalog;
+  }
+  return null;
+};
+const ordenCatalogo = resolverOrden();
+if (typeof ordenCatalogo !== 'function') {
+  throw new Error('script-shop-view.js necesita el orden: cargalo despues de script-shop-order.js.');
+}
 
 const SIN_CATEGORIA = 'utilidades';
 
@@ -99,7 +119,7 @@ function buildShopView({ scripts, view = 'shop', query = '', category = '', stat
   const filtrado = base.filter((e) => coincideBusqueda(e.item, consulta)
     && (!clave || categoryKey(e.item) === clave));
 
-  const rows = orderShopCatalog(filtrado.map((e) => e.item));
+  const rows = ordenCatalogo(filtrado.map((e) => e.item));
   counts.showing = rows.length;
 
   return { rows, categories, counts };
@@ -124,4 +144,14 @@ function debounce(fn, ms) {
   return envuelto;
 }
 
-module.exports = { buildShopView, categoryKey, debounce };
+// Vive en los dos sitios. En Node se prueba con require; en el navegador lo carga una
+// etiqueta <script>, y ahí `module` no existe. El typeof del require y el del exports
+// hacen falta los dos: uno evita que falle al cargar, el otro evita que falle al
+// exportar. Los dos fallos son silenciosos desde fuera —el módulo simplemente no
+// aparece— y se Navarrean con la prueba del DOM, no con la de Node.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { buildShopView, categoryKey, debounce };
+}
+if (typeof window !== 'undefined') {
+  window.pokeGridShopView = { buildShopView, categoryKey, debounce };
+}

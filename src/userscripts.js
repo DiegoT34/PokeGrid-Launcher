@@ -97,14 +97,23 @@
   const applyExtensionButton = document.querySelector('#applyExtensionButton');
   const installedScriptsTab = document.querySelector('#installedScriptsTab');
   const scriptShopTab = document.querySelector('#scriptShopTab');
+  const scriptShopUpdatesTab = document.querySelector('#scriptShopUpdatesTab');
   const installedScriptsView = document.querySelector('#installedScriptsView');
   const scriptShopView = document.querySelector('#scriptShopView');
   const scriptShopSearch = document.querySelector('#scriptShopSearch');
   const refreshScriptShopButton = document.querySelector('#refreshScriptShopButton');
   const scriptShopSummary = document.querySelector('#scriptShopSummary');
+  const scriptShopCategories = document.querySelector('#scriptShopCategories');
+  const scriptShopEyebrow = document.querySelector('#scriptShopEyebrow');
+  const scriptShopHeading = document.querySelector('#scriptShopHeading');
+  const scriptShopIntro = document.querySelector('#scriptShopIntro');
+  const scriptShopTools = document.querySelector('.script-shop-tools');
   const scriptShopGrid = document.querySelector('#scriptShopGrid');
   const scriptShopMessage = document.querySelector('#scriptShopMessage');
   const SCRIPT_SHOP_SEEN_KEY = 'pokegrid:script-shop-seen:v1';
+  const SCRIPT_SHOP_VIEW_KEY = 'pokegrid:scripts-view:v1';
+  const SCRIPT_SHOP_VISTAS = ['installed', 'shop', 'updates'];
+  const SCRIPT_SHOP_DEBOUNCE_MS = 250;
   const SCRIPT_SHOP_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
   let scripts = [];
@@ -124,7 +133,12 @@
   let scriptShopLoading = false;
   let scriptShopBusyId = '';
   let scriptShopLauncherVersion = '0.0.0';
-  let activeScriptsView = 'installed';
+  // La pestaña se recuerda; la categoría no. Es una decisión de trabajo, no una
+  // preferencia del launcher, así que al reabrir se empieza en «Todas». Un valor
+  // guardado que no sea una de las tres pestañas se ignora en vez de dejar al usuario en
+  // una vista que no existe.
+  let activeScriptsView = loadScriptShopView();
+  let scriptShopCategory = '';
   let scriptShopLastCheckedAt = 0;
   let scriptShopPollTimer = 0;
   let scriptShopSeen = loadScriptShopSeen();
@@ -556,20 +570,23 @@
     try { localStorage.setItem(SCRIPT_SHOP_SEEN_KEY, JSON.stringify(scriptShopSeen)); } catch {}
   }
 
+  function loadScriptShopView() {
+    try {
+      const value = String(localStorage.getItem(SCRIPT_SHOP_VIEW_KEY) || '').trim();
+      return SCRIPT_SHOP_VISTAS.includes(value) ? value : 'installed';
+    } catch {
+      return 'installed';
+    }
+  }
+
+  function saveScriptShopView(view) {
+    try { localStorage.setItem(SCRIPT_SHOP_VIEW_KEY, String(view)); } catch {}
+  }
+
   function markScriptShopCatalogSeen() {
     if (!scriptShopCatalog?.scripts) return;
     for (const item of scriptShopCatalog.scripts) scriptShopSeen[item.id] = scriptShopSignature(item);
     saveScriptShopSeen();
-  }
-
-  function scriptShopNotificationCounts() {
-    const rows = scriptShopCatalog?.scripts || [];
-    const updates = rows.filter((item) => scriptShopState(item).key === 'update').length;
-    const newScripts = rows.filter((item) => {
-      if (installedShopScript(item.id)) return false;
-      return scriptShopSeen[item.id] !== scriptShopSignature(item);
-    }).length;
-    return { updates, newScripts, total: updates + newScripts };
   }
 
   function scriptShopState(item) {
@@ -583,19 +600,6 @@
     return { key: 'installed', label: `Instalado ${installed.version}`, installed };
   }
 
-  function updateScriptShopBadge() {
-    const { updates, newScripts, total } = scriptShopNotificationCounts();
-    const details = [
-      newScripts ? `${newScripts} script${newScripts === 1 ? '' : 's'} nuevo${newScripts === 1 ? '' : 's'}` : '',
-      updates ? `${updates} actualización${updates === 1 ? '' : 'es'}` : ''
-    ].filter(Boolean).join(' y ') || 'No hay novedades de scripts';
-    // Un solo recuento publicado. El hub pinta los tres sitios que lo muestran —la
-    // bolita del menú y los dos badges— así que no pueden dejar de coincidir. Antes
-    // los tres se escribían aquí a mano, y dos con un helper y uno sin él.
-    window.pokeGridNotifications.set('scripts', total);
-    scriptsButton.title = details;
-  }
-
   function setScriptShopMessage(text, kind = '') {
     scriptShopMessage.textContent = text;
     scriptShopMessage.classList.toggle('is-ok', kind === 'ok');
@@ -603,34 +607,82 @@
 
   function renderScriptShop() {
     scriptShopGrid.replaceChildren();
-    updateScriptShopBadge();
     if (!scriptShopCatalog) {
       const placeholder = document.createElement('div');
       placeholder.className = 'script-shop-empty';
       placeholder.innerHTML = '<span aria-hidden="true">☁</span><strong>Conecta con la Shop para ver el catálogo</strong><small>El catálogo solo se consulta al abrir esta pestaña o pulsar Verificar.</small>';
       scriptShopGrid.appendChild(placeholder);
       scriptShopSummary.textContent = '';
+      renderScriptShopCategories([]);
       return;
     }
 
-    const query = String(scriptShopSearch.value || '').trim().toLowerCase();
-    const rows = (scriptShopCatalog.scripts || []).filter((item) => !query || [
-      item.name, item.summary, item.description, item.category, item.author, ...(item.tags || []), ...(item.games || [])
-    ].join(' ').toLowerCase().includes(query));
-    const installedCount = scriptShopCatalog.scripts.filter((item) => Boolean(installedShopScript(item.id))).length;
-    const updateCount = scriptShopCatalog.scripts.filter((item) => scriptShopState(item).key === 'update').length;
+    // Qué se muestra, qué pastillas hay y qué recuentos, decidido en el módulo puro
+    // para poder probarlo con catálogos de 200 entradas. Aquí solo entra el estado que
+    // vive dentro de este archivo: lo instalado y lo que el usuario ya ha visto.
+    const vista = window.pokeGridShopView.buildShopView({
+      scripts: scriptShopCatalog.scripts,
+      view: activeScriptsView,
+      query: scriptShopSearch.value,
+      category: scriptShopCategory,
+      stateOf: scriptShopState,
+      isNew: (item) => !installedShopScript(item.id) && scriptShopSeen[item.id] !== scriptShopSignature(item)
+    });
+    const { rows, categories, counts } = vista;
+
+    // Una sola publicación al registro. El hub reparte el total en la bolita del menú y
+    // en el botón de arriba, y cada campo del desglose en el badge que lo pide: los tres
+    // números son distintos a propósito, porque la bolita avisa de contenido sin ver y
+    // la pestaña de Actualizaciones avisa de lo que hay que instalar.
+    window.pokeGridNotifications.set('scripts', counts.total, {
+      newScripts: counts.newScripts,
+      updates: counts.updates
+    });
+    scriptsButton.title = [
+      counts.newScripts ? `${counts.newScripts} script${counts.newScripts === 1 ? '' : 's'} nuevo${counts.newScripts === 1 ? '' : 's'}` : '',
+      counts.updates ? `${counts.updates} actualización${counts.updates === 1 ? '' : 'es'}` : ''
+    ].filter(Boolean).join(' y ') || 'No hay novedades de scripts';
+
+    // El encabezado cambia con la vista, porque son dos destinos distintos y el mismo
+    // título haría dudar de en cuál se está.
+    const enActualizaciones = activeScriptsView === 'updates';
+    scriptShopEyebrow.textContent = enActualizaciones ? 'PENDIENTES DE INSTALAR' : 'CATÁLOGO OFICIAL POKEGRID';
+    scriptShopHeading.textContent = enActualizaciones ? 'Actualizaciones' : 'Shop de scripts';
+    scriptShopIntro.textContent = enActualizaciones
+      ? 'Solo los scripts publicados por DiegoT34 que tienen una versión más nueva que la que tienes instalada.'
+      : 'Instala y actualiza scripts publicados por DiegoT34, con verificación de integridad antes de guardarlos.';
+    // El buscador y el botón de verificar son de Shop. En Actualizaciones sobrarían, y
+    // dos cajas que se ignoran la una a la otra confunden. Se oculta el contenedor
+    // entero: ocultar solo el input deja la lupa huérfana y el hueco del botón.
+    scriptShopTools.hidden = enActualizaciones;
+
     scriptShopSummary.innerHTML = `
-      <span><b>${scriptShopCatalog.scripts.length}</b> publicados</span>
-      <span><b>${installedCount}</b> instalados</span>
-      <span class="${updateCount ? 'has-updates' : ''}"><b>${updateCount}</b> actualizaciones</span>
+      <span><b>${counts.published}</b> publicados</span>
+      <span><b>${counts.installed}</b> instalados</span>
+      <span class="${counts.updates ? 'has-updates' : ''}"><b>${counts.updates}</b> actualizaciones</span>
+      ${counts.filtered ? `<span><b>${counts.showing}</b> mostrando</span>` : ''}
       <small>${scriptShopCatalog.stale ? 'Copia guardada · GitHub no respondió' : `Catálogo ${escapeHtml(scriptShopCatalog.updatedAt || 'actual')}`}</small>`;
+
+    renderScriptShopCategories(categories);
 
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'script-shop-empty';
-      empty.innerHTML = scriptShopCatalog.scripts.length
-        ? '<span aria-hidden="true">⌕</span><strong>No hay resultados</strong><small>Prueba otra palabra o categoría.</small>'
-        : '<span aria-hidden="true">📦</span><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
+      // Cuatro mensajes distintos porque son cuatro situaciones distintas. Un «no hay
+      // resultados» cuando lo que pasa es que estás al día manda a la gente a buscar un
+      // problema que no tiene.
+      if (!scriptShopCatalog.scripts.length) {
+        empty.innerHTML = '<span aria-hidden="true">📦</span><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
+      } else if (enActualizaciones && !counts.updates) {
+        empty.innerHTML = '<span aria-hidden="true">✅</span><strong>Estás al día</strong><small>No hay actualizaciones pendientes de los scripts que tienes instalados.</small>';
+      } else if (scriptShopCategory) {
+        empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>Nada por aquí</strong><small>No hay nada en «'
+          + escapeHtml(categoryNameFor(categories)) + '»'
+          + (enActualizaciones ? ' con actualizaciones pendientes' : '')
+          + '. Prueba otra categoría.</small>';
+      } else {
+        empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>No hay resultados</strong><small>Prueba otra palabra.</small>';
+      }
       scriptShopGrid.appendChild(empty);
       return;
     }
@@ -680,6 +732,52 @@
       scriptShopGrid.appendChild(card);
     }
   }
+
+  // Las pastillas. «Todas» primero y luego solo las categorías que existen en el
+  // conjunto base, con su número. Los números no se mueven al elegir una: eso es lo que
+  // permite saltar de una a otra sin volver a «Todas».
+  function renderScriptShopCategories(categories) {
+    if (!scriptShopCategories) return;
+    // Si la categoría elegida ya no existe —el catálogo cambió— se vuelve a «Todas».
+    // Dejarla puesta dejaría una lista vacía sin explicación.
+    if (scriptShopCategory && !categories.some((categoria) => categoria.key === scriptShopCategory)) {
+      scriptShopCategory = '';
+    }
+    scriptShopCategories.replaceChildren();
+    const total = categories.reduce((suma, categoria) => suma + categoria.count, 0);
+    const opcion = (nombre, clave, cuenta, activo) => {
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.className = 'script-shop-category';
+      boton.setAttribute('aria-pressed', String(activo));
+      boton.dataset.category = clave;
+      const texto = document.createElement('span');
+      texto.textContent = nombre;
+      const numero = document.createElement('span');
+      numero.className = 'script-shop-category-count';
+      numero.textContent = String(cuenta);
+      boton.append(texto, numero);
+      boton.addEventListener('click', () => {
+        scriptShopCategory = clave;
+        renderScriptShop();
+      });
+      return boton;
+    };
+    scriptShopCategories.appendChild(opcion('Todas', '', total, !scriptShopCategory));
+    for (const categoria of categories) {
+      scriptShopCategories.appendChild(opcion(categoria.name, categoria.key, categoria.count, scriptShopCategory === categoria.key));
+    }
+  }
+
+  function categoryNameFor(categories) {
+    const encontrada = categories.find((categoria) => categoria.key === scriptShopCategory);
+    return encontrada ? encontrada.name : scriptShopCategory;
+  }
+
+  // 250 ms. Es lo que evita rehacer todas las tarjetas en cada tecla con un catálogo de
+  // 200 entradas. Enter no espera, y cancelar es lo que impide que un render salga
+  // dentro de un panel ya oculto.
+  const renderScriptShopDebounced = window.pokeGridShopView.debounce(renderScriptShop, SCRIPT_SHOP_DEBOUNCE_MS);
 
   async function loadScriptShop(refresh = false, { background = false } = {}) {
     if (scriptShopLoading) return;
@@ -800,18 +898,35 @@
   }
 
   function switchScriptsView(view) {
-    activeScriptsView = view === 'shop' ? 'shop' : 'installed';
-    const shopActive = activeScriptsView === 'shop';
-    installedScriptsView.hidden = shopActive;
-    scriptShopView.hidden = !shopActive;
-    installedScriptsTab.classList.toggle('is-active', !shopActive);
-    scriptShopTab.classList.toggle('is-active', shopActive);
-    installedScriptsTab.setAttribute('aria-selected', String(!shopActive));
-    scriptShopTab.setAttribute('aria-selected', String(shopActive));
-    if (shopActive && scriptShopCatalog) {
-      markScriptShopCatalogSeen();
+    const destino = SCRIPT_SHOP_VISTAS.includes(view) ? view : 'installed';
+    activeScriptsView = destino;
+    if (destino !== 'installed') saveScriptShopView(destino);
+    const enShop = destino === 'shop';
+    const enActualizaciones = destino === 'updates';
+    const enCentro = enShop || enActualizaciones;
+    installedScriptsView.hidden = enCentro;
+    scriptShopView.hidden = !enCentro;
+    installedScriptsTab.classList.toggle('is-active', destino === 'installed');
+    scriptShopTab.classList.toggle('is-active', enShop);
+    scriptShopUpdatesTab.classList.toggle('is-active', enActualizaciones);
+    installedScriptsTab.setAttribute('aria-selected', String(destino === 'installed'));
+    scriptShopTab.setAttribute('aria-selected', String(enShop));
+    scriptShopUpdatesTab.setAttribute('aria-selected', String(enActualizaciones));
+    // La búsqueda es de Shop: al salir de ella, lo que se escribió no se aplica a otra
+    // vista. La caja está oculta mientras no estamos en Shop, así que dejarlo puesto
+    // haría reaparecer el filtro sin que nadie lo escribiera.
+    if (destino !== 'shop') scriptShopSearch.value = '';
+    if (destino === 'shop') scriptShopCategory = '';
+    // Un render pendiente dentro de un panel oculto es un render en el sitio
+    // equivocado.
+    renderScriptShopDebounced.cancelar();
+    if (enCentro && scriptShopCatalog) {
+      // Ver lo nuevo se marca al abrir Shop, y solo al abrir Shop. Si se marcara al
+      // abrir cualquier pestaña, el contador de Shop se vaciaría sin que el usuario
+      // hubiera pasado por Shop nunca.
+      if (enShop) markScriptShopCatalogSeen();
       renderScriptShop();
-    } else if (shopActive) {
+    } else if (enCentro) {
       loadScriptShop(false);
     }
   }
@@ -1504,11 +1619,19 @@ ${script.code}
   scriptsButton.addEventListener('click', () => open(-1));
   installedScriptsTab.addEventListener('click', () => switchScriptsView('installed'));
   scriptShopTab.addEventListener('click', () => switchScriptsView('shop'));
+  scriptShopUpdatesTab.addEventListener('click', () => switchScriptsView('updates'));
   refreshScriptShopButton.addEventListener('click', () => loadScriptShop(true));
   window.addEventListener('focus', () => refreshScriptShopNotifications(false));
   window.addEventListener('online', () => refreshScriptShopNotifications(true));
   window.addEventListener('beforeunload', () => window.clearInterval(scriptShopPollTimer), { once: true });
-  scriptShopSearch.addEventListener('input', renderScriptShop);
+  scriptShopSearch.addEventListener('input', renderScriptShopDebounced);
+  // Enter aplica ya. Escribir letra a letra espera; pulsar Enter es una decisión.
+  scriptShopSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      renderScriptShopDebounced.ahora();
+    }
+  });
   closeButton.addEventListener('click', close);
   newButton.addEventListener('click', () => showDraft());
   importButton.addEventListener('click', importLocalFile);
