@@ -37,6 +37,8 @@ No necesita instalador. Las cuentas, sesiones y preferencias se guardan en el pe
 - Detección automática por `@match`/`@include`: cada script se instala, actualiza y recarga en las pantallas compatibles de su juego.
 - Etiquetas de juego inferidas por dominio o declaradas con la directiva opcional `@game`.
 - Shop online con catálogo actualizado desde GitHub, información, instalación, actualización, desinstalación y verificación SHA-256. El catálogo se ordena con los destacados primero y, dentro de cada grupo, del más reciente al más antiguo.
+- Pestaña **Actualizaciones** en el centro de scripts: solo los scripts con versión publicada más nueva que la instalada, con su propio contador.
+- Filtro de categoría por pastillas, con el número de cada una. Los números no cambian al elegir una, para poder saltar de una categoría a otra sin volver a «Todas».
 - Limpieza segura de cachés visuales sin cerrar sesiones ni forzar el recolector de Chromium.
 - Actualizador integrado que guarda ZIP y firma en Descargas, reintenta el arranque, confirma la ventana nueva y restaura la versión anterior si algo falla.
 - Bolitas de aviso en el botón de menú: Shop en ámbar, notificaciones en rojo y actualizaciones del launcher en verde. Los avisos de contenido se apagan al entrar; el de actualización, solo al instalar.

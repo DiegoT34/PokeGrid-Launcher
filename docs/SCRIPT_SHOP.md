@@ -86,6 +86,25 @@ Ejemplo mínimo:
 
 `id`, `namespace` y el nombre del archivo deben mantenerse estables entre versiones. Esto permite que el launcher reconozca una actualización y conserve las cuentas seleccionadas y el estado activo.
 
+## Categorías
+
+El campo `category` de cada script es una cadena libre de hasta 60 caracteres. El launcher
+agrupa por él y muestra una pastilla por cada categoría que exista de verdad en el
+catálogo, con el número de scripts que la tienen. Un script sin `category` cae en
+`Utilidades`.
+
+Dos detalles que conviene tener presentes al publicar:
+
+- Las pastillas se agrupan ignorando mayúsculas y espacios, así que `Market` y `market`
+  son la misma categoría. Usa una forma coherente para no repartir el mismo grupo en dos.
+- El número de cada pastilla no baja cuando el usuario elige otra: es para poder saltar
+  de una a otra y saber que hay algo detrás antes de entrar. No hace falta «rellenar» una
+  categoría con scripts que no le pertenecen.
+
+En la pestaña **Actualizaciones** solo se listan los scripts cuya versión publicada es más
+nueva que la instalada. Si tu script no se ha instalado nunca, no aparece ahí aunque tenga
+versiones nuevas.
+
 ## Scripts para varios juegos e instancias
 
 El alcance real de ejecución siempre se decide con `@match`, `@include`, `@exclude` y `@exclude-match`. La etiqueta `@game` es únicamente informativa.
