@@ -310,7 +310,28 @@ function preserveAccountIds(parsed) {
   return parsed;
 }
 
-function syncAccountsFromSource({ force = false } = {}) {
+// Huella de una lista de cuentas, para responder "¿esto es realmente distinto?".
+// Solo con los campos que el launcher guarda: si se ampliara la forma de la
+// cuenta, esta función es el sitio que hay que tocar, porque un campo olvidado
+// aquí se traduciría en "nada ha cambiado" y en una edición que no se aplicaría.
+function accountsSignature(accounts) {
+  return JSON.stringify((accounts || []).map((row) => ({
+    id: Number(row.id) || 0,
+    label: String(row.label || ''),
+    username: String(row.username || ''),
+    password: String(row.password || ''),
+    proxy: {
+      enabled: row.proxy?.enabled === true,
+      protocol: String(row.proxy?.protocol || ''),
+      host: String(row.proxy?.host || ''),
+      port: Number(row.proxy?.port) || 0,
+      username: String(row.proxy?.username || ''),
+      password: String(row.proxy?.password || '')
+    }
+  })));
+}
+
+function syncAccountsFromSource() {
   const config = readAccountSourceConfig();
   if (!config) return { linked: false, changed: false, accounts: readAccounts(), sourcePath: '' };
   if (!fs.existsSync(config.sourcePath)) {
@@ -318,10 +339,21 @@ function syncAccountsFromSource({ force = false } = {}) {
   }
   const stats = fs.statSync(config.sourcePath);
   if (!stats.isFile() || stats.size > 64 * 1024) throw new Error('El archivo de cuentas vinculado no es válido o supera 64 KB.');
-  if (!force && stats.mtimeMs <= config.modifiedAt) {
-    return { linked: true, changed: false, accounts: readAccounts(), sourcePath: config.sourcePath };
-  }
   const accounts = preserveAccountIds(parseAccountsTemplate(fs.readFileSync(config.sourcePath, 'utf8')));
+  // La decisión se toma por contenido, nunca por la fecha. La fecha decía "el
+  // archivo cambió" cuando solo lo había tocado una copia de seguridad, OneDrive
+  // o el explorador, y eso hacía que accounts.enc y su copia se reescribieran
+  // cada quince segundos sin motivo. Y al revés: si la fecha va atrás —una
+  // restauración desde otra máquina, un reloj corregido por NTP— el archivo
+  // parecía más viejo que lo guardado y un cambio real se descartaba en
+  // silencio, que es peor. Leer 64 KB cada 15 s no cuesta nada y evita las dos
+  // cosas; la fecha se sigue guardando, pero solo como dato.
+  let saved = [];
+  try { saved = readAccounts(); } catch {}
+  if (accountsSignature(accounts) === accountsSignature(saved)) {
+    writeAccountSourceConfig(config.sourcePath, stats.mtimeMs);
+    return { linked: true, changed: false, accounts: saved, sourcePath: config.sourcePath };
+  }
   const avisos = writeAccounts(accounts);
   writeAccountSourceConfig(config.sourcePath, stats.mtimeMs);
   return { linked: true, changed: true, accounts, sourcePath: config.sourcePath, avisos };
