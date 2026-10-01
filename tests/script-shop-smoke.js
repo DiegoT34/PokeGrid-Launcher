@@ -158,4 +158,45 @@ assert.match(main, /El catálogo está vacío o supera 1 MB\./,
 assert.doesNotMatch(main, /supera 512 KB/,
   'El mensaje del límite ya no puede decir 512 KB.');
 
+// La descarga es perezosa y esto es lo que lo protege. Con 200 scripts y 6 capturas son
+// 1200 imagenes posibles; descargarlas al pintar dispararia 1200 peticiones al abrir la
+// Shop. El harness tiene un script sin capturas, asi que aqui no se observa ninguna
+// peticion: se comprueba que la llamada NO esta en el render.
+//
+// El recorte va de "function renderScriptShop(" hasta "function renderScriptShopCategories("
+// y las funciones nuevas van DESPUES de esa segunda. Si el ayudante se metiera entre las
+// dos, la asercion leeria su propio codigo como si fuera el del render y pasaria sin
+// comprobar nada, que es el peor fallo posible de una comprobacion de este tipo.
+//
+// OJO: en ESTE fichero el buffer de src/userscripts.js se llama `renderer` (linea 8), no
+// `manager`. En el otro fichero de pruebas, si. Usar el nombre equivocado aqui revienta
+// con ReferenceError antes de comprobar nada, y un ReferenceError en una prueba nueva se
+// lee como un fallo de la prueba, no como un fallo del codigo.
+{
+  const desde = renderer.indexOf('function renderScriptShop(');
+  const hasta = renderer.indexOf('function renderScriptShopCategories(');
+  const cuerpo = renderer.slice(desde, hasta);
+  assert.ok(desde > -1 && hasta > desde, 'No se ha encontrado el cuerpo de renderScriptShop.');
+  assert.doesNotMatch(cuerpo, /loadImageDataUrl/,
+    'renderScriptShop no puede descargar imagenes: se descarga al abrir los detalles.');
+  assert.match(renderer, /addEventListener\('toggle'/, 'La descarga tiene que ir en el toggle de los detalles.');
+  assert.match(renderer, /planCapturas\(item\)/, 'La galeria se decide con el modulo puro.');
+  // Y que el ayudante este despues de donde acaba el recorte, no dentro.
+  assert.ok(renderer.indexOf('function cargarCapturasDeShop') > hasta,
+    'cargarCapturasDeShop va despues de renderScriptShopCategories, o la comprobacion de arriba leeria su codigo.');
+  // El hueco de una captura que falla: una captura que responde 404, o no es imagen, o
+  // pesa mas de 2 MB. El comportamiento no se puede observar con el harness, asi que al
+  // menos se fija que el camino de error existe y pinta el hueco.
+  //
+  // Y con el nombre de la clase, no con una subcadena: src/userscripts.js ya usa
+  // `is-error` para el estado de los scripts (lineas 417, 1598...) con className, no con
+  // classList.add. Buscar `is-error` a secas encontraria esos y pasaria aunque el camino
+  // de error de la captura no existiera.
+  assert.match(renderer, /classList\.add\('is-error'\)/, 'Una captura que no se puede cargar tiene que pintar un hueco.');
+  // Abrir y cerrar los detalles cinco veces no puede ser cinco descargas. Sin esta guarda
+  // el catalogo se veria igual de bien, asi que es la unica asercion que la caze: es un
+  // problema de trafico, no de resultado.
+  assert.match(renderer, /dataset\.cargado === '1'/, 'No se puede volver a descargar lo ya descargado.');
+}
+
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');

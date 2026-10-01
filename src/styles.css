@@ -4316,3 +4316,89 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .script-shop-category[aria-pressed="true"] .script-shop-category-count {
   background: rgba(0, 0, 0, .22);
 }
+
+/* Galería de capturas. Dentro del bloque de detalles de la tarjeta, al principio: quien
+   abre los detalles quiere ver la captura, no leer texto. */
+.script-shop-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.script-shop-gallery:empty {
+  display: none;
+}
+
+.script-shop-shot {
+  width: 88px;
+  height: 66px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .06);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.script-shop-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* El hueco de una captura que no se pudo cargar. Un icono de imagen rota sería peor que
+   un hueco con el nombre: el nombre dice qué falta, para poder avisar en vez de-callar. */
+.script-shop-shot.is-error {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-style: dashed;
+  border-color: rgba(255, 102, 120, .55);
+  color: rgba(255, 255, 255, .7);
+  font: 600 9px/1.2 system-ui, sans-serif;
+  text-align: center;
+  word-break: break-all;
+  cursor: default;
+}
+
+.script-shop-shot.is-error img {
+  display: none;
+}
+
+/* El visor. Un solo elemento reutilizado, no uno por miniatura. */
+.script-shop-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(8, 10, 14, .88);
+}
+
+.script-shop-viewer[hidden] {
+  display: none;
+}
+
+.script-shop-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+}
+
+.script-shop-viewer-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  color: inherit;
+  font: 400 22px/1 system-ui, sans-serif;
+  cursor: pointer;
+}

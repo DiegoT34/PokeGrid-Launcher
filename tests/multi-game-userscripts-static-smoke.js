@@ -77,4 +77,16 @@ assert.match(css, /\.script-shop-category\[aria-pressed="true"\]\s*\{/,
 assert.match(css, /^\.script-shop-category-count\s*\{/m,
   'El numero de cada pastilla tiene que tener estilo propio. La ancla va a principio de linea: si no, la regla descendiente hace de tapon.');
 
+// El visor de capturas. Sin el, pulsar una miniatura no tendria donde abrirse.
+for (const id of ['#scriptShopViewer', '#scriptShopViewerImage', '#scriptShopViewerClose']) {
+  assert.ok(htmlHasId(id), `${id} tiene que existir en index.html.`);
+}
+assert.match(css, /^\.script-shop-gallery\s*\{/m, 'La galeria necesita estilo.');
+assert.match(css, /^\.script-shop-viewer\s*\{/m, 'El visor necesita estilo.');
+// Con ancla a la llave de apertura, y no a la cadena suelta. El CSS va a tener DOS reglas
+// que empiezan por `.script-shop-shot.is-error`: la base y una descendant que esconde la
+// imagen. Buscar la cadena sin ancla encuentra la descendant aunque la base no exista, y el
+// sabotaje 4 pasaria sin comprobar nada.
+assert.match(css, /^\.script-shop-shot\.is-error\s*\{/m, 'El hueco de una captura que falla necesita estilo propio.');
+
 console.log(`Multi-game userscript static smoke passed: scope, preload, injection, refresh, game labels and ${requiredSelectors.length} required script elements are wired.`);

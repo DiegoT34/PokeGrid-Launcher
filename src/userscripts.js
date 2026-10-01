@@ -42,7 +42,8 @@
     '#installedScriptsTab', '#scriptShopTab', '#scriptShopUpdatesTab', '#installedScriptsView', '#scriptShopView',
     '#scriptShopUpdateBadge', '#scriptShopUpdatesBadge', '#updateLauncherBadge', '#scriptShopSearch', '#refreshScriptShopButton',
     '#scriptShopEyebrow', '#scriptShopHeading', '#scriptShopIntro', '#scriptShopCategories',
-    '#scriptShopSummary', '#scriptShopGrid', '#scriptShopMessage'
+    '#scriptShopSummary', '#scriptShopGrid', '#scriptShopMessage',
+    '#scriptShopViewer', '#scriptShopViewerImage', '#scriptShopViewerClose'
   ];
 
   const missing = REQUIRED_SCRIPT_ELEMENTS.filter((selector) => !document.querySelector(selector));
@@ -110,6 +111,9 @@
   const scriptShopTools = document.querySelector('.script-shop-tools');
   const scriptShopGrid = document.querySelector('#scriptShopGrid');
   const scriptShopMessage = document.querySelector('#scriptShopMessage');
+  const scriptShopViewer = document.querySelector('#scriptShopViewer');
+  const scriptShopViewerImage = document.querySelector('#scriptShopViewerImage');
+  const scriptShopViewerClose = document.querySelector('#scriptShopViewerClose');
   const SCRIPT_SHOP_SEEN_KEY = 'pokegrid:script-shop-seen:v1';
   const SCRIPT_SHOP_VIEW_KEY = 'pokegrid:scripts-view:v1';
   const SCRIPT_SHOP_VISTAS = ['installed', 'shop', 'updates'];
@@ -730,6 +734,21 @@
           ${state.installed ? `<button class="button script-shop-remove" data-action="remove" type="button" ${busy ? 'disabled' : ''}>Desinstalar</button>` : ''}
           ${state.key !== 'installed' ? `<button class="button button-primary" data-action="install" type="button" ${busy || !compatible ? 'disabled' : ''}>${busy ? 'Procesando…' : actionLabel}</button>` : '<button class="button button-secondary" data-action="open" type="button">Abrir instalado</button>'}
         </div>`;
+      // La galería va dentro de los detalles y antes de la descripción: quien abre los
+      // detalles quiere ver la captura. El contenedor se crea vacío y se rellena al
+      // abrir, porque descargar al pintar serían 1200 peticiones con un catálogo lleno.
+      const plan = window.pokeGridShopScreenshots.planCapturas(item);
+      if (plan.tiene) {
+        const galeria = document.createElement('div');
+        galeria.className = 'script-shop-gallery';
+        const detalles = card.querySelector('details');
+        if (detalles) {
+          detalles.prepend(galeria);
+          detalles.addEventListener('toggle', () => {
+            if (detalles.open) cargarCapturasDeShop(galeria, plan);
+          });
+        }
+      }
       card.querySelector('[data-action="install"]')?.addEventListener('click', () => installFromScriptShop(item));
       card.querySelector('[data-action="remove"]')?.addEventListener('click', () => uninstallFromScriptShop(item));
       card.querySelector('[data-action="open"]')?.addEventListener('click', () => {
@@ -796,6 +815,54 @@ function renderScriptShopCategories(categories) {
   // 200 entradas. Enter no espera, y cancelar es lo que impide que un render salga
   // dentro de un panel ya oculto.
   const renderScriptShopDebounced = window.pokeGridShopView.debounce(renderScriptShop, SCRIPT_SHOP_DEBOUNCE_MS);
+
+  // Descarga perezosa. El guard `dataset.cargado` evita volver a pedir lo que ya está:
+  // abrir y cerrar los detalles cinco veces son cinco usos, no cinco descargas.
+  async function cargarCapturasDeShop(galeria, plan) {
+    if (galeria.dataset.cargado === '1') return;
+    galeria.dataset.cargado = '1';
+    for (const url of plan.urls) {
+      const nombre = String(url).split('/').pop() || 'captura';
+      const figura = document.createElement('button');
+      figura.type = 'button';
+      figura.className = 'script-shop-shot';
+      figura.title = nombre;
+      const imagen = document.createElement('img');
+      imagen.alt = nombre;
+      imagen.loading = 'lazy';
+      figura.append(imagen);
+      galeria.appendChild(figura);
+      const dataUrl = await window.pokeGrid.loadImageDataUrl(url).catch((error) => {
+        // Un hueco con el nombre, no un icono de imagen rota. El nombre dice qué falta,
+        // que es lo que permite avisar en vez de fallar en silencio.
+        figura.classList.add('is-error');
+        figura.textContent = nombre;
+        figura.title = `No se pudo cargar ${nombre}: ${error.message}`;
+        figura.disabled = true;
+        return '';
+      });
+      if (dataUrl) {
+        imagen.src = dataUrl;
+        figura.addEventListener('click', () => abrirVisorDeCaptura(dataUrl, nombre));
+      }
+    }
+  }
+
+  function abrirVisorDeCaptura(dataUrl, nombre) {
+    if (!scriptShopViewer || !scriptShopViewerImage) return;
+    scriptShopViewerImage.src = dataUrl;
+    scriptShopViewerImage.alt = nombre;
+    scriptShopViewer.hidden = false;
+    scriptShopViewerClose?.focus();
+  }
+
+  function cerrarVisorDeCaptura() {
+    if (!scriptShopViewer || scriptShopViewer.hidden) return;
+    scriptShopViewer.hidden = true;
+    // Se suelta el data: URL. Con seis capturas abiertas a la vez son varios MB de
+    // base64 en un atributo src que ya no se está mirando.
+    scriptShopViewerImage.removeAttribute('src');
+  }
 
   async function loadScriptShop(refresh = false, { background = false } = {}) {
     if (scriptShopLoading) return;
@@ -1650,6 +1717,11 @@ ${script.code}
   installedScriptsTab.addEventListener('click', () => switchScriptsView('installed'));
   scriptShopTab.addEventListener('click', () => switchScriptsView('shop'));
   scriptShopUpdatesTab.addEventListener('click', () => switchScriptsView('updates'));
+  scriptShopViewerClose?.addEventListener('click', cerrarVisorDeCaptura);
+  scriptShopViewer?.addEventListener('click', (event) => {
+    // Pulsar fuera de la imagen cierra; pulsar la imagen no.
+    if (event.target === scriptShopViewer) cerrarVisorDeCaptura();
+  });
   refreshScriptShopButton.addEventListener('click', () => loadScriptShop(true));
   window.addEventListener('focus', () => refreshScriptShopNotifications(false));
   window.addEventListener('online', () => refreshScriptShopNotifications(true));
@@ -1769,6 +1841,9 @@ ${script.code}
     // Guarda de defensa: si algún hijo del modal ya ha cerrado con Escape y ha
     // marcado el evento con preventDefault, aquí no se vuelve a cerrar nada.
     if (event.defaultPrevented) return;
+    // El visor va encima del modal: si está abierto, Escape lo cierra a él primero
+    // y no llega a cerrar el Centro de scripts en la misma pulsación.
+    if (event.key === 'Escape' && scriptShopViewer && !scriptShopViewer.hidden) { cerrarVisorDeCaptura(); return; }
     if (event.key === 'Escape' && !backdrop.hidden) close();
   });
 
