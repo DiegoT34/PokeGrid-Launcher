@@ -97,6 +97,31 @@ async function readLatestRelease(net, currentVersion) {
   };
 }
 
+// Comprobación de versión nueva sin descargar nada. Deliberadamente distinta de
+// readLatestRelease: aquella valida el ZIP y su firma, y por eso lanza si la
+// release está mal publicada. Un sondeo que la reutilizara convertiría "has
+// publicado un tag sin adjuntar los assets" en "estás al día", que es un falso
+// negativo justo cuando más hace falta avisar. Aquí no se mira ningún asset,
+// solo el tag.
+async function peekLatestVersion(net, currentVersion) {
+  const response = await fetchChecked(net, UPDATE_API_URL, { cache: 'no-store' });
+  const release = await response.json();
+  const actual = String(currentVersion || '').trim();
+  if (release?.draft || release?.prerelease) {
+    // Sin publicación estable todavía: no hay nada que ofrecer.
+    return { hayActualizacion: false, actual, masReciente: actual, releaseUrl: release?.html_url || '' };
+  }
+  const latestVersion = String(release?.tag_name || '').replace(/^v/i, '');
+  const comparison = compareVersions(latestVersion, actual);
+  if (comparison === null) throw new Error('La versión publicada en GitHub no es válida.');
+  return {
+    hayActualizacion: comparison > 0,
+    actual,
+    masReciente: latestVersion,
+    releaseUrl: release?.html_url || ''
+  };
+}
+
 async function downloadFile(net, url, destination, expectedBytes, onProgress) {
   const response = await fetchChecked(net, url, { headers: { Accept: 'application/octet-stream' } });
   const advertisedBytes = Number(response.headers.get('content-length')) || expectedBytes || 0;
@@ -555,6 +580,7 @@ module.exports = {
   UPDATE_REPOSITORY,
   compareVersions,
   normalizeVersion,
+  peekLatestVersion,
   safePortableDirectoryName,
   persistVerifiedRelease,
   prepareUpdate,

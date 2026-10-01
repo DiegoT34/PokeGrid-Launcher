@@ -459,6 +459,7 @@ input:focus-visible {
 .menu-update-badge[hidden] { display: none; }
 .menu-update-badge.is-hamburger { top: -6px; right: -6px; }
 .menu-update-badge.is-scripts { top: 50%; right: 8px; transform: translateY(-50%); }
+.menu-update-badge.is-update { top: -7px; right: -7px; }
 .topbar-toggle[aria-expanded="true"] .hamburger-icon i:nth-child(1) { transform: translateY(6px) rotate(45deg); }
 .topbar-toggle[aria-expanded="true"] .hamburger-icon i:nth-child(2) { opacity: 0; }
 .topbar-toggle[aria-expanded="true"] .hamburger-icon i:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }

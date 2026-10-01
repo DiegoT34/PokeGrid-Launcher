@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const { pathToFileURL } = require('node:url');
 const { userScriptResponseTarget } = require('./userscript-network');
 const { accountTemplateText, parseAccountsTemplate } = require('./account-transfer');
-const { prepareUpdate, launchPreparedUpdate } = require('./updater');
+const { prepareUpdate, launchPreparedUpdate, peekLatestVersion } = require('./updater');
 const { DEFAULT_ACCOUNT_COUNT, MAX_ACCOUNTS, accountPartition, buildProxyRules, normalizeAccounts } = require('./account-model');
 const { hasAccountsBackup, readAccountsFile, restoreAccountsBackup, writeAccountsFile } = require('./credentials');
 
@@ -1640,6 +1640,24 @@ ipcMain.handle('app:check-update', async (event) => {
     return { ok: true, status: 'installing', currentVersion: app.getVersion(), latestVersion: prepared.latestVersion, ...launched };
   } catch (error) {
     return { ok: false, error: error.message || 'No se pudo completar la actualización.' };
+  }
+});
+// Canal de solo lectura para el sondeo en segundo plano. A propósito NO comparte
+// código con prepareUpdate ni con launchPreparedUpdate: app:check-update
+// descarga, instala, borra la versión anterior y cierra el launcher. Si el sondeo
+// usara ese canal, la aplicación se cerraría sola cada pocas horas.
+ipcMain.handle('app:peek-update', async (event) => {
+  const actual = app.getVersion();
+  if (!isMainWindowSender(event)) {
+    return { ok: false, hayActualizacion: false, actual, masReciente: actual, error: 'Solicitud no autorizada.' };
+  }
+  if (!app.isPackaged && !process.env.POKEGRID_ALLOW_DEV_UPDATE_CHECK) {
+    return { ok: true, hayActualizacion: false, actual, masReciente: actual };
+  }
+  try {
+    return { ok: true, ...(await peekLatestVersion(net, actual)) };
+  } catch (error) {
+    return { ok: false, hayActualizacion: false, actual, masReciente: actual, error: error.message };
   }
 });
 ipcMain.handle('app:cleanup-memory', async () => {

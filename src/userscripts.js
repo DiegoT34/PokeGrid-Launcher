@@ -40,7 +40,7 @@
     '#cancelScriptChangesButton', '#pickExtensionButton', '#extensionPathOutput',
     '#extensionAccountToggles', '#extensionStatus', '#applyExtensionButton',
     '#installedScriptsTab', '#scriptShopTab', '#installedScriptsView', '#scriptShopView',
-    '#scriptShopUpdateBadge', '#scriptShopSearch', '#refreshScriptShopButton',
+    '#scriptShopUpdateBadge', '#updateLauncherBadge', '#scriptShopSearch', '#refreshScriptShopButton',
     '#scriptShopSummary', '#scriptShopGrid', '#scriptShopMessage'
   ];
 

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   loadProxyResults: () => ipcRenderer.invoke('app:proxy-results'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-update'),
+  peekForUpdates: () => ipcRenderer.invoke('app:peek-update'),
   onUpdateProgress: (listener) => {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('app:update-progress', handler);

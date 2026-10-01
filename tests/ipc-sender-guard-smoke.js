@@ -69,14 +69,16 @@ const WEBVIEW_BRIDGE_CHANNELS = [
 // pokepedia:minimize y pokepedia:close los manda la ventana de Pokepedia, que es otra
 // ventana y ya compara contra pokepediaWindow. app:cleanup-memory no lleva guard a
 // propósito: lo llama el renderer principal y no protege nada que un invitado pueda
-// aprovechar. app:version y app:check-update ya traían su comprobación y ahora usan el
-// helper compartido. app:proxy-results es de la Tarea 8 y no se toca (R-05).
+// aprovechar. app:version, app:check-update y app:peek-update ya traían su
+// comprobación y ahora usan el helper compartido. app:proxy-results es de la
+// Tarea 8 y no se toca (R-05).
 const OTHER_CHANNELS = {
   'pokepedia:open': 'ventana principal, comprobación propia',
   'pokepedia:minimize': 'ventana de Pokepedia, no la principal',
   'pokepedia:close': 'ventana de Pokepedia, no la principal',
   'app:version': 'ventana principal, con el helper compartido',
   'app:check-update': 'ventana principal, con el helper compartido',
+  'app:peek-update': 'ventana principal, con el helper compartido, y de solo lectura',
   'app:cleanup-memory': 'sin guard a propósito, no expone nada sensible',
   'app:proxy-results': 'Tarea 8, no se toca (R-05)'
 };
@@ -191,8 +193,12 @@ for (const [canal, motivo] of Object.entries(OTHER_CHANNELS)) {
   if (canal === 'app:cleanup-memory') {
     assert.ok(!tieneGuardDeVentana, 'app:cleanup-memory se decidió sin guard a propósito.');
   }
-  if (canal === 'app:version' || canal === 'app:check-update') {
-    assert.ok(tieneGuardDeVentana, `${canal} usa el helper compartido y debe seguir usándolo.`);
+  // La condición mira el motivo, no una lista de nombres. Con los nombres escritos a
+  // mano, añadir un canal que use el helper era Fácil: se clasificaba, la puerta se
+  // ponía en verde, y el guard se podía borrar sin que nada lo notara. Leyendo el
+  // motivo, clasificar es declararlo y la prueba lo hace cumplir sola.
+  if (/helper compartido/.test(motivo)) {
+    assert.ok(tieneGuardDeVentana, `${canal} dice usar el helper compartido y debe seguir usándolo.`);
   }
   assert.ok(motivo.length > 10, `${canal} necesita un motivo de verdad en OTHER_CHANNELS, no un placeholder.`);
 }
