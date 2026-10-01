@@ -9,6 +9,7 @@ const { accountTemplateText, parseAccountsTemplate } = require('./account-transf
 const { prepareUpdate, launchPreparedUpdate, peekLatestVersion } = require('./updater');
 const { DEFAULT_ACCOUNT_COUNT, MAX_ACCOUNTS, accountPartition, buildProxyRules, normalizeAccounts } = require('./account-model');
 const { hasAccountsBackup, readAccountsFile, restoreAccountsBackup, writeAccountsFile } = require('./credentials');
+const { orderShopCatalog } = require('./script-shop-order');
 
 const GAME_ORIGIN = 'https://poke.idleworld.online';
 const POKEPEDIA_URL = `${GAME_ORIGIN}/pokepedia`;
@@ -889,7 +890,7 @@ function normalizeScriptShopCatalog(value) {
   return {
     schemaVersion: 1,
     updatedAt: String(value?.updatedAt || '').slice(0, 40),
-    scripts: scripts.sort((a, b) => Number(b.featured) - Number(a.featured) || a.name.localeCompare(b.name, 'es'))
+    scripts: orderShopCatalog(scripts)
   };
 }
 
