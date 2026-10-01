@@ -165,7 +165,7 @@ console.log('Todo verde.');
 
 - [ ] **Step 2: Simplificar `package.json`**
 
-En `package.json`, dentro de `"scripts"`, **elimina** estas cinco entradas porque apuntan a ficheros que están en `.gitignore` y no existen en un clon limpio:
+En `package.json`, dentro de `"scripts"`, **elimina** estas siete entradas porque apuntan a ficheros que están en `.gitignore` y no existen en un clon limpio:
 
 ```
 "test:better-market": "node tests/better-market-no-alerts-smoke.js",
@@ -174,8 +174,10 @@ En `package.json`, dentro de `"scripts"`, **elimina** estas cinco entradas porqu
 "test:better-market-scales": "electron tests/better-market-window-scales-smoke.js",
 "test:custom-card": "electron tests/custom-card-responsive-settings-smoke.js",
 "test:breeding": "node tests/breeding-second-parent-smoke.js",
-"test:chat-translator": "electron tests/chat-translator-smoke.js",
+"test:chat-translator": "electron tests/chat-translator-smoke.js"
 ```
+
+Retira además `"test:memory-cleanup"` y `"test:userscript-network"`: el runner excluye esas dos suites (el Plan 2 las reescribe y las vuelve a registrar), así que dejarlas en `package.json` daría dos caminos de verdad distintos para lo mismo. El Plan 2 las reincorpora.
 
 Y **añade** al final del objeto `"scripts"`:
 
@@ -189,10 +191,10 @@ Y **añade** al final del objeto `"scripts"`:
 
 - [ ] **Step 3: Completar `pnpm check`**
 
-En `package.json`, sustituye la línea `"check"` por esta, que añade los tres ficheros que se le escapaban:
+En `package.json`, sustituye la línea `"check"` por esta, que añade los tres ficheros que se le escapaban y elimina la repetición de `guest-preload.js` (cubre los **11** ficheros únicos de `src/` más los 2 de `scripts/`):
 
 ```json
-"check": "node --check src/main.js && node --check src/preload.js && node --check src/guest-preload.js && node --check src/pokepedia-preload.js && node --check src/game-theme.js && node --check src/userscripts.js && node --check src/userscript-network.js && node --check src/account-model.js && node --check src/account-transfer.js && node --check src/updater.js && node --check src/renderer.js && node --check src/guest-preload.js && node --check scripts/vpn-per-account.cjs && node --check scripts/run-tests.cjs",
+"check": "node --check src/main.js && node --check src/preload.js && node --check src/guest-preload.js && node --check src/pokepedia-preload.js && node --check src/game-theme.js && node --check src/userscripts.js && node --check src/userscript-network.js && node --check src/account-model.js && node --check src/account-transfer.js && node --check src/updater.js && node --check src/renderer.js && node --check scripts/vpn-per-account.cjs && node --check scripts/run-tests.cjs",
 ```
 
 - [ ] **Step 4: Ampliar `.gitignore`**
@@ -216,7 +218,7 @@ Run: `Select-String -Path src\*.js, src\*.html, src\*.css -Pattern 'idle-poke-lo
 Expected: exactamente dos coincidencias, ambas a `idle-poke-logo-512.png` (en `index.html:8` y `styles.css:78`). Si aparece una tercera, **para aquí**: hay una referencia que este plan no conoce y borrar el PNG rompería el launcher.
 
 Run: `git rm src/assets/idle-poke-logo.png src/assets/idle-poke-logo-keyed.png`
-Expected: elimina 2.665.663 bytes del árbol de trabajo. `idle-poke-logo-512.png` **no** se toca.
+Expected: elimina 2.712.663 bytes del árbol de trabajo. `idle-poke-logo-512.png` **no** se toca.
 
 - [ ] **Step 6: Verificar que `pnpm check` pasa**
 
@@ -279,8 +281,17 @@ Expected: los 11 ficheros modificados de la feature de cuentas dinámicas y los 
 - [ ] **Step 3: Añadir los ficheros de la feature y el `.gitignore` actualizado**
 
 ```bash
-git add .gitignore README.md docs/FUNCIONES.md docs/VPN-POR-CUENTA.md package.json scripts/vpn-per-account.cjs src/account-model.js src/account-transfer.js src/index.html src/main.js src/renderer.js src/styles.css src/userscripts.js tests/account-model-smoke.js tests/account-transfer-smoke.js tests/dynamic-accounts-proxy-smoke.js tests/capture-management-redesign-smoke.js
+git add .gitignore README.md docs/FUNCIONES.md docs/VPN-POR-CUENTA.md package.json scripts/vpn-per-account.cjs src/account-model.js src/account-transfer.js src/index.html src/main.js src/renderer.js src/styles.css src/userscripts.js tests/account-model-smoke.js tests/account-transfer-smoke.js tests/dynamic-accounts-proxy-smoke.js
 ```
+
+**`tests/capture-management-redesign-smoke.js` NO entra en este commit.** Lee un userscript personal de la raíz (`Poke Idle World - Capture Management Redesign.user.js`, línea 7) y es la misma clase que los tests de `Better Market`, `Chat Translator` y `Custom Card`, que `.gitignore` excluye a propósito porque esos scripts no se publican. Además se añade a `.gitignore`, junto a los de su clase:
+
+```
+/Poke Idle World - Capture Management Redesign.user.js
+/tests/capture-management-redesign-smoke.js
+```
+
+Y el runner de pruebas lo registra en su lista `EXCLUDED` con el motivo correspondiente, para que no lo descubra.
 
 - [ ] **Step 4: Commit de la feature**
 
