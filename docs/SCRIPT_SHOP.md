@@ -105,6 +105,44 @@ En la pestaña **Actualizaciones** solo se listan los scripts cuya versión publ
 nueva que la instalada. Si tu script no se ha instalado nunca, no aparece ahí aunque tenga
 versiones nuevas.
 
+## Capturas de pantalla
+
+Un script puede llevar hasta **seis** capturas, que se ven en el bloque de información de su
+ficha, antes de la descripción.
+
+Se publican en la carpeta `screenshots/` del repositorio, **planas y con el id del script
+como prefijo**:
+
+```text
+screenshots/mi-herramienta-1.png
+screenshots/mi-herramienta-2.png
+```
+
+Y en `catalog.json`, la entrada lleva:
+
+```json
+"screenshots": [
+  "https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/mi-herramienta-1.png",
+  "https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/mi-herramienta-2.png"
+]
+```
+
+Cuatro reglas que el launcher hace cumplir:
+
+- **El nombre tiene que empezar por el id del script.** Es lo que impide que un script se
+  apropie de las capturas de otro. No lo escribas a mano: cuando la herramienta publicadora
+  lo soporte, lo generará.
+- **Solo `png`, `jpg`, `webp` y `gif`, y hasta 2 MB cada una.** El launcher no recomprime:
+  una captura de 4K pesa más y se ve bien en el visor.
+- **La URL tiene que ser del repositorio oficial**, en `main` o en un commit completo de 40
+  hexadecimales. Cualquier otra se descarta al leer el catálogo, con un aviso en la consola.
+- **Una captura con la URL mal escrita no tumba el catálogo**, a diferencia de
+  `downloadUrl`. Se descarta esa captura y el resto se ven con normalidad.
+
+Las capturas se descargan **al abrir el bloque de información**, no al abrir la Shop. Un
+catálogo de 200 scripts con seis capturas son 1.200 imágenes, y descargarlas todas de golpe
+sería absurdo.
+
 ## Scripts para varios juegos e instancias
 
 El alcance real de ejecución siempre se decide con `@match`, `@include`, `@exclude` y `@exclude-match`. La etiqueta `@game` es únicamente informativa.
@@ -144,6 +182,10 @@ Elimina su entrada de `catalog.json`. Dejará de aparecer para instalaciones nue
 El launcher:
 
 - solo acepta descargas HTTPS procedentes del repositorio oficial `DiegoT34/PokeGrid-Script-Shop`;
+- comprueba **el host** de cada captura, no solo su ruta: una URL como
+  `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png` tiene la
+  ruta exacta y un host que no es el nuestro, y la descarga de capturas va por el proceso
+  principal, que **no está sujeto al CSP** del renderer — la lista blanca es lo único que hay;
 - limita catálogo y scripts a tamaños seguros;
 - exige una firma SHA-256 de 64 caracteres;
 - compara el hash descargado antes de guardar el script;
