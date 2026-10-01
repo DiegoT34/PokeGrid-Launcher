@@ -80,9 +80,15 @@ Ejemplo mínimo:
   "changelog": "Primera publicación.",
   "icon": "🧩",
   "featured": false,
+  "screenshots": [
+    "https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/mi-herramienta-1.png"
+  ],
   "publishedAt": "2026-08-24T00:00:00Z"
 }
 ```
+
+`screenshots` es opcional. Si no está, el script se publica sin capturas y todo lo demás
+funciona igual; sus reglas están en [Capturas de pantalla](#capturas-de-pantalla).
 
 `id`, `namespace` y el nombre del archivo deben mantenerse estables entre versiones. Esto permite que el launcher reconozca una actualización y conserve las cuentas seleccionadas y el estado activo.
 
@@ -129,13 +135,17 @@ Y en `catalog.json`, la entrada lleva:
 
 Cuatro reglas que el launcher hace cumplir:
 
-- **El nombre tiene que empezar por el id del script.** Es lo que impide que un script se
-  apropie de las capturas de otro. No lo escribas a mano: cuando la herramienta publicadora
-  lo soporte, lo generará.
-- **Solo `png`, `jpg`, `webp` y `gif`, y hasta 2 MB cada una.** El launcher no recomprime:
-  una captura de 4K pesa más y se ve bien en el visor.
+- **El nombre tiene que empezar por el id del script seguido de un guion**, como en
+  `mi-herramienta-1.png`. El guion cuenta: `mi-herramienta.png` empieza por el id y aun así
+  se descarta. Es lo que impide que un script se apropie de las capturas de otro. No lo
+  escribas a mano: cuando la herramienta publicadora lo soporte, lo generará.
+- **Solo `png`, `jpg`, `jpeg`, `webp` y `gif`, y hasta 2 MB cada una.** El tamaño se
+  comprueba **al descargarla**, no al leer el catálogo: si una captura se pasa, se ve su
+  hueco con el nombre y el resto de la ficha funciona igual. El launcher no recomprime: una
+  captura de 4K pesa más y se ve bien en el visor.
 - **La URL tiene que ser del repositorio oficial**, en `main` o en un commit completo de 40
-  hexadecimales. Cualquier otra se descarta al leer el catálogo, con un aviso en la consola.
+  hexadecimales, **sin `?` ni `#` al final**, y el nombre del archivo sin espacios, tildes ni
+  signos raros. Cualquier otra se descarta al leer el catálogo, con un aviso en la consola.
 - **Una captura con la URL mal escrita no tumba el catálogo**, a diferencia de
   `downloadUrl`. Se descarta esa captura y el resto se ven con normalidad.
 
@@ -184,8 +194,17 @@ El launcher:
 - solo acepta descargas HTTPS procedentes del repositorio oficial `DiegoT34/PokeGrid-Script-Shop`;
 - comprueba **el host** de cada captura, no solo su ruta: una URL como
   `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png` tiene la
-  ruta exacta y un host que no es el nuestro, y la descarga de capturas va por el proceso
-  principal, que **no está sujeto al CSP** del renderer — la lista blanca es lo único que hay;
+  ruta exacta y un host que no es el nuestro. Las capturas se descargan por el proceso
+  principal —igual que los sprites, que tampoco tienen red de seguridad del CSP— y ahí el CSP
+  del renderer no llega, así que la lista blanca es lo que decide;
+- exige además que la respuesta sea una imagen y pese lo justo;
+- lo que esa lista blanca decide es el **origen de la petición**, no el de la respuesta: al
+  contrario que el catálogo y los scripts, que van con `redirect: 'error'` y vuelven a
+  comprobar la URL final, la descarga de capturas sigue las redirecciones y no revalida
+  `response.url`. Se acepta a propósito, por dos razones: quien pueda hacer redirigir una
+  captura desde el repositorio oficial ya puede escribir el catálogo entero, con un
+  `downloadUrl` que se descarga mucho mejor; y cerrarlo exigiría tocar el cargador de sprites,
+  que es del juego y no de esta sección. No es un descuido;
 - limita catálogo y scripts a tamaños seguros;
 - exige una firma SHA-256 de 64 caracteres;
 - compara el hash descargado antes de guardar el script;
