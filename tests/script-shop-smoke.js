@@ -197,6 +197,24 @@ assert.doesNotMatch(main, /supera 512 KB/,
   // el catalogo se veria igual de bien, asi que es la unica asercion que la caze: es un
   // problema de trafico, no de resultado.
   assert.match(renderer, /dataset\.cargado === '1'/, 'No se puede volver a descargar lo ya descargado.');
+  // Y el otro lado de la tarea: que la miniatura abra el visor. Las tres comprobaciones
+  // de arriba protegen el TRAFICO, que es invisible si falla; esto protege el resultado,
+  // que es justo lo que se nota a ojo. Borrar el visor entero —sus dos funciones, el
+  // click de la miniatura y la rama de Escape— dejaba todas las pruebas en verde.
+  assert.match(renderer, /=> abrirVisorDeCaptura\(dataUrl, nombre\)/,
+    'Pulsar una miniatura tiene que abrir el visor con esa captura.');
+  assert.match(renderer, /removeAttribute\('src'\)/,
+    'Al cerrar el visor hay que soltar el data: URL: seis capturas abiertas son varios MB de base64 en un atributo que ya no se mira.');
+  // Escape cierra el VISOR primero, porque el visor esta encima del modal. El orden se
+  // comprueba por posicion, no por un match: el mismo if aparece en las dos ramas.
+  const ramaVisor = renderer.indexOf('cerrarVisorDeCaptura(); return;');
+  const ramaModal = renderer.indexOf("!backdrop.hidden");
+  assert.ok(ramaVisor > -1 && ramaModal > ramaVisor,
+    'Escape tiene que cerrar el visor antes que el Centro de scripts, que estan los dos abiertos.');
+  // Y la galeria va AL PRINCIPIO de los detalles: quien los abre quiere ver la captura,
+  // no leer texto antes de verla. Un appendChild lapondria al final y pasaria igual.
+  assert.match(renderer, /detalles\.prepend\(galeria\)/,
+    'La galeria va al principio de los detalles, no al final.');
 }
 
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');

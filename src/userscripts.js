@@ -859,8 +859,13 @@ function renderScriptShopCategories(categories) {
   function cerrarVisorDeCaptura() {
     if (!scriptShopViewer || scriptShopViewer.hidden) return;
     scriptShopViewer.hidden = true;
-    // Se suelta el data: URL. Con seis capturas abiertas a la vez son varios MB de
-    // base64 en un atributo src que ya no se está mirando.
+    // Se suelta el data: URL del atributo src. Con seis capturas abiertas a la vez son
+    // varios MB de base64 en un atributo que ya no se está mirando.
+    //
+    // Ojo con el alcance de la frase: lo que esto libera es el bitmap decodificado que
+    // el navegador tenía resident. Las cadenas base64 siguen vivas en el cierre de los
+    // seis escuchadores de miniatura, y liberarlas exigiría rehacer los nodos. Con seis
+    // capturas de 2 MB como máximo es asumible, y es la razón por la que el límite es 6.
     scriptShopViewerImage.removeAttribute('src');
   }
 
