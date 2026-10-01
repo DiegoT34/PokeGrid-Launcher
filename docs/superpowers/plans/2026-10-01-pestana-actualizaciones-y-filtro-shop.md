@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-01-pestana-actualizaciones-y-filtro-shop-design.md` — el plan argumenta desde la spec, y quien lo ejecute tiene que leer las dos.
 
+> **Orden de ejecución: las Tareas 2 y 3 se ejecutan intercambiadas.** La prueba de
+> Electron de la Tarea 2 lee `#scriptShopUpdatesBadge`, y ese elemento lo crea la
+> Tarea 3. En el orden escrito, la Tarea 2 termina pidiendo un `PASS` sobre un elemento
+> que todavía no existe. Con el HTML antes, su fallo es el informative: el elemento
+> existe y el registro todavía no lo pinta.
+
 ## Restricciones globales
 
 - **Cero dependencias nuevas.** Ni en `package.json`, ni scripts, ni librerías.
