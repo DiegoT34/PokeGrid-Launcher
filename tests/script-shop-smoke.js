@@ -141,4 +141,21 @@ assert.match(main, /isShopScreenshot \? shopScreenshotCache : remoteImageCache/,
   assert.match(cuerpo, /isShopScreenshot \? shopScreenshotCache : remoteImageCache/, 'Y cada clase de imagen va a su cache.');
 }
 
+// La limpieza de memoria tiene que liberar también la caché de capturas. Contarla sin
+// limpiarla haría que cachedEntries y releasedMb dijeran una cosa y la memoria otra.
+{
+  const cuerpo = main.slice(main.indexOf("ipcMain.handle('app:cleanup-memory'"), main.indexOf("ipcMain.handle('app:proxy-results'"));
+  assert.match(cuerpo, /remoteImageCache\.clear\(\)/, 'La limpieza libera la caché de sprites.');
+  assert.match(cuerpo, /pokeApiSpeciesCache\.clear\(\)/, 'La limpieza libera la caché de especies.');
+  assert.match(cuerpo, /shopScreenshotCache\.clear\(\)/, 'La limpieza tiene que liberar también la caché de capturas.');
+}
+
+// El mensaje del límite del catálogo tiene que decir 1 MB, que es el límite real. Un
+// mensaje que miente es peor que uno feo: quien lea «supera 512 KB» busca un error que
+// no existe.
+assert.match(main, /El catálogo está vacío o supera 1 MB\./,
+  'El mensaje del límite tiene que decir 1 MB, no 512 KB.');
+assert.doesNotMatch(main, /supera 512 KB/,
+  'El mensaje del límite ya no puede decir 512 KB.');
+
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');

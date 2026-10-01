@@ -941,7 +941,7 @@ async function loadScriptShopCatalog(refresh = false) {
     // si Chromium sí informa una URL final, exigimos que siga siendo la oficial exacta.
     if (response.url && response.url !== requestUrl) throw new Error('El catálogo respondió desde un origen no permitido.');
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 512 KB.');
+    if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 1 MB.');
     // Windows PowerShell 5 puede anteponer BOM (EF BB BF) a archivos UTF-8.
     // Se tolera para que una publicación antigua no inutilice toda la Shop.
     const catalogText = bytes.toString('utf8').replace(/^\uFEFF/, '');
@@ -1696,6 +1696,7 @@ ipcMain.handle('app:cleanup-memory', async () => {
     const cachedEntries = remoteImageCache.size + pokeApiSpeciesCache.size + shopScreenshotCache.size;
     remoteImageCache.clear();
     pokeApiSpeciesCache.clear();
+    shopScreenshotCache.clear();
     const targets = webContents.getAllWebContents().filter((contents) =>
       !contents.isDestroyed() && ['window', 'webview'].includes(contents.getType()));
     // No se adjunta el depurador ni se fuerza el GC de Chromium: ambas operaciones pueden
