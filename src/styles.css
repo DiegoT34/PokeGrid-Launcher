@@ -4235,3 +4235,26 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   .browser-instance-workspace[data-view-count] { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: minmax(320px, 1fr); overflow-y: auto; }
   .browser-instance-panel { min-height: 320px; }
 }
+
+/* Bolitas de aviso del botón de 3 rayas. Una por fuente, en orden fijo. No
+   llevan número a propósito: un 3 no dice qué hay pendiente, el color sí. El color
+   lo pone el hub en línea, así que aquí solo va la forma. */
+.hamburger-avises {
+  position: absolute;
+  top: -4px;
+  right: -5px;
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.hamburger-aviso-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid #111820;
+  background: transparent;
+}
+
+.hamburger-aviso-dot[hidden] { display: none; }

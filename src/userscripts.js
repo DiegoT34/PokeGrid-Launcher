@@ -27,7 +27,7 @@
   // que desaparecian sin ningun error visible. La lista esta verificada contra
   // src/index.html en tests/multi-game-userscripts-static-smoke.js.
   const REQUIRED_SCRIPT_ELEMENTS = [
-    '#scriptsButton', '#hamburgerScriptBadge', '#scriptsMenuBadge', '#scriptsBackdrop',
+    '#scriptsButton', '#hamburgerAvisoDotShop', '#hamburgerAvisoDotNotas', '#hamburgerAvisoDotActualizador', '#scriptsMenuBadge', '#scriptsBackdrop',
     '#closeScriptsButton', '#newScriptButton', '#importScriptButton', '#installTelegramAlertsButton',
     '#scriptUrlForm', '#scriptUrlInput', '#scriptDropZone', '#scriptsList', '#scriptCount',
     '#scriptEditorForm', '#scriptEditorKicker', '#scriptEditorName', '#scriptEditorMeta',
@@ -50,7 +50,6 @@
   }
 
   const scriptsButton = document.querySelector('#scriptsButton');
-  const hamburgerScriptBadge = document.querySelector('#hamburgerScriptBadge');
   const scriptsMenuBadge = document.querySelector('#scriptsMenuBadge');
   const backdrop = document.querySelector('#scriptsBackdrop');
   const closeButton = document.querySelector('#closeScriptsButton');
@@ -602,7 +601,6 @@
     scriptShopUpdateBadge.textContent = total > 99 ? '99+' : String(total);
     scriptShopUpdateBadge.hidden = total === 0;
     setMenuBadge(scriptsMenuBadge, total, details);
-    setMenuBadge(hamburgerScriptBadge, total, details);
     scriptsButton.title = details;
   }
 

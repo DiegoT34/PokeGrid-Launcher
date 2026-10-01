@@ -12,7 +12,11 @@
     <header id="appbar" class="appbar">
       <button id="topbarToggle" class="topbar-toggle" type="button" aria-expanded="false" aria-controls="globalActions" aria-label="Abrir men&uacute; del launcher" title="Abrir men&uacute; del launcher">
         <span class="hamburger-icon" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span id="hamburgerScriptBadge" class="menu-update-badge is-hamburger" hidden>0</span>
+        <span class="hamburger-avises" aria-hidden="true">
+          <i id="hamburgerAvisoDotShop" class="hamburger-aviso-dot" hidden></i>
+          <i id="hamburgerAvisoDotNotas" class="hamburger-aviso-dot" hidden></i>
+          <i id="hamburgerAvisoDotActualizador" class="hamburger-aviso-dot" hidden></i>
+        </span>
       </button>
       <div class="brand" aria-label="IDLE POKE LAUNCHER">
         <span class="brand-mark" aria-hidden="true"></span>
@@ -663,6 +667,7 @@
     </template>
 
     <script src="game-theme.js"></script>
+    <script src="notification-hub.js"></script>
     <script src="userscripts.js"></script>
     <script src="renderer.js"></script>
   </body>
