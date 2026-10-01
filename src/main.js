@@ -10,6 +10,7 @@ const { prepareUpdate, launchPreparedUpdate, peekLatestVersion } = require('./up
 const { DEFAULT_ACCOUNT_COUNT, MAX_ACCOUNTS, accountPartition, buildProxyRules, normalizeAccounts } = require('./account-model');
 const { hasAccountsBackup, readAccountsFile, restoreAccountsBackup, writeAccountsFile } = require('./credentials');
 const { orderShopCatalog } = require('./script-shop-order');
+const { CAPTURAS_LIMITE, esCapturaDeShop } = require('./script-shop-screenshots');
 
 const GAME_ORIGIN = 'https://poke.idleworld.online';
 const POKEPEDIA_URL = `${GAME_ORIGIN}/pokepedia`;
@@ -20,10 +21,19 @@ const USER_SCRIPT_REQUEST_BODY_LIMIT = 1_000_000;
 const USER_SCRIPT_SHARED_VALUE_LIMIT = 256_000;
 const USER_SCRIPT_SHARED_STORE_LIMIT = 1_000_000;
 const SCRIPT_SHOP_CATALOG_URL = 'https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/catalog.json';
-const SCRIPT_SHOP_CATALOG_LIMIT = 512_000;
+// 1 MB. Medido con las entradas reales del catálogo, no estimado: 200 scripts con 6
+// capturas con URL completa llegarían al 96,7% de 512 KB, y al pasarse esta constante
+// loadScriptShopCatalog lanza y deja la Shop en blanco para todos y sin aviso. Con 1 MB
+// quedan en el 48%, con sitio para los próximos campos.
+const SCRIPT_SHOP_CATALOG_LIMIT = 1_000_000;
 const SCRIPT_SHOP_CACHE_MS = 5 * 60 * 1000;
 const POKEAPI_SPECIES_LIMIT = 2_000;
 const REMOTE_IMAGE_CACHE_LIMIT = 48;
+// Las capturas van a su propia cache. Compartirla con los sprites no vale: esos pesan
+// 20 KB y 48 de ellos son nada, pero una captura pesa mucho mas y en base64 crece otro
+// 33%. 48 capturas de 2 MB serian 128 MB en memoria, y abrir un catalogo grande podria
+// dejar al launcher sin ella. Con 24 entradas el peor caso son unos 65 MB.
+const CAPTURAS_CACHE_LIMIT = 24;
 const SPECIES_CACHE_LIMIT = 256;
 const GAME_SESSION_CACHE_BUDGET = 96 * 1024 * 1024;
 const GAME_SESSION_CACHE_CHECK_INTERVAL = 7 * 24 * 60 * 60 * 1000;
@@ -35,6 +45,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 let mainWindow = null;
 let pokepediaWindow = null;
 const remoteImageCache = new Map();
+const shopScreenshotCache = new Map();
 const pokeApiSpeciesCache = new Map();
 const loadedUnpackedExtensions = [];
 const browserInstanceSessions = new WeakSet();
@@ -162,10 +173,16 @@ async function loadAllowedImageDataUrl(rawUrl) {
   const isGameAsset = ['poke.idleworld.online', 'pokexguides.com'].includes(url.hostname);
   const isPokeApiSprite = url.hostname === 'raw.githubusercontent.com' &&
     /^\/PokeAPI\/sprites\/master\/sprites\/pokemon\/(?:other\/official-artwork\/)?[1-9]\d{0,3}\.png$/.test(url.pathname);
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (!isGameAsset && !isPokeApiSprite)) {
+  // Las capturas de la Shop. Sin id: la comprobacion fuerte, la del prefijo contra el id
+  // del script, ya la hizo el catálogo al normalizar y lo que llega aqui ya esta
+  // filtrado. Esta es la frontera de seguridad: decide de donde se descarga.
+  const isShopScreenshot = esCapturaDeShop(url);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (!isGameAsset && !isPokeApiSprite && !isShopScreenshot)) {
     throw new Error('Origen de sprite no permitido.');
   }
-  if (remoteImageCache.has(url.href)) return readLruCache(remoteImageCache, url.href);
+  const cache = isShopScreenshot ? shopScreenshotCache : remoteImageCache;
+  const limite = isShopScreenshot ? CAPTURAS_CACHE_LIMIT : REMOTE_IMAGE_CACHE_LIMIT;
+  if (cache.has(url.href)) return readLruCache(cache, url.href);
   const request = net.fetch(url.href, { cache: 'force-cache' }).then(async (response) => {
     if (!response.ok) throw new Error(`No se pudo cargar el sprite (${response.status}).`);
     const contentType = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -174,10 +191,10 @@ async function loadAllowedImageDataUrl(rawUrl) {
     if (!bytes.length || bytes.length > 2_000_000) throw new Error('El sprite supera el tamaño permitido.');
     return `data:${contentType};base64,${bytes.toString('base64')}`;
   }).catch((error) => {
-    remoteImageCache.delete(url.href);
+    cache.delete(url.href);
     throw error;
   });
-  return writeLruCache(remoteImageCache, url.href, request, REMOTE_IMAGE_CACHE_LIMIT);
+  return writeLruCache(cache, url.href, request, limite);
 }
 
 async function resolvePokeApiSpecies(rawSlug) {
@@ -865,6 +882,9 @@ function normalizeScriptShopCatalog(value) {
     if (compareScriptShopVersions(version, version) !== 0) throw new Error(`La versión publicada para ${id} no es válida.`);
     if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`La firma SHA-256 de ${id} no es válida.`);
     ids.add(id);
+    if (Array.isArray(row?.screenshots) && row.screenshots.some((url) => !esCapturaDeShop(url, id))) {
+      console.error(`[PokeGrid] La entrada ${id} tiene capturas que no son del repositorio oficial de la Shop y se han descartado.`);
+    }
     return {
       id,
       name: String(row?.name || id).trim().slice(0, 120),
@@ -883,6 +903,13 @@ function normalizeScriptShopCatalog(value) {
       homepage: String(row?.homepage || '').trim().slice(0, 2_000),
       changelog: String(row?.changelog || '').trim().slice(0, 1_000),
       icon: String(row?.icon || '📜').trim().slice(0, 8) || '📜',
+      // Las capturas se filtran y no se lanza. Es la excepción deliberada a la regla de
+      // downloadUrl, y el motivo es que la descarga es imprescindible —sin ella no se
+      // puede instalar— mientras que una captura es decoración. Una URL mal escrita en
+      // una captura no puede dejar sin Shop a todo el mundo.
+      screenshots: (Array.isArray(row?.screenshots) ? row.screenshots : [])
+        .filter((url) => esCapturaDeShop(url, id))
+        .slice(0, CAPTURAS_LIMITE),
       featured: row?.featured === true,
       publishedAt: String(row?.publishedAt || '').trim().slice(0, 40)
     };
@@ -1666,7 +1693,7 @@ ipcMain.handle('app:peek-update', async (event) => {
 ipcMain.handle('app:cleanup-memory', async () => {
   try {
     const before = app.getAppMetrics().reduce((total, metric) => total + Number(metric.memory?.workingSetSize || 0), 0);
-    const cachedEntries = remoteImageCache.size + pokeApiSpeciesCache.size;
+    const cachedEntries = remoteImageCache.size + pokeApiSpeciesCache.size + shopScreenshotCache.size;
     remoteImageCache.clear();
     pokeApiSpeciesCache.clear();
     const targets = webContents.getAllWebContents().filter((contents) =>

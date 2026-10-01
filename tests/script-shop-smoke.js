@@ -21,7 +21,6 @@ assert.match(main, /createHash\('sha256'\)/);
 assert.match(main, /actualHash !== item\.sha256/);
 assert.match(main, /assertScriptShopDownloadUrl\(response\.url \|\| target\)/);
 assert.match(main, /La descarga no pertenece al repositorio oficial de la Shop/);
-assert.match(main, /SCRIPT_SHOP_CATALOG_LIMIT = 512_000/);
 assert.match(main, /replace\(\/\^\\uFEFF\//);
 assert.match(main, /USER_SCRIPT_CODE_LIMIT/);
 assert.match(main, /USER_SCRIPT_CODE_LIMIT = 10 \* 1024 \* 1024/);
@@ -114,6 +113,32 @@ assert.match(renderer, /set\('scripts',\s*counts\.total,\s*\{[^}]*newScripts[^}]
   assert.ok(pos > -1, 'script-shop-screenshots.js tiene que cargarse en index.html.');
   assert.ok(pos < orden.indexOf('userscripts.js'),
     `Y antes de userscripts.js, que es quien lo usa. Orden actual: ${orden.join(', ')}`);
+}
+
+// El limite del catalogo. Medido: con 200 scripts y 6 capturas con URL completa se
+// llegaba al 96,7% de 512 KB, y al pasarse loadScriptShopCatalog lanza y deja la Shop
+// entera en blanco para todos. Con 1 MB queda en el 48%.
+assert.match(main, /const SCRIPT_SHOP_CATALOG_LIMIT = 1_000_000;/,
+  'El limite del catalogo tiene que ser 1 MB. A 512 KB, 200 scripts con capturas no caben.');
+
+// Las capturas viajan en el catalogo, y una captura mala NO tumba el catalogo.
+// Es la excepcion deliberada a la regla de downloadUrl, y sin prueba se convierte en
+// norma por accidente.
+assert.match(main, /screenshots:/, 'El catalogo normalizado tiene que llevar screenshots.');
+assert.match(main, /esCapturaDeShop\(/, 'La validacion de capturas tiene que pasar por el modulo.');
+
+// La segunda cache. La de sprites aguanta 48 porque un sprite pesa 20 KB; una captura no,
+// y en base64 crece un 33%: 48 capturas de 2 MB serian 128 MB.
+assert.match(main, /const CAPTURAS_CACHE_LIMIT = 24;/,
+  'Las capturas necesitan su propia cache y su propio tope.');
+assert.match(main, /const shopScreenshotCache = new Map\(\);/, 'Y su propio almacen.');
+assert.match(main, /isShopScreenshot \? shopScreenshotCache : remoteImageCache/,
+  'Una captura va a su cache y un sprite a la suya.');
+
+{
+  const cuerpo = main.slice(main.indexOf('async function loadAllowedImageDataUrl'), main.indexOf('async function resolvePokeApiSpecies'));
+  assert.match(cuerpo, /!isShopScreenshot/, 'El cargador tiene que aceptar capturas: sin esto, una captura pasa la lista y el cargador la rechaza.');
+  assert.match(cuerpo, /isShopScreenshot \? shopScreenshotCache : remoteImageCache/, 'Y cada clase de imagen va a su cache.');
 }
 
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');
