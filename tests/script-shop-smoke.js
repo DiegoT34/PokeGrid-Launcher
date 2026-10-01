@@ -105,4 +105,15 @@ assert.match(renderer, /if \(enShop\) markScriptShopCatalogSeen\(\);/,
 assert.match(renderer, /set\('scripts',\s*counts\.total,\s*\{[^}]*newScripts[^}]*updates[^}]*\}\)/,
   'La fuente scripts se publica con el desglose: la pestaña Shop lleva los nuevos y la de Actualizaciones las actualizaciones.');
 
+// El modulo tiene que cargarse en el navegador y antes de quien lo usa. Un modulo
+// puro que nadie carga es un modulo que no existe, y el fallo es un TypeError al
+// pintar la primera tarjeta, lejos de la causa.
+{
+  const orden = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const pos = orden.indexOf('script-shop-screenshots.js');
+  assert.ok(pos > -1, 'script-shop-screenshots.js tiene que cargarse en index.html.');
+  assert.ok(pos < orden.indexOf('userscripts.js'),
+    `Y antes de userscripts.js, que es quien lo usa. Orden actual: ${orden.join(', ')}`);
+}
+
 console.log('Script Shop smoke passed: online catalog, signed installs, updates, removal, tabs and mobile layout are present.');
