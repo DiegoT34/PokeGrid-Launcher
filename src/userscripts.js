@@ -139,6 +139,11 @@
   // una vista que no existe.
   let activeScriptsView = loadScriptShopView();
   let scriptShopCategory = '';
+  // El nombre con el que se eligió la categoría, aparte de su clave. La clave va en
+  // minúsculas y sin espacios, que es lo que se compara; el nombre es lo que se leía en
+  // la pastilla y lo que debe decir el mensaje cuando la categoría ya no está en la
+  // vista. Sin guardarlo, el mensaje diría «nada en market».
+  let scriptShopCategoryNombre = '';
   let scriptShopLastCheckedAt = 0;
   let scriptShopPollTimer = 0;
   let scriptShopSeen = loadScriptShopSeen();
@@ -670,16 +675,18 @@
       empty.className = 'script-shop-empty';
       // Cuatro mensajes distintos porque son cuatro situaciones distintas. Un «no hay
       // resultados» cuando lo que pasa es que estás al día manda a la gente a buscar un
-      // problema que no tiene.
+      // problema que no tiene. Y el de la categoría va antes que el de «al día»: si hay
+      // una categoría pulsada, es el filtro la razón de que la lista esté vacía, y decir
+      // «estás al día» con una pastilla pulsada parece que el filtro no se aplicó.
       if (!scriptShopCatalog.scripts.length) {
         empty.innerHTML = '<span aria-hidden="true">📦</span><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
-      } else if (enActualizaciones && !counts.updates) {
-        empty.innerHTML = '<span aria-hidden="true">✅</span><strong>Estás al día</strong><small>No hay actualizaciones pendientes de los scripts que tienes instalados.</small>';
       } else if (scriptShopCategory) {
         empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>Nada por aquí</strong><small>No hay nada en «'
           + escapeHtml(categoryNameFor(categories)) + '»'
           + (enActualizaciones ? ' con actualizaciones pendientes' : '')
           + '. Prueba otra categoría.</small>';
+      } else if (enActualizaciones) {
+        empty.innerHTML = '<span aria-hidden="true">✅</span><strong>Estás al día</strong><small>No hay actualizaciones pendientes de los scripts que tienes instalados.</small>';
       } else {
         empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>No hay resultados</strong><small>Prueba otra palabra.</small>';
       }
@@ -733,16 +740,18 @@
     }
   }
 
-  // Las pastillas. «Todas» primero y luego solo las categorías que existen en el
-  // conjunto base, con su número. Los números no se mueven al elegir una: eso es lo que
-  // permite saltar de una a otra sin volver a «Todas».
-  function renderScriptShopCategories(categories) {
+  // Las pastillas. «Todas» primero y luego las categorías que existen en el conjunto base,
+// con su número. Los números no se mueven al elegir una: eso es lo que permite saltar de
+// una a otra sin volver a «Todas».
+//
+// Esta función no toca el filtro. Si la categoría elegida no existe en esta vista —se
+// está en Actualizaciones y esa categoría no tiene actualizaciones— se pinta igualmente
+// con su 0, en vez de borrarse. Borrarla aquí dejaba la rejilla vacía, «Todas» pulsada y
+// un mensaje que hablaba de buscar, en una vista sin caja de búsqueda: tres señales que
+// se contradicen. Y con la categoría a la vista, el mensaje puede decir que no hay nada
+// en ella, que es lo que de verdad pasó.
+function renderScriptShopCategories(categories) {
     if (!scriptShopCategories) return;
-    // Si la categoría elegida ya no existe —el catálogo cambió— se vuelve a «Todas».
-    // Dejarla puesta dejaría una lista vacía sin explicación.
-    if (scriptShopCategory && !categories.some((categoria) => categoria.key === scriptShopCategory)) {
-      scriptShopCategory = '';
-    }
     scriptShopCategories.replaceChildren();
     const total = categories.reduce((suma, categoria) => suma + categoria.count, 0);
     const opcion = (nombre, clave, cuenta, activo) => {
@@ -759,19 +768,28 @@
       boton.append(texto, numero);
       boton.addEventListener('click', () => {
         scriptShopCategory = clave;
+        scriptShopCategoryNombre = nombre;
         renderScriptShop();
       });
       return boton;
     };
+    const elegida = categories.find((categoria) => categoria.key === scriptShopCategory);
     scriptShopCategories.appendChild(opcion('Todas', '', total, !scriptShopCategory));
     for (const categoria of categories) {
-      scriptShopCategories.appendChild(opcion(categoria.name, categoria.key, categoria.count, scriptShopCategory === categoria.key));
+      if (categoria.key === scriptShopCategory) continue;
+      scriptShopCategories.appendChild(opcion(categoria.name, categoria.key, categoria.count, false));
+    }
+    // La elegida va la última y la última es la que está pulsada: así se ve al final de
+    // la fila, sin tener que buscarla entre las que no aplican.
+    if (elegida || scriptShopCategory) {
+      scriptShopCategories.appendChild(opcion(categoryNameFor(categories), scriptShopCategory, elegida ? elegida.count : 0, true));
     }
   }
 
   function categoryNameFor(categories) {
     const encontrada = categories.find((categoria) => categoria.key === scriptShopCategory);
-    return encontrada ? encontrada.name : scriptShopCategory;
+    if (encontrada) return encontrada.name;
+    return scriptShopCategoryNombre || scriptShopCategory;
   }
 
   // 250 ms. Es lo que evita rehacer todas las tarjetas en cada tecla con un catálogo de
@@ -900,6 +918,9 @@
   function switchScriptsView(view) {
     const destino = SCRIPT_SHOP_VISTAS.includes(view) ? view : 'installed';
     activeScriptsView = destino;
+    // La búsqueda es de Shop y su caja está oculta en la otra vista, así que lo que se
+    // escribió no puede aplicándose allí ni reaparecer después.
+    if (destino !== 'shop') scriptShopSearch.value = '';
     if (destino !== 'installed') saveScriptShopView(destino);
     const enShop = destino === 'shop';
     const enActualizaciones = destino === 'updates';
@@ -912,11 +933,10 @@
     installedScriptsTab.setAttribute('aria-selected', String(destino === 'installed'));
     scriptShopTab.setAttribute('aria-selected', String(enShop));
     scriptShopUpdatesTab.setAttribute('aria-selected', String(enActualizaciones));
-    // La búsqueda es de Shop: al salir de ella, lo que se escribió no se aplica a otra
-    // vista. La caja está oculta mientras no estamos en Shop, así que dejarlo puesto
-    // haría reaparecer el filtro sin que nadie lo escribiera.
-    if (destino !== 'shop') scriptShopSearch.value = '';
-    if (destino === 'shop') scriptShopCategory = '';
+    // El filtro de categoría NO se limpia al cambiar de vista: las dos vistas de la Shop
+    // son la misma visita, y si estás mirando «Combate» lo razonable es que al preguntar
+    // por las actualizaciones siga mirándose «Combate». Se limpia al abrir el centro, en
+    // open(), que es donde empieza una visita.
     // Un render pendiente dentro de un panel oculto es un render en el sitio
     // equivocado.
     renderScriptShopDebounced.cancelar();
@@ -1245,6 +1265,10 @@
 
   function open(accountIndex = -1) {
     focusAccount = Number.isInteger(accountIndex) ? accountIndex : -1;
+    // Abrir el centro es una visita nueva: la pestaña se recuerda, el filtro no. Es una
+    // decisión de trabajo, no una preferencia del launcher.
+    scriptShopCategory = '';
+    scriptShopCategoryNombre = '';
     document.body.classList.add('has-scripts-modal');
     panelRows.forEach((panel) => panel.webview?.style.setProperty('visibility', 'hidden', 'important'));
     backdrop.hidden = false;

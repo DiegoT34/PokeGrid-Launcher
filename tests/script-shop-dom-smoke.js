@@ -128,40 +128,94 @@ app.whenReady().then(async () => {
     assert.match(updates.vacio, /Estás al día/,
       `Sin actualizaciones tiene que decir que estás al día, no "no hay resultados". Obtenido: "${updates.vacio}"`);
 
-    // Volver a Shop desde Actualizaciones tiene que dejar el filtro limpio. La categoría es
-    // una decisión de la visita, no un estado: si se recuerda al volver, el usuario
-    // llega a Shop ya filtrado sin haber pedido nada y no ve por qué la lista es corta.
+    // El filtro sobrevive al cambio entre las dos vistas de la Shop, porque siguen siendo
+    // la misma visita: si estás mirando «Combate» y quieres saber si hay actualizaciones
+    // de «Combate», shouldn't perder el filtro al preguntar. Y al entrar en Actualizaciones
+    // con una categoría que no tiene nada, tiene que decir exactamente eso en vez de
+    // fingir que no hay resultados: es el catálogo del harness, un script sin instalar,
+    // así que no hay ninguna actualización y esa es la situation que se puede provocar.
     await ventana.webContents.executeJavaScript(`(async () => {
       document.querySelector('#scriptShopTab').click();
       await new Promise((r) => setTimeout(r, 400));
       document.querySelectorAll('#scriptShopCategories .script-shop-category')[1].click();
       await new Promise((r) => setTimeout(r, 300));
       document.querySelector('#scriptShopUpdatesTab').click();
-      await new Promise((r) => setTimeout(r, 400));
-      document.querySelector('#scriptShopTab').click();
+      await new Promise((r) => setTimeout(r, 500));
+    })()`);
+    const filtradaEnUpdates = await ventana.webContents.executeJavaScript(`(() => {
+      const chips = [...document.querySelectorAll('#scriptShopCategories .script-shop-category')];
+      return {
+        tarjetas: document.querySelectorAll('#scriptShopGrid .script-shop-card').length,
+        mensaje: document.querySelector('#scriptShopGrid .script-shop-empty')?.textContent || '',
+        pulsadas: chips.filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.querySelector('span').textContent),
+        mercado: chips.find((b) => b.dataset.category === 'market')?.querySelector('.script-shop-category-count')?.textContent || null
+      };
+    })()`);
+    assert.equal(filtradaEnUpdates.tarjetas, 0, 'Con la categoría elegida y sin actualizaciones, no hay tarjetas.');
+    assert.deepEqual(filtradaEnUpdates.pulsadas, ['Market'],
+      `La categoría elegida tiene que seguir pulsada, para que se vea por qué no hay nada. Pulsadas: ${JSON.stringify(filtradaEnUpdates.pulsadas)}`);
+    assert.equal(filtradaEnUpdates.mercado, '0',
+      'La categoría sin actualizaciones se muestra con 0, no desaparece: si no, el filtro aplicado sería invisible.');
+    assert.match(filtradaEnUpdates.mensaje, /Nada por aquí/,
+      `El mensaje tiene que decir que no hay nada en la categoría, no "no hay resultados". Obtenido: "${filtradaEnUpdates.mensaje}"`);
+    assert.match(filtradaEnUpdates.mensaje, /Market/,
+      'Y tiene que nombrar la categoría que filtró.');
+    assert.doesNotMatch(filtradaEnUpdates.mensaje, /Prueba otra palabra/,
+      'En Actualizaciones no hay caja de búsqueda, así que no puede pedir buscar otra palabra.');
+
+    // Quitar el filtro devuelve las actualizaciones. Aquí no hay ninguna, así que lo que
+    // se comprueba es que el mensaje pase a ser el de «Estás al día», no el de categoría.
+    await ventana.webContents.executeJavaScript(`(async () => {
+      document.querySelectorAll('#scriptShopCategories .script-shop-category')[0].click();
       await new Promise((r) => setTimeout(r, 400));
     })()`);
-    const alVolver = await ventana.webContents.executeJavaScript(`(() => ({
-      todas: document.querySelectorAll('#scriptShopCategories .script-shop-category')[0].getAttribute('aria-pressed'),
-      mostrando: document.querySelector('#scriptShopSummary').textContent.includes('mostrando')
+    const sinFiltro = await ventana.webContents.executeJavaScript(`(() => ({
+      mensaje: document.querySelector('#scriptShopGrid .script-shop-empty')?.textContent || ''
     }))()`);
-    assert.equal(alVolver.todas, 'true', 'Volver a Shop tiene que dejar «Todas» pulsada: el filtro no se recuerda entre visitas.');
-    assert.equal(alVolver.mostrando, false, 'Y el resumen no dice que se esté mostrando nada.');
+    assert.match(sinFiltro.mensaje, /Estás al día/,
+      `Sin filtro y sin actualizaciones, el mensaje es el de estar al día. Obtenido: "${sinFiltro.mensaje}"`);
 
-    // Y la pestaña se recuerda al reabrir el centro de scripts. Antes de cerrar se entra en
-    // Actualizaciones, que es la pestaña que se quiere encontrar al volver.
-    await ventana.webContents.executeJavaScript(`document.querySelector('#scriptShopUpdatesTab').click(); true`);
-    await wait(400);
-    await ventana.webContents.executeJavaScript(`document.querySelector('#closeScriptsButton').click(); true`);
-    await wait(300);
-    await ventana.webContents.executeJavaScript(`document.querySelector('#scriptsButton').click(); true`);
-    await wait(500);
+    // «Mis scripts» también se recuerda. Si solo se guardan las dos vistas de la Shop,
+    // quien cierra en «Mis scripts» vuelve a la Shop, que es lo contrario de lo
+    // prometido y lo que más sorprende: es la pestaña de la que se sale menos.
+    await ventana.webContents.executeJavaScript(`(async () => {
+      document.querySelector('#installedScriptsTab').click();
+      await new Promise((r) => setTimeout(r, 300));
+      document.querySelector('#closeScriptsButton').click();
+      await new Promise((r) => setTimeout(r, 300));
+      document.querySelector('#scriptsButton').click();
+      await new Promise((r) => setTimeout(r, 500));
+    })()`);
+    const scriptsRecordada = await ventana.webContents.executeJavaScript(
+      "document.querySelector('#installedScriptsTab').getAttribute('aria-selected')"
+    );
+    assert.equal(scriptsRecordada, 'true',
+      '«Mis scripts» también se recuerda al reabrir: si no, quien sale de ella vuelve a la Shop.');
+
+    // Y al reabrir, el filtro de categoría está limpio aunque se saliera filtrando.
+    const filtroAlReabrir = await ventana.webContents.executeJavaScript(`(() => ({
+      todas: document.querySelectorAll('#scriptShopCategories .script-shop-category')[0]?.getAttribute('aria-pressed'),
+      marcadas: document.querySelectorAll('#scriptShopCategories .script-shop-category[aria-pressed="true"]').length
+    }))()`);
+    assert.equal(filtroAlReabrir.marcadas, 1,
+      'Al reabrir hay exactamente una pastilla pulsada: si se recuerda el filtro, al reabrir se abriría con otro.');
+    assert.equal(filtroAlReabrir.todas, 'true', 'Y es «Todas»: la categoría no se recuerda, la pestaña sí.');
+
+    // Y la pestaña de Actualizaciones se recuerda al reabrir el centro de scripts.
+    await ventana.webContents.executeJavaScript(`(async () => {
+      document.querySelector('#scriptShopUpdatesTab').click();
+      await new Promise((r) => setTimeout(r, 400));
+      document.querySelector('#closeScriptsButton').click();
+      await new Promise((r) => setTimeout(r, 300));
+      document.querySelector('#scriptsButton').click();
+      await new Promise((r) => setTimeout(r, 500));
+    })()`);
     const recordada = await ventana.webContents.executeJavaScript(
       "document.querySelector('#scriptShopUpdatesTab').getAttribute('aria-selected')"
     );
     assert.equal(recordada, 'true', 'La pestaña elegida se recuerda al reabrir el centro de scripts.');
 
-    console.log(JSON.stringify({ ok: true, estructura, shop, filtrada, todas, updates, recordada }));
+    console.log(JSON.stringify({ ok: true, estructura, shop, filtrada, todas, updates, filtradaEnUpdates, sinFiltro, scriptsRecordada, recordada }));
     ventana.destroy();
     app.exit(0);
   } catch (error) {
