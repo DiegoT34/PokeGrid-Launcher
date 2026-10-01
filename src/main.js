@@ -1652,7 +1652,9 @@ ipcMain.handle('app:peek-update', async (event) => {
     return { ok: false, hayActualizacion: false, actual, masReciente: actual, error: 'Solicitud no autorizada.' };
   }
   if (!app.isPackaged && !process.env.POKEGRID_ALLOW_DEV_UPDATE_CHECK) {
-    return { ok: true, hayActualizacion: false, actual, masReciente: actual };
+    // El estado viaja para que el botón pueda decir "Modo desarrollo" y no un
+    // "Estás actualizado" que mentía: en desarrollo nunca se busca nada.
+    return { ok: true, status: 'development', hayActualizacion: false, actual, masReciente: actual };
   }
   try {
     return { ok: true, ...(await peekLatestVersion(net, actual)) };

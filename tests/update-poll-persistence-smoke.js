@@ -98,7 +98,61 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(yaEsta, 0, 'Si la versión guardada es la que ya tienes, no hay bolita.');
 
-    console.log(JSON.stringify({ ok: true, conRed, sinRed, alDia, alArrancar, yaEsta }));
+    // Los dos canales del botón tienen que ser sustituibles. Si no lo fueran, el
+    // intento siguiente daría "Cannot set properties of undefined" y la causa real,
+    // que es que no existe la costura, quedaría enterrada.
+    const hayCostura = await ventana.webContents.executeJavaScript(
+      "typeof window.pokeGridUpdateChannels === 'object' && window.pokeGridUpdateChannels !== null"
+    );
+    assert.equal(hayCostura, true,
+      'El botón de actualizar necesita un objeto de canales sustituible: contextBridge congela window.pokeGrid y sin esta costura no se puede probar que pregunte antes de instalar.');
+
+    // Pulsar el botón con versión nueva tiene que PREGUNTAR. Hoy no pregunta:
+    // instalar sin avisar es justo lo que hace el canal que estamos respetando.
+    const cancelar = await ventana.webContents.executeJavaScript(`(async () => {
+      window.__preguntas = [];
+      window.__confirmOriginal = window.confirm;
+      window.confirm = (texto) => { window.__preguntas.push(String(texto)); return false; };
+      window.__llamadoInstall = 0;
+      window.pokeGridUpdateChannels.peek = async () => ({ ok: true, hayActualizacion: true, actual: '0.23.5', masReciente: '0.23.9' });
+      window.pokeGridUpdateChannels.instalar = async () => {
+        window.__llamadoInstall += 1;
+        return { ok: true, status: 'installing', currentVersion: '0.23.5', latestVersion: '0.23.9' };
+      };
+      document.querySelector('#updateLauncherButton').click();
+      await new Promise((r) => setTimeout(r, 600));
+      const salida = {
+        confirmPisable: window.__confirmOriginal !== window.confirm,
+        preguntas: window.__preguntas,
+        llamadoInstall: window.__llamadoInstall,
+        pendiente: window.pokeGridNotifications.get('updater').count
+      };
+      window.confirm = window.__confirmOriginal;
+      return salida;
+    })()`);
+    assert.equal(cancelar.confirmPisable, true,
+      'La prueba tiene que poder sustituir window.confirm. Si no se puede, no puede comprobar que el launcher pregunte.');
+    assert.equal(cancelar.preguntas.length, 1, `Instalar tiene que pedir confirmación una vez. Preguntas: ${JSON.stringify(cancelar.preguntas)}`);
+    assert.ok(/0\.23\.9/.test(cancelar.preguntas[0]), `La pregunta dice qué versión hay, no "${cancelar.preguntas[0]}".`);
+    assert.ok(/0\.23\.5/.test(cancelar.preguntas[0]), `La pregunta dice cuál tienes, no "${cancelar.preguntas[0]}".`);
+    assert.equal(cancelar.llamadoInstall, 0, 'Si se cancela, no puede haberse llamado al canal que instala.');
+    assert.equal(cancelar.pendiente, 1, 'Cancelar la instalación NO puede apagar el aviso: sigue pendiente.');
+
+    // Aceptando, sí se llama al canal que instala y se apaga la bolita.
+    await waitFor(ventana, "!document.querySelector('#updateLauncherButton').disabled");
+    const aceptando = await ventana.webContents.executeJavaScript(`(async () => {
+      window.confirm = () => true;
+      window.__llamadoInstall = 0;
+      document.querySelector('#updateLauncherButton').click();
+      await new Promise((r) => setTimeout(r, 600));
+      const salida = { llamadoInstall: window.__llamadoInstall, pendiente: window.pokeGridNotifications.get('updater').count };
+      window.confirm = window.__confirmOriginal;
+      return salida;
+    })()`);
+    assert.equal(aceptando.llamadoInstall, 1, `Aceptando se instala una vez, no ${aceptando.llamadoInstall}.`);
+    assert.equal(aceptando.pendiente, 0, 'Solo al instalar se apaga la bolita del actualizador.');
+
+    console.log(JSON.stringify({ ok: true, conRed, sinRed, alDia, alArrancar, yaEsta, cancelar, aceptando }));
     ventana.destroy();
     app.exit(0);
   } catch (error) {

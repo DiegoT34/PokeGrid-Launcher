@@ -154,6 +154,22 @@ function setUpdateLauncherState(icon, label, spinning = false) {
   renderUpdateLauncherButton();
 }
 
+// Los dos canales del botón de actualizar, en un objeto sustituible. ContextBridge
+// congela lo que expone en el mundo principal, así que window.pokeGrid no se puede
+// reemplazar desde una prueba. Poner los dos aquí detrás de unos métodos con valor
+// por defecto deja la aplicación hablando con la ventana igual que siempre y permite
+// comprobar lo que de verdad importa: que pregunte antes de instalar y que cancelar
+// no apague el aviso.
+const pokeGridUpdateChannels = {
+  peek() {
+    return window.pokeGrid.peekForUpdates();
+  },
+  instalar() {
+    return window.pokeGrid.checkForUpdates();
+  }
+};
+window.pokeGridUpdateChannels = pokeGridUpdateChannels;
+
 // Sondeo de actualizaciones del launcher.
 //
 // No espera a que el usuario pulse nada: comprueba al arrancar y luego cada 6
@@ -172,7 +188,7 @@ const pokeGridUpdatePoll = {
   // mundo principal: la prueba no puede sustituir window.pokeGrid, así que sustituye
   // esto. Toca en un solo sitio y deja el resto del módulo hablando con la ventana.
   peeker() {
-    return window.pokeGrid.peekForUpdates();
+    return pokeGridUpdateChannels.peek();
   },
 
   recordar(masReciente) {
@@ -9740,30 +9756,76 @@ updateLauncherButton.addEventListener('click', async () => {
   updateLauncherButton.disabled = true;
   updateLauncherButton.setAttribute('aria-busy', 'true');
   setUpdateLauncherState('◌', 'Buscando', true);
+  // Mientras se reinicia el botón no se rehabilita: el proceso está a punto de morir,
+  // y dejarlo pulsable invitaría a lanzar una segunda instalación en paralelo.
+  let instalando = false;
   try {
-    const result = await window.pokeGrid.checkForUpdates();
-    if (!result.ok) throw new Error(result.error || 'No se pudo buscar la actualización.');
-    currentLauncherVersion = String(result.currentVersion || currentLauncherVersion || '').trim();
-    if (result.status === 'current') {
-      setUpdateLauncherState('✓', 'Está actualizado');
-      updateLauncherButton.title = `Versión actual ${result.currentVersion}`;
-    } else if (result.status === 'development') {
+    // Primero mirar, instalar después. app:check-update descarga, instala, borra la
+    // versión anterior y cierra el launcher, así que no puede ser lo primero: pulsar
+    // el botón sin más ya instalaba sin preguntar, que es justo lo que no se quiere
+    // de un botón que cierra la aplicación.
+    const peek = await pokeGridUpdateChannels.peek();
+    if (!peek || !peek.ok) throw new Error(peek?.error || 'No se pudo buscar la actualización.');
+
+    if (peek.status === 'development') {
       setUpdateLauncherState('⌘', 'Modo desarrollo');
       updateLauncherButton.title = 'La instalación automática se comprueba desde el paquete portátil.';
-    } else if (result.status === 'installing') {
-      setUpdateLauncherState('◌', 'Reiniciando', true);
-      updateLauncherButton.title = `Instalando ${result.latestVersion}`;
       return;
+    }
+
+    if (!peek.hayActualizacion) {
+      setUpdateLauncherState('✓', 'Está actualizado');
+      updateLauncherButton.title = `Versión actual ${peek.actual}`;
+      window.pokeGridUpdatePoll.olvidar();
+      window.pokeGridNotifications.set('updater', 0);
+      return;
+    }
+
+    // La versión nueva es pendiente aunque el usuario cancele, así que se registra y se
+    // avisa antes de preguntar y no solo si se acepta. Si se dejara para después,
+    // cancelar dejaría el aviso apagado cuando la actualización sigue ahí.
+    window.pokeGridUpdatePoll.recordar(peek.masReciente);
+    window.pokeGridNotifications.set('updater', 1);
+
+    const aceptado = window.confirm(
+      'Hay una versión nueva del launcher.\n\n'
+      + `Versión actual: ${peek.actual}\n`
+      + `Versión disponible: ${peek.masReciente}\n\n`
+      + 'Se descargará y se instalará. El launcher se cerrará al terminar.\n\n'
+      + '¿Continuar?'
+    );
+    if (!aceptado) {
+      // Cancelar no apaga el aviso: sigue pendiente hasta que se instale de verdad. Es
+      // lo único que le queda al usuario para volver a intentarlo más tarde.
+      setUpdateLauncherState('⇩', 'Actualización pendiente');
+      return;
+    }
+
+    const result = await pokeGridUpdateChannels.instalar();
+    if (!result.ok) throw new Error(result.error || 'No se pudo completar la actualización.');
+    currentLauncherVersion = String(result.currentVersion || currentLauncherVersion || '').trim();
+    if (result.status === 'installing') {
+      instalando = true;
+      window.pokeGridUpdatePoll.olvidar();
+      window.pokeGridNotifications.set('updater', 0);
+      setUpdateLauncherState('◌', `Instalando ${result.latestVersion}`, true);
+      updateLauncherButton.title = `Instalando la versión ${result.latestVersion}`;
+    } else {
+      setUpdateLauncherState('✓', 'Está actualizado');
+      updateLauncherButton.title = `Versión actual ${currentLauncherVersion}`;
     }
   } catch (error) {
     setUpdateLauncherState('!', 'Error de actualización');
-    updateLauncherButton.title = error.message;
+    updateLauncherButton.title = error.message || 'No se pudo actualizar.';
+    // El aviso tampoco se apaga aquí: un fallo al instalar no dice que ya estés al
+    // día, solo que esta vez no se pudo.
+    window.setTimeout(() => {
+      if (!updateLauncherButton.disabled && !instalando) setUpdateLauncherState('⇩', 'Actualización pendiente');
+    }, 4000);
   } finally {
-    if (!updateLauncherButton.textContent.includes('Reiniciando')) {
-      window.setTimeout(() => {
-        updateLauncherButton.disabled = false;
-        updateLauncherButton.removeAttribute('aria-busy');
-      }, 2200);
+    if (!instalando) {
+      updateLauncherButton.disabled = false;
+      updateLauncherButton.removeAttribute('aria-busy');
     }
   }
 });
