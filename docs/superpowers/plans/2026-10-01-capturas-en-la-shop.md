@@ -987,6 +987,20 @@ catálogo de 200 scripts con seis capturas son 1.200 imágenes, y descargarlas t
 sería absurdo.
 ````
 
+Y en `## Controles de seguridad` (la última sección del documento), una línea más:
+
+```markdown
+- comprueba **el host** de cada captura, no solo su ruta: una URL como
+  `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png` tiene la
+  ruta exacta y un host que no es el nuestro, y la descarga de capturas va por el proceso
+  principal, que **no está sujeto al CSP** del renderer — la lista blanca es lo único que hay;
+```
+
+Esta línea no es adorno. La revisión de la tarea 1 encontró que la comprobación de las
+capturas miraba la ruta y no el host, y era un agujero real. La documentación de seguridad
+que no menciona la excepción que la hace más fuerte invites a creer que la comprobación es
+más laxa de lo que es.
+
 - [ ] **Paso 3: Comprobar que nada se rompió**
 
 Run: `node scripts\run-tests.cjs node` → todas verdes.
