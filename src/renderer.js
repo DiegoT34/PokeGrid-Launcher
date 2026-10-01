@@ -128,6 +128,12 @@ const shinyNotificationCount = document.querySelector('#shinyNotificationCount')
 const legendaryNotificationCount = document.querySelector('#legendaryNotificationCount');
 const cleanupMemoryButton = document.querySelector('#cleanupMemoryButton');
 const updateLauncherButton = document.querySelector('#updateLauncherButton');
+// El badge se guarda aparte porque renderUpdateLauncherButton() rehace el contenido
+// del botón entero, y rehacerlo entero se lleva por delante cualquier elemento que
+// alguien haya puesto dentro. Sin esta referencia, el badge desaparecía en el primer
+// repintado —y el repintado pasa enseguida, al leer la versión— y el aviso de
+// actualización se quedaba sin sitio donde pintarse, sin error y sin rastro.
+const updateLauncherBadge = document.querySelector('#updateLauncherBadge');
 let currentLauncherVersion = '';
 let updateLauncherState = { icon: '⇩', label: 'Actualizar', spinning: false };
 
@@ -146,7 +152,9 @@ function renderUpdateLauncherButton() {
   version.setAttribute('aria-label', 'Versión actual');
   version.textContent = currentLauncherVersion ? `v${currentLauncherVersion}` : 'Cargando versión…';
   copy.append(label, version);
-  updateLauncherButton.replaceChildren(icon, copy);
+  // El badge se reinyecta en cada repintado. Va primero porque es el que estaba en el
+  // HTML, y es position:absolute, así que el orden no lo cambia visualmente.
+  updateLauncherButton.replaceChildren(...(updateLauncherBadge ? [updateLauncherBadge] : []), icon, copy);
 }
 
 function setUpdateLauncherState(icon, label, spinning = false) {

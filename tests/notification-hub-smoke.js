@@ -150,7 +150,29 @@ app.whenReady().then(async () => {
     assert.ok(/Fuente de aviso desconocida/.test(error),
       `Una fuente desconocida tiene que avisar, no romperse. Mensaje: "${error}"`);
 
-    console.log(JSON.stringify({ ok: true, inicial, dos, trasVer, trasInstalar, muchos }));
+    // El badge del botón de Actualizar tiene que SOBREVIVIR a que el botón se
+    // repinte. renderUpdateLauncherButton() rehace el contenido del botón entero, y
+    // rehacerlo entero se lleva por delante cualquier elemento que alguien haya
+    // añadido dentro. El aviso del actualizador se perdía así: sin nodo, el registro
+    // lo busca, no lo encuentra y sigue sin avisar, sin error y sin rastro.
+    await waitFor(ventana, "document.querySelector('#updateLauncherButton .update-launcher-copy')");
+    const sigueElBadge = await ventana.webContents.executeJavaScript(
+      "Boolean(document.getElementById('updateLauncherBadge'))"
+    );
+    assert.equal(sigueElBadge, true,
+      'El badge de actualizaciones tiene que seguir en el botón después de que el botón se repinte.');
+
+    await ventana.webContents.executeJavaScript(`(() => { window.pokeGridNotifications.set('updater', 1); return true; })()`);
+    await wait(150);
+    const badgeVivo = await ventana.webContents.executeJavaScript(`(() => {
+      const badge = document.getElementById('updateLauncherBadge');
+      return badge ? { oculto: badge.hidden, color: badge.style.background } : null;
+    })()`);
+    assert.ok(badgeVivo, 'Con versión nueva el botón de Actualizar tiene que mostrar su badge.');
+    assert.equal(badgeVivo.oculto, false, 'El badge del botón de Actualizar se muestra.');
+    assert.equal(badgeVivo.color, 'var(--success)', `El badge del botón usa su color, no ${badgeVivo && badgeVivo.color}.`);
+
+    console.log(JSON.stringify({ ok: true, inicial, dos, trasVer, trasInstalar, muchos, badgeVivo }));
     ventana.destroy();
     app.exit(0);
   } catch (error) {
