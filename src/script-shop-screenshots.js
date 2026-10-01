@@ -30,6 +30,13 @@ function esCapturaDeShop(rawUrl, id) {
   } catch {
     return false;
   }
+  // El host se comprueba **aparte de** la ruta, y es lo más importante de esta función.
+  // La ruta sola no dice nada: un catálogo escrito a mano puede apuntar a
+  // `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png`,
+  // que tiene la ruta exactamente igual y un host que no es el nuestro. En la Tarea 2
+  // esta comprobación es la frontera de seguridad del `net.fetch` del proceso principal,
+  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que hay.
+  if (url.hostname !== 'raw.githubusercontent.com') return false;
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return false;
   const encontrado = RUTA_CAPTURA.exec(url.pathname);
   if (!encontrado) return false;

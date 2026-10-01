@@ -105,8 +105,8 @@ assert.match(renderer, /if \(enShop\) markScriptShopCatalogSeen\(\);/,
 assert.match(renderer, /set\('scripts',\s*counts\.total,\s*\{[^}]*newScripts[^}]*updates[^}]*\}\)/,
   'La fuente scripts se publica con el desglose: la pestaña Shop lleva los nuevos y la de Actualizaciones las actualizaciones.');
 
-// El modulo tiene que cargarse en el navegador y antes de quien lo usa. Un modulo
-// puro que nadie carga es un modulo que no existe, y el fallo es un TypeError al
+// El módulo tiene que cargarse en el navegador y antes de quien lo usa. Un módulo
+// puro que nadie carga es un módulo que no existe, y el fallo es un TypeError al
 // pintar la primera tarjeta, lejos de la causa.
 {
   const orden = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);

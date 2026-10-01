@@ -33,7 +33,14 @@ const rechazos = [
   ['con credenciales', `https://user:pass@raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png`, 'Con credenciales no vale.'],
   ['otra extension', buena('market-helper-1.exe'), 'Solo imagenes.'],
   ['sin extension', buena('market-helper-1'), 'Sin extension no se sabe que es.'],
-  ['id equivocado', buena('otro-script-1.png'), 'No puede usar las capturas de otro script.']
+  ['id equivocado', buena('otro-script-1.png'), 'No puede usar las capturas de otro script.'],
+  // El host se comprueba aparte de la ruta, y por eso necesita su propia linea: un host
+  // ajeno con la ruta EXACTAMENTE igual es lo que un catálogo escrito a mano podría
+  // colar, y es justo lo que la revision de la tarea 1 encontró ausente.
+  ['host ajeno', 'https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Un host que no es GitHub no vale, aunque la ruta sea exacta.'],
+  ['host que imita al bueno', 'https://raw.githubusercontent.com.otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Un host que empieza por el bueno no vale.'],
+  ['otro esquema', 'ftp://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/market-helper-1.png', 'Solo https.'],
+  ['prefijo sin guion', buena('market-helperx-1.png'), 'El guion separa los prefijos: market-helper no puede usar las capturas de market-helperx.']
 ];
 for (const [nombre, url, motivo] of rechazos) {
   assert.equal(esCapturaDeShop(url, id), false, `${nombre}: ${motivo} (${url})`);
