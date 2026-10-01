@@ -154,13 +154,109 @@ function setUpdateLauncherState(icon, label, spinning = false) {
   renderUpdateLauncherButton();
 }
 
+// Sondeo de actualizaciones del launcher.
+//
+// No espera a que el usuario pulse nada: comprueba al arrancar y luego cada 6
+// horas. La versión pendiente se guarda en localStorage porque un arranque sin red
+// no puede borrar lo que ya se sabía; si se borrara, quien abra el launcher sin
+// conexión perdería el aviso hasta que recuperase la red.
+const ACTUALIZACION_LLAVE = 'pokegrid:launcher-update-pending:v1';
+const ACTUALIZACION_CADA_MS = 6 * 60 * 60 * 1000;
+
+const pokeGridUpdatePoll = {
+  ultimaPasada: 0,
+  temporizador: 0,
+
+  // Se puede cambiar para probar el sondeo sin red. El valor por defecto es el que
+  // usa la aplicación. Se separa porque contextBridge congela lo que expone en el
+  // mundo principal: la prueba no puede sustituir window.pokeGrid, así que sustituye
+  // esto. Toca en un solo sitio y deja el resto del módulo hablando con la ventana.
+  peeker() {
+    return window.pokeGrid.peekForUpdates();
+  },
+
+  recordar(masReciente) {
+    if (masReciente) window.localStorage.setItem(ACTUALIZACION_LLAVE, String(masReciente));
+  },
+  olvidar() {
+    window.localStorage.removeItem(ACTUALIZACION_LLAVE);
+  },
+  pendienteGuardada() {
+    try {
+      return String(window.localStorage.getItem(ACTUALIZACION_LLAVE) || '').trim();
+    } catch {
+      return '';
+    }
+  },
+
+  // Repinta lo que ya se sabía, sin preguntar a nadie. Para el arranque.
+  restaurar() {
+    const guardada = this.pendienteGuardada();
+    const actual = String(window.__pokeGridCurrentVersion || '').trim();
+    // Sin versión conocida se conserva el aviso: no se puede afirmar que lo pendiente
+    // sea lo que ya se tiene, así que se avisa y ya se corrige al comprobar si
+    // resultado está al día.
+    const hay = Boolean(guardada) && (!actual || guardada !== actual);
+    window.pokeGridNotifications.set('updater', hay ? 1 : 0);
+    return guardada;
+  },
+
+  async run({ forzar = false } = {}) {
+    const ahora = Date.now();
+    if (!forzar && ahora - this.ultimaPasada < ACTUALIZACION_CADA_MS) return null;
+    this.ultimaPasada = ahora;
+    let resultado = null;
+    try {
+      resultado = await this.peeker();
+    } catch (error) {
+      this.restaurar();
+      return { ok: false, error: error.message };
+    }
+    if (!resultado || !resultado.ok) {
+      // Fallo de red o error de GitHub: se conserva lo que se sabía y no se avisa.
+      // Un fallo no puede ser motivo para tapar un aviso que ya era verdad.
+      this.restaurar();
+      return resultado;
+    }
+    if (resultado.hayActualizacion) {
+      this.recordar(resultado.masReciente);
+      window.pokeGridNotifications.set('updater', 1);
+      updateLauncherButton.title = `Hay una versión nueva: ${resultado.masReciente}. Púlsala para instalarla.`;
+    } else {
+      this.olvidar();
+      window.pokeGridNotifications.set('updater', 0);
+      if (resultado.actual) {
+        updateLauncherButton.title = `Buscar actualizaciones · Versión actual ${resultado.actual}`;
+      }
+    }
+    return resultado;
+  },
+
+  arrancar() {
+    this.restaurar();
+    this.run({ forzar: true });
+    window.clearInterval(this.temporizador);
+    this.temporizador = window.setInterval(() => this.run(), ACTUALIZACION_CADA_MS);
+  }
+};
+window.pokeGridUpdatePoll = pokeGridUpdatePoll;
+
 Promise.resolve(window.pokeGrid.getAppVersion?.())
   .then((version) => {
     currentLauncherVersion = String(version || '').trim();
     renderUpdateLauncherButton();
     if (currentLauncherVersion) updateLauncherButton.title = `Buscar actualizaciones · Versión actual ${currentLauncherVersion}`;
   })
-  .catch(() => renderUpdateLauncherButton());
+  .catch(() => renderUpdateLauncherButton())
+  .finally(() => {
+    // Guardar la versión local para que el sondeo pueda decidir, y arrancar el sondeo.
+    // Va después de leer la versión, no antes: sin ella no se puede saber si la
+    // pendiente guardada es la que ya tienes. Va en finally y no en el then para que
+    // sondee también cuando no se pudo leer la versión, porque eso pasa justo al
+    // arrancar sin red, que es cuando más hace falta el aviso de lo pendiente.
+    window.__pokeGridCurrentVersion = currentLauncherVersion;
+    window.pokeGridUpdatePoll.arrancar();
+  });
 const statisticsButton = document.querySelector('#statisticsButton');
 const statisticsBackdrop = document.querySelector('#statisticsBackdrop');
 const statisticsTotals = document.querySelector('#statisticsTotals');
