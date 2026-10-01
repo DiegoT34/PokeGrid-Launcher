@@ -29,6 +29,24 @@ const estadoDe = (window) => window.webContents.executeJavaScript(`(() => {
   };
 })()`);
 
+// Poner un recuento y leer el estado tiene que ser un solo viaje al renderer. Con dos
+// viajes, la aplicación se cuela en medio: al conectar la Shop real, su render publica
+// el recuento del catálogo de previsualización y pisa el que puso la prueba, y el fallo
+// aparece como si el hub estuviera mal.
+const ponerYLeer = (window, scripts, notifications) => window.webContents.executeJavaScript(`(() => {
+  ${Number.isFinite(scripts) ? `window.pokeGridNotifications.set('scripts', ${Number(scripts)});` : ''}
+  ${Number.isFinite(notifications) ? `window.pokeGridNotifications.set('notifications', ${Number(notifications)});` : ''}
+  const leer = (id) => {
+    const nodo = document.getElementById(id);
+    return { oculto: nodo.hidden, color: nodo.style.background, titulo: nodo.title };
+  };
+  return {
+    shop: leer('hamburgerAvisoDotShop'),
+    notas: leer('hamburgerAvisoDotNotas'),
+    actualizador: leer('hamburgerAvisoDotActualizador')
+  };
+})()`);
+
 app.whenReady().then(async () => {
   let ventana = null;
   try {
@@ -50,13 +68,7 @@ app.whenReady().then(async () => {
     assert.equal(inicial.actualizador.oculto, true, 'Sin recuentos ninguna bolita se ve.');
 
     // Cada fuente pinta con su color, y solo se ve si tiene algo pendiente.
-    await ventana.webContents.executeJavaScript(`(() => {
-      window.pokeGridNotifications.set('scripts', 3);
-      window.pokeGridNotifications.set('notifications', 1);
-      return true;
-    })()`);
-    await wait(150);
-    const dos = await estadoDe(ventana);
+    const dos = await ponerYLeer(ventana, 3, 1);
     assert.equal(dos.shop.oculto, false, 'Con 3 scripts pendientes la bolita se ve.');
     assert.equal(dos.shop.color, 'var(--warning)', `La bolita de la Shop usa su color, no ${dos.shop.color}.`);
     assert.ok(/3 pendientes/.test(dos.shop.titulo), `El título dice cuántos, no "${dos.shop.titulo}".`);
@@ -69,6 +81,29 @@ app.whenReady().then(async () => {
     await wait(150);
     const trasVer = await estadoDe(ventana);
     assert.equal(trasVer.shop.oculto, true, 'Ver las pendientes apaga la bolita de contenido.');
+
+    // Y si después llega contenido nuevo, tiene que volver a avisar. Con un
+    // "visto" booleano esto no pasaba: marcar como visto fijaba la fuente para
+    // siempre y lo nuevo ya no se veía. Es lo que pasó al conectar la Shop real.
+    // Con 4 y no con 3 a propósito: los mismos tres que ya viste no deben volver a
+    // avisar, solo los que llegan por encima.
+    const trasNuevo = await ponerYLeer(ventana, 4);
+    assert.equal(trasNuevo.shop.oculto, false, 'Contenido nuevo después de verlo todo tiene que volver a avisar.');
+
+    // Y con el mismo número que ya se había visto, no vuelve a avisar.
+    await ventana.webContents.executeJavaScript(`(() => { window.pokeGridNotifications.seen('scripts'); return true; })()`);
+    await wait(150);
+    const sinNuevos = await ponerYLeer(ventana, 4);
+    assert.equal(sinNuevos.shop.oculto, true, 'Los mismos pendientes ya vistos no tienen que volver a avisar.');
+
+    // Volver a verlo la apaga otra vez.
+    await ventana.webContents.executeJavaScript(`(() => {
+      window.pokeGridNotifications.set('scripts', 5);
+      return true;
+    })()`);
+    await ventana.webContents.executeJavaScript(`(() => { window.pokeGridNotifications.seen('scripts'); return true; })()`);
+    await wait(150);
+    assert.equal((await estadoDe(ventana)).shop.oculto, true, 'Verlo otra vez la apaga otra vez.');
 
     // ...pero la del actualizador no se apaga nunca al mirar.
     await ventana.webContents.executeJavaScript(`(() => { window.pokeGridNotifications.set('updater', 1); return true; })()`);

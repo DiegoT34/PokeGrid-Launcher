@@ -42,20 +42,31 @@ const AVISOS = Object.freeze([
 // vez que ve que tiene algo pendiente.
 const PENDIENTE_SIEMPRE = Object.freeze(['updater']);
 
-const estado = new Map(AVISOS.map((aviso) => [aviso.id, Object.assign({}, aviso, { count: 0, visto: false })]));
+const estado = new Map(AVISOS.map((aviso) => [
+  aviso.id,
+  // vistoHasta es el último recuento que el usuario dio por visto, no un booleano.
+  // Con un booleado, marcar como visto fijaba la fuente para siempre: si después
+  // llegaba algo nuevo, la bolita no volvía a aparecer. Con un número, lo nuevo
+  // supera lo visto y vuelve a avisar.
+  Object.assign({}, aviso, { count: 0, vistoHasta: 0 })
+]));
 const suscriptores = new Set();
 
 function textoContador(count) {
   return count > 99 ? '99+' : String(count);
 }
 
+function pendienteDe(aviso) {
+  if (aviso.count <= 0) return false;
+  return PENDIENTE_SIEMPRE.includes(aviso.id) || aviso.count > aviso.vistoHasta;
+}
+
 function pintarUno(aviso) {
-  const pendiente = aviso.count > 0 && (!aviso.visto || PENDIENTE_SIEMPRE.includes(aviso.id));
   const texto = `${aviso.titulo}: ${aviso.count} pendiente${aviso.count === 1 ? '' : 's'}`;
 
   const dot = document.getElementById(aviso.dotId);
   if (dot) {
-    dot.hidden = !pendiente;
+    dot.hidden = !pendienteDe(aviso);
     dot.style.background = aviso.color;
     dot.title = texto;
   }
@@ -94,9 +105,6 @@ const pokeGridNotifications = Object.freeze({
     }
     const total = Math.max(0, Number(count) || 0);
     aviso.count = total;
-    // Un recuento que baja a cero se da por visto: si no hay nada pendiente, no
-    // tiene sentido seguir marcando que no se ha mirado.
-    if (total === 0) aviso.visto = true;
     dibujar();
     return total;
   },
@@ -111,7 +119,7 @@ const pokeGridNotifications = Object.freeze({
       // se llame a seen(). Es a propósito y la prueba lo fija.
       return false;
     }
-    aviso.visto = true;
+    aviso.vistoHasta = aviso.count;
     dibujar();
     return true;
   },
@@ -120,7 +128,7 @@ const pokeGridNotifications = Object.freeze({
     if (!aviso) return 0;
     const total = aviso.count;
     aviso.count = 0;
-    aviso.visto = true;
+    aviso.vistoHasta = 0;
     dibujar();
     return total;
   },

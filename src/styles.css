@@ -439,6 +439,9 @@ input:focus-visible {
   transform-origin: center;
   transition: transform 170ms ease, opacity 130ms ease;
 }
+/* El fondo y el color los pone el hub en línea, uno por fuente: la Shop en ámbar,
+   las notificaciones en rojo y el actualizador en verde. Aquí queda solo la forma.
+   El texto oscuro funciona sobre los tres tokens, que son todos claros. */
 .menu-update-badge {
   min-width: 18px;
   height: 18px;
@@ -449,9 +452,7 @@ input:focus-visible {
   place-items: center;
   border: 2px solid #111820;
   border-radius: 999px;
-  background: #ff534d;
-  color: #fff;
-  box-shadow: 0 3px 10px rgba(255, 66, 58, .42);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .32);
   font: 900 8px/1 system-ui;
   pointer-events: none;
 }

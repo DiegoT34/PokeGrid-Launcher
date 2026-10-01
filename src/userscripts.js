@@ -50,7 +50,6 @@
   }
 
   const scriptsButton = document.querySelector('#scriptsButton');
-  const scriptsMenuBadge = document.querySelector('#scriptsMenuBadge');
   const backdrop = document.querySelector('#scriptsBackdrop');
   const closeButton = document.querySelector('#closeScriptsButton');
   const newButton = document.querySelector('#newScriptButton');
@@ -99,7 +98,6 @@
   const scriptShopTab = document.querySelector('#scriptShopTab');
   const installedScriptsView = document.querySelector('#installedScriptsView');
   const scriptShopView = document.querySelector('#scriptShopView');
-  const scriptShopUpdateBadge = document.querySelector('#scriptShopUpdateBadge');
   const scriptShopSearch = document.querySelector('#scriptShopSearch');
   const refreshScriptShopButton = document.querySelector('#refreshScriptShopButton');
   const scriptShopSummary = document.querySelector('#scriptShopSummary');
@@ -573,14 +571,6 @@
     return { updates, newScripts, total: updates + newScripts };
   }
 
-  function setMenuBadge(element, total, title) {
-    if (!element) return;
-    element.textContent = total > 99 ? '99+' : String(total);
-    element.hidden = total === 0;
-    element.title = title;
-    element.setAttribute('aria-label', title);
-  }
-
   function scriptShopState(item) {
     const installed = installedShopScript(item.id);
     if (!installed) return { key: 'available', label: 'Disponible', installed: null };
@@ -598,9 +588,10 @@
       newScripts ? `${newScripts} script${newScripts === 1 ? '' : 's'} nuevo${newScripts === 1 ? '' : 's'}` : '',
       updates ? `${updates} actualización${updates === 1 ? '' : 'es'}` : ''
     ].filter(Boolean).join(' y ') || 'No hay novedades de scripts';
-    scriptShopUpdateBadge.textContent = total > 99 ? '99+' : String(total);
-    scriptShopUpdateBadge.hidden = total === 0;
-    setMenuBadge(scriptsMenuBadge, total, details);
+    // Un solo recuento publicado. El hub pinta los tres sitios que lo muestran —la
+    // bolita del menú y los dos badges— así que no pueden dejar de coincidir. Antes
+    // los tres se escribían aquí a mano, y dos con un helper y uno sin él.
+    window.pokeGridNotifications.set('scripts', total);
     scriptsButton.title = details;
   }
 

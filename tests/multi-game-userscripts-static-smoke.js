@@ -49,4 +49,11 @@ const queriedIds = [...manager.matchAll(/document\.querySelector\('#([^']+)'\)/g
 const uncoveredIds = [...new Set(queriedIds)].filter((selector) => !requiredSelectors.includes(selector));
 assert.deepEqual(uncoveredIds, [], `ids resueltos por el modulo y ausentes de REQUIRED_SCRIPT_ELEMENTS: ${uncoveredIds.join(', ')}`);
 
+// Los badges los pinta el hub. Estos checks existen para que, si alguien vuelve a
+// escribirlos a mano, salte en vez de volver a haber dos fuentes de verdad para el
+// mismo numero. Ya paso una vez: el numero de la Shop estaba escrito en tres sitios.
+assert.doesNotMatch(manager, /scriptShopUpdateBadge\.textContent\s*=/);
+assert.doesNotMatch(manager, /scriptsMenuBadge\.textContent\s*=/);
+assert.doesNotMatch(manager, /hamburgerScriptBadge/);
+
 console.log(`Multi-game userscript static smoke passed: scope, preload, injection, refresh, game labels and ${requiredSelectors.length} required script elements are wired.`);

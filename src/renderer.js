@@ -1391,8 +1391,9 @@ function showLauncherEventAlert(notification) {
 
 function renderNotifications() {
   const unread = launcherNotifications.filter((notification) => !notification.read).length;
-  notificationBadge.textContent = unread > 99 ? '99+' : String(unread);
-  notificationBadge.hidden = unread === 0;
+  // Al registro, no a mano: el hub pinta el badge con su color. Las dos líneas que
+  // escribían notificationBadge directamente sobran y se han ido.
+  window.pokeGridNotifications.set('notifications', unread);
   notificationButton.classList.toggle('has-unread', unread > 0);
   const query = normalizeSearchText(notificationPokemonFilter.value);
   const typeFilter = notificationTypeFilter.value;
@@ -1513,6 +1514,7 @@ function openNotificationPanel() {
   renderGoalCatalog();
   if (launcherNotifications.some((notification) => !notification.read)) {
     launcherNotifications.forEach((notification) => { notification.read = true; });
+    window.pokeGridNotifications.seen('notifications');
     saveLauncherNotifications();
   }
   renderNotifications();
@@ -9262,6 +9264,7 @@ notificationButton.addEventListener('click', () => {
 document.querySelector('#closeNotificationButton').addEventListener('click', closeNotificationPanel);
 document.querySelector('#markNotificationsButton').addEventListener('click', () => {
   launcherNotifications.forEach((notification) => { notification.read = true; });
+  window.pokeGridNotifications.seen('notifications');
   persistLauncherNotifications(launcherNotifications).catch(() => {});
   saveLauncherNotifications();
   renderNotifications();

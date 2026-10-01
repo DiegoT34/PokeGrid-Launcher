@@ -32,4 +32,28 @@ assert.ok(hub > -1, 'No se carga notification-hub.js.');
 assert.ok(hub < orden.indexOf('userscripts.js') && hub < orden.indexOf('renderer.js'),
   `notification-hub.js tiene que cargarse antes que los dos módulos. Orden actual: ${orden.join(', ')}`);
 
+// Cada fuente declara qué badges tiene que pintar. La de la Shop declara dos: el del
+// botón de Scripts y el de la pestaña, porque los dos dicen lo mismo y si el hub no
+// declarara ambos, uno se quedaría congelado con el último valor que escribió el
+// código antiguo.
+const porFuente = {
+  scripts: ['scriptsMenuBadge', 'scriptShopUpdateBadge'],
+  notifications: ['notificationBadge'],
+  updater: ['updateLauncherBadge']
+};
+for (const [id, badges] of Object.entries(porFuente)) {
+  const bloque = fuente.split(`id: '${id}'`)[1] || '';
+  for (const badge of badges) {
+    assert.ok(bloque.includes(badge), `La fuente '${id}' tiene que declarar el badge ${badge}.`);
+  }
+}
+// Y cada badge declarado tiene que existir en el HTML, salvo los que llegan más
+// tarde en tareas posteriores, que se comprueban cuando llegan.
+for (const [id, badges] of Object.entries(porFuente)) {
+  for (const badge of badges) {
+    if (id === 'updater') continue;
+    assert.ok(html.includes(`id="${badge}"`), `El badge ${badge} está declarado en el hub pero no existe en index.html.`);
+  }
+}
+
 console.log('Notification hub static smoke passed: 3 fuentes, 3 colores, 3 bolitas en orden.');
