@@ -219,7 +219,16 @@ function esCapturaDeShop(rawUrl, id) {
   // `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png`,
   // que tiene la ruta exactamente igual y un host que no es el nuestro. En la Tarea 2
   // esta comprobación es la frontera de seguridad del `net.fetch` del proceso principal,
-  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que hay.
+  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que decide
+  // **de dónde se pide**.
+  //
+  // Lo que decide es el origen de la petición, no el de la respuesta: `net.fetch` sigue las
+  // redirecciones y no revalida `response.url` al volver, al contrario que el catálogo y los
+  // scripts, que van con `redirect: 'error'`. Se acepta por dos razones: quien pueda hacer
+  // redirigir una captura desde el repositorio oficial ya puede escribir el catálogo entero,
+  // y con él un `downloadUrl` que se descarga mucho mejor; y cerrar eso exigiría tocar el
+  // cargador de sprites, que es del juego y no de este trabajo. Lo que sí se comprueba
+  // siempre es que la respuesta sea una imagen y pese lo justo.
   if (url.hostname !== 'raw.githubusercontent.com') return false;
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return false;
   const encontrado = RUTA_CAPTURA.exec(url.pathname);
@@ -944,8 +953,28 @@ En la lista de características, después de la línea de la Shop online:
 
 - [ ] **Paso 2: El documento de la Shop**
 
-En `docs/SCRIPT_SHOP.md`, añadir una sección `## Capturas de pantalla` después de
-`## Categorías`:
+Primero, en `docs/SCRIPT_SHOP.md`, **en el ejemplo completo de `## Entrada del catálogo`**
+(las líneas 63-85, el JSON con llaves). Añadir el campo antes de `publishedAt`:
+
+```json
+  "screenshots": [
+    "https://raw.githubusercontent.com/DiegoT34/PokeGrid-Script-Shop/main/screenshots/mi-herramienta-1.png"
+  ],
+```
+
+Y una frase bajo el ejemplo, antes de la que ya empieza por «`id`, `namespace` y el nombre del
+archivo»:
+
+```markdown
+`screenshots` es opcional. Si no está, el script se publica sin capturas y todo lo demás
+funciona igual; sus reglas están en [Capturas de pantalla](#capturas-de-pantalla).
+```
+
+Esto no es un detalle: el ejemplo completo es lo primero que se copia al escribir una entrada,
+y sin el campo ahí nadie descubre que existen capturas hasta leer más abajo. La revisión de
+la tarea 4 lo señaló.
+
+Después, añadir una sección `## Capturas de pantalla` después de `## Categorías`:
 
 ````markdown
 ## Capturas de pantalla
@@ -972,13 +1001,17 @@ Y en `catalog.json`, la entrada lleva:
 
 Cuatro reglas que el launcher hace cumplir:
 
-- **El nombre tiene que empezar por el id del script.** Es lo que impide que un script se
-  apropie de las capturas de otro. No lo escribas a mano: cuando la herramienta publicadora
-  lo soporte, lo generará.
-- **Solo `png`, `jpg`, `webp` y `gif`, y hasta 2 MB cada una.** El launcher no recomprime:
-  una captura de 4K pesa más y se ve bien en el visor.
+- **El nombre tiene que empezar por el id del script seguido de un guion**, como en
+  `mi-herramienta-1.png`. El guion cuenta: `mi-herramienta.png` empieza por el id y aun así
+  se descarta. Es lo que impide que un script se apropie de las capturas de otro. No lo
+  escribas a mano: cuando la herramienta publicadora lo soporte, lo generará.
+- **Solo `png`, `jpg`, `jpeg`, `webp` y `gif`, y hasta 2 MB cada una.** El tamaño se
+  comprueba **al descargarla**, no al leer el catálogo: si una captura se pasa, se ve su
+  hueco con el nombre y el resto de la ficha funciona igual. El launcher no recomprime: una
+  captura de 4K pesa más y se ve bien en el visor.
 - **La URL tiene que ser del repositorio oficial**, en `main` o en un commit completo de 40
-  hexadecimales. Cualquier otra se descarta al leer el catálogo, con un aviso en la consola.
+  hexadecimales, **sin `?` ni `#` al final**, y el nombre del archivo sin espacios, tildes ni
+  signos raros. Cualquier otra se descarta al leer el catálogo, con un aviso en la consola.
 - **Una captura con la URL mal escrita no tumba el catálogo**, a diferencia de
   `downloadUrl`. Se descarta esa captura y el resto se ven con normalidad.
 
@@ -992,8 +1025,10 @@ Y en `## Controles de seguridad` (la última sección del documento), una línea
 ```markdown
 - comprueba **el host** de cada captura, no solo su ruta: una URL como
   `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png` tiene la
-  ruta exacta y un host que no es el nuestro, y la descarga de capturas va por el proceso
-  principal, que **no está sujeto al CSP** del renderer — la lista blanca es lo único que hay;
+  ruta exacta y un host que no es el nuestro. Las capturas se descargan por el proceso
+  principal —igual que los sprites, que tampoco tienen red de seguridad del CSP— y ahí el CSP
+  del renderer no llega, así que la lista blanca es lo que decide;
+- exige además que la respuesta sea una imagen y pese lo justo;
 ```
 
 Esta línea no es adorno. La revisión de la tarea 1 encontró que la comprobación de las
