@@ -605,6 +605,24 @@ En `tests/script-shop-smoke.js`, antes del `console.log`:
   // el catalogo se veria igual de bien, asi que es la unica asercion que la caze: es un
   // problema de trafico, no de resultado.
   assert.match(renderer, /dataset\.cargado === '1'/, 'No se puede volver a descargar lo ya descargado.');
+  // Y el otro lado de la tarea: que la miniatura abra el visor. Las tres comprobaciones
+  // de arriba protegen el TRAFICO, que es invisible si falla; esto protege el resultado,
+  // que es justo lo que se nota a ojo. Borrar el visor entero —sus dos funciones, el
+  // click de la miniatura y la rama de Escape— dejaba todas las pruebas en verde.
+  assert.match(renderer, /abrirVisorDeCaptura\(dataUrl, nombre\)/,
+    'Pulsar una miniatura tiene que abrir el visor con esa captura.');
+  assert.match(renderer, /removeAttribute\('src'\)/,
+    'Al cerrar el visor hay que soltar el data: URL: seis capturas abiertas son varios MB de base64 en un atributo que ya no se mira.');
+  // Escape cierra el VISOR primero, porque el visor esta encima del modal. El orden se
+  // comprueba por posicion, no por un match: el mismo if aparece en las dos ramas.
+  const ramaVisor = renderer.indexOf('cerrarVisorDeCaptura(); return;');
+  const ramaModal = renderer.indexOf("!backdrop.hidden");
+  assert.ok(ramaVisor > -1 && ramaModal > ramaVisor,
+    'Escape tiene que cerrar el visor antes que el Centro de scripts, que estan los dos abiertos.');
+  // Y la galeria va AL PRINCIPIO de los detalles: quien los abre quiere ver la captura,
+  // no leer texto antes de verla. Un appendChild lapondria al final y pasaria igual.
+  assert.match(renderer, /detalles\.prepend\(galeria\)/,
+    'La galeria va al principio de los detalles, no al final.');
 }
 ```
 
@@ -716,6 +734,9 @@ Añadir al final de `src/styles.css`:
 }
 ```
 
+**Con un salto de línea al final.** Sin él el fichero termina en `}` sin `\n`, y todo diff
+futuro que lo toque ensucia la última línea con un aviso de «no newline at end of file».
+
 - [ ] **Paso 5: Declarar los elementos del visor**
 
 En `src/userscripts.js`, junto a los demás `document.querySelector` de la Shop:
@@ -802,8 +823,13 @@ el del render y pasaría sin comprobar nada.
   function cerrarVisorDeCaptura() {
     if (!scriptShopViewer || scriptShopViewer.hidden) return;
     scriptShopViewer.hidden = true;
-    // Se suelta el data: URL. Con seis capturas abiertas a la vez son varios MB de
-    // base64 en un atributo src que ya no se está mirando.
+    // Se suelta el data: URL del atributo src. Con seis capturas abiertas a la vez son
+    // varios MB de base64 en un atributo que ya no se está mirando.
+    //
+    // Ojo con el alcance de la frase: lo que esto libera es el bitmap decodificado que
+    // el navegador tenía resident. Las cadenas base64 siguen vivas en el cierre de los
+    // seis escuchadores de miniatura, y liberarlas exigiría rehacer los nodos. Con seis
+    // capturas de 2 MB como máximo es asumible, y es la razón por la que el límite es 6.
     scriptShopViewerImage.removeAttribute('src');
   }
 ```
@@ -821,7 +847,13 @@ Junto a los escuchadores de las pestañas de la Shop:
 ```
 
 Y **una sola vez**, en el manejador de la tecla Escape que ya existe para cerrar el modal de
-scripts. Localízalo con:
+scripts. Localízalo buscando `event.key !== 'Escape'` en `src/userscripts.js`; hay tres
+`Escape` y el que importa es el `document.addEventListener('keydown', ...)` del final.
+
+La línea tiene que comprobar la tecla. El manejador es un `keydown` **global** y recibe
+todas: sin `event.key === 'Escape'`, **cualquier** tecla cerraría el visor, y además haría
+`return` y se saltaría el cierre del modal. Este defecto lo encontró la revisión de la
+tarea 3, y el código del brief lo tenía.
 
 ```bash
 node "C:\Users\Shockviny\AppData\Local\Temp\opencode\contar.js" src/userscripts.js
@@ -830,7 +862,7 @@ node "C:\Users\Shockviny\AppData\Local\Temp\opencode\contar.js" src/userscripts.
 y buscando `Escape`. Dentro de ese manejador, añade antes del final:
 
 ```js
-    if (!scriptShopViewer.hidden) { cerrarVisorDeCaptura(); return; }
+    if (event.key === 'Escape' && scriptShopViewer && !scriptShopViewer.hidden) { cerrarVisorDeCaptura(); return; }
 ```
 
 Si no hay un manejador de Escape para el modal, créalo junto a los demás escuchadores:
@@ -864,11 +896,20 @@ Expected: sin salida. Si aparece, es que un id está en la lista y no en el HTML
 | 2 | Mete `loadImageDataUrl` dentro de `renderScriptShop` | `renderScriptShop no puede descargar imagenes.` |
 | 3 | Quita `if (galeria.dataset.cargado === '1') return;` | `No se puede volver a descargar lo ya descargado.` |
 | 4 | Borra la regla `.script-shop-shot.is-error { ... }` del CSS | `El hueco de una captura que falla necesita estilo propio.` |
+| 5 | Cambia `detalles.prepend(galeria)` por `detalles.appendChild(galeria)` | `La galeria va al principio de los detalles, no al final.` |
+| 6 | Quita `figura.addEventListener('click', ...)` | `Pulsar una miniatura tiene que abrir el visor con esa captura.` |
+| 7 | Quita `scriptShopViewerImage.removeAttribute('src')` | `Al cerrar el visor hay que soltar el data: URL...` |
+| 8 | Invierte el orden: pone la rama del modal antes que la del visor | `Escape tiene que cerrar el visor antes que el Centro de scripts...` |
 
 La 3 no la cazaba ninguna prueba: es un problema de tráfico, no de resultado — el catálogo
 se vería igual de bien con la guarda que sin ella. La aserción que la caza está ya en el
 paso 1, con el resto, y no como un recuerdo del paso 10: una comprobación que depende de
 que alguien se acuerde de añadirla no es una comprobación.
+
+Las 5 a 8 las añadió la revisión de la tarea 3, que encontró que **la mitad visible de la
+tarea no la cazaba ninguna prueba**: las tres comprobaciones iniciales protegían el tráfico
+de red, que es invisible si falla, y no el resultado, que es lo que se nota a ojo. Borrar
+el visor entero dejaba la suite en verde.
 
 La 4 también tenía un problema, ya corregido: la aserción buscaba la cadena
 `.script-shop-shot.is-error` sin ancla, y el CSS tiene dos reglas que empiezan por ella
