@@ -609,7 +609,10 @@ En `tests/script-shop-smoke.js`, antes del `console.log`:
   // de arriba protegen el TRAFICO, que es invisible si falla; esto protege el resultado,
   // que es justo lo que se nota a ojo. Borrar el visor entero —sus dos funciones, el
   // click de la miniatura y la rama de Escape— dejaba todas las pruebas en verde.
-  assert.match(renderer, /abrirVisorDeCaptura\(dataUrl, nombre\)/,
+  // Con la flecha delante, y no el nombre de la funcion a secas. `abrirVisorDeCaptura(
+  // dataUrl, nombre)` aparece TAMBIEN en la definicion, asi que sin la flecha quitar el
+  // click de la miniatura dejaba la comprobacion en verde.
+  assert.match(renderer, /=> abrirVisorDeCaptura\(dataUrl, nombre\)/,
     'Pulsar una miniatura tiene que abrir el visor con esa captura.');
   assert.match(renderer, /removeAttribute\('src'\)/,
     'Al cerrar el visor hay que soltar el data: URL: seis capturas abiertas son varios MB de base64 en un atributo que ya no se mira.');
