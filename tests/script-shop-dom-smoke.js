@@ -215,7 +215,37 @@ app.whenReady().then(async () => {
     );
     assert.equal(recordada, 'true', 'La pestaña elegida se recuerda al reabrir el centro de scripts.');
 
-    console.log(JSON.stringify({ ok: true, estructura, shop, filtrada, todas, updates, filtradaEnUpdates, sinFiltro, scriptsRecordada, recordada }));
+    // La pestaña recordada tiene que aplicarse de verdad al abrir, y eso solo se puede
+    // comprobar sobre una página recién cargada: dentro de la misma sesión las pestañas
+    // conservan su estado de la última vez y la comprobación pasaría aunque la memoria no
+    // se usara para nada. Por eso se recarga.
+    const recargarYMirar = async (guardado) => {
+      await ventana.webContents.executeJavaScript(
+        `localStorage.setItem('pokegrid:scripts-view:v1', ${JSON.stringify(guardado)}); true`
+      );
+      await ventana.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
+      await wait(900);
+      await ventana.webContents.executeJavaScript(`document.querySelector('#scriptsButton').click(); true`);
+      await wait(600);
+      return ventana.webContents.executeJavaScript(`(() => ({
+        instaladas: document.querySelector('#installedScriptsTab').getAttribute('aria-selected'),
+        shop: document.querySelector('#scriptShopTab').getAttribute('aria-selected'),
+        updates: document.querySelector('#scriptShopUpdatesTab').getAttribute('aria-selected')
+      }))()`);
+    };
+
+    const guardadaUpdates = await recargarYMirar('updates');
+    assert.deepEqual(guardadaUpdates, { instaladas: 'false', shop: 'false', updates: 'true' },
+      `Guardar «updates» tiene que abrir ahí al recargar, no solo guardarlo. Obtenido: ${JSON.stringify(guardadaUpdates)}`);
+
+    // Un valor guardado que no es una de las tres pestañas —de una versión antigua del
+    // formato, o escrito a mano— se ignora. Si no, el centro abriría en una vista que no
+    // existe, con las tres pestañas desmarcadas.
+    const guardadaRota = await recargarYMirar('banana');
+    assert.deepEqual(guardadaRota, { instaladas: 'true', shop: 'false', updates: 'false' },
+      `Un valor guardado que no es una pestaña válida se ignora y se empieza en «Mis scripts». Obtenido: ${JSON.stringify(guardadaRota)}`);
+
+    console.log(JSON.stringify({ ok: true, estructura, shop, filtrada, todas, updates, filtradaEnUpdates, sinFiltro, scriptsRecordada, recordada, guardadaUpdates, guardadaRota }));
     ventana.destroy();
     app.exit(0);
   } catch (error) {

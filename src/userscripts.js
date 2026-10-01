@@ -1269,6 +1269,12 @@ function renderScriptShopCategories(categories) {
     // decisión de trabajo, no una preferencia del launcher.
     scriptShopCategory = '';
     scriptShopCategoryNombre = '';
+    // La pestaña recordada se aplica aquí, y no solo al leerla. Sin esta llamada el valor
+    // se guardaba pero no se usaba para nada: al abrir se veía siempre «Mis scripts»,
+    // porque eso es lo que dice el HTML por defecto, y la memoria solo cambiaba un estado
+    // interno que nadie miraba. Se aplica antes de mostrar el panel para que no haya un
+    // destello con la pestaña equivocada.
+    switchScriptsView(activeScriptsView);
     document.body.classList.add('has-scripts-modal');
     panelRows.forEach((panel) => panel.webview?.style.setProperty('visibility', 'hidden', 'important'));
     backdrop.hidden = false;
