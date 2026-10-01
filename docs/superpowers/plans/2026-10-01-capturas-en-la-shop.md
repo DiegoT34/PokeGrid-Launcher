@@ -556,7 +556,11 @@ for (const id of ['#scriptShopViewer', '#scriptShopViewerImage', '#scriptShopVie
 }
 assert.match(css, /^\.script-shop-gallery\s*\{/m, 'La galeria necesita estilo.');
 assert.match(css, /^\.script-shop-viewer\s*\{/m, 'El visor necesita estilo.');
-assert.match(css, /\.script-shop-shot\.is-error/, 'El hueco de una captura que falla necesita estilo propio.');
+// Con ancla a la llave de apertura, y no a la cadena suelta. El CSS va a tener DOS reglas
+// que empiezan por `.script-shop-shot.is-error`: la base y una descendant que esconde la
+// imagen. Buscar la cadena sin ancla encuentra la descendant aunque la base no exista, y el
+// sabotaje 4 pasaria sin comprobar nada.
+assert.match(css, /^\.script-shop-shot\.is-error\s*\{/m, 'El hueco de una captura que falla necesita estilo propio.');
 ```
 
 En `tests/script-shop-smoke.js`, antes del `console.log`:
@@ -571,22 +575,36 @@ En `tests/script-shop-smoke.js`, antes del `console.log`:
 // y las funciones nuevas van DESPUES de esa segunda. Si el ayudante se metiera entre las
 // dos, la asercion leeria su propio codigo como si fuera el del render y pasaria sin
 // comprobar nada, que es el peor fallo posible de una comprobacion de este tipo.
+//
+// OJO: en ESTE fichero el buffer de src/userscripts.js se llama `renderer` (linea 8), no
+// `manager`. En el otro fichero de pruebas, si. Usar el nombre equivocado aqui revienta
+// con ReferenceError antes de comprobar nada, y un ReferenceError en una prueba nueva se
+// lee como un fallo de la prueba, no como un fallo del codigo.
 {
-  const desde = manager.indexOf('function renderScriptShop(');
-  const hasta = manager.indexOf('function renderScriptShopCategories(');
-  const cuerpo = manager.slice(desde, hasta);
+  const desde = renderer.indexOf('function renderScriptShop(');
+  const hasta = renderer.indexOf('function renderScriptShopCategories(');
+  const cuerpo = renderer.slice(desde, hasta);
   assert.ok(desde > -1 && hasta > desde, 'No se ha encontrado el cuerpo de renderScriptShop.');
   assert.doesNotMatch(cuerpo, /loadImageDataUrl/,
     'renderScriptShop no puede descargar imagenes: se descarga al abrir los detalles.');
-  assert.match(manager, /addEventListener\('toggle'/, 'La descarga tiene que ir en el toggle de los detalles.');
-  assert.match(manager, /planCapturas\(item\)/, 'La galeria se decide con el modulo puro.');
+  assert.match(renderer, /addEventListener\('toggle'/, 'La descarga tiene que ir en el toggle de los detalles.');
+  assert.match(renderer, /planCapturas\(item\)/, 'La galeria se decide con el modulo puro.');
   // Y que el ayudante este despues de donde acaba el recorte, no dentro.
-  assert.ok(manager.indexOf('function cargarCapturasDeShop') > hasta,
+  assert.ok(renderer.indexOf('function cargarCapturasDeShop') > hasta,
     'cargarCapturasDeShop va despues de renderScriptShopCategories, o la comprobacion de arriba leeria su codigo.');
   // El hueco de una captura que falla: una captura que responde 404, o no es imagen, o
   // pesa mas de 2 MB. El comportamiento no se puede observar con el harness, asi que al
   // menos se fija que el camino de error existe y pinta el hueco.
-  assert.match(manager, /classList\.add\('is-error'\)/, 'Una captura que no se puede cargar tiene que pintar un hueco.');
+  //
+  // Y con el nombre de la clase, no con una subcadena: src/userscripts.js ya usa
+  // `is-error` para el estado de los scripts (lineas 417, 1598...) con className, no con
+  // classList.add. Buscar `is-error` a secas encontraria esos y pasaria aunque el camino
+  // de error de la captura no existiera.
+  assert.match(renderer, /classList\.add\('is-error'\)/, 'Una captura que no se puede cargar tiene que pintar un hueco.');
+  // Abrir y cerrar los detalles cinco veces no puede ser cinco descargas. Sin esta guarda
+  // el catalogo se veria igual de bien, asi que es la unica asercion que la caze: es un
+  // problema de trafico, no de resultado.
+  assert.match(renderer, /dataset\.cargado === '1'/, 'No se puede volver a descargar lo ya descargado.');
 }
 ```
 
@@ -844,10 +862,18 @@ Expected: sin salida. Si aparece, es que un id está en la lista y no en el HTML
 |---|---|---|
 | 1 | Quita `detalles.addEventListener('toggle', ...)` | `La descarga tiene que ir en el toggle de los detalles.` |
 | 2 | Mete `loadImageDataUrl` dentro de `renderScriptShop` | `renderScriptShop no puede descargar imagenes.` |
-| 3 | Quita `if (galeria.dataset.cargado === '1') return;` | Ninguna prueba lo caza: es un problema de tráfico, no de resultado. **Añado la aserción antes de dar la tarea por buena**: `assert.match(manager, /dataset\.cargado === '1'/)` en `tests/script-shop-smoke.js`, y se repite el sabotaje |
-| 4 | Borra `.script-shop-shot.is-error` del CSS | `El hueco de una captura que falla necesita estilo propio.` |
+| 3 | Quita `if (galeria.dataset.cargado === '1') return;` | `No se puede volver a descargar lo ya descargado.` |
+| 4 | Borra la regla `.script-shop-shot.is-error { ... }` del CSS | `El hueco de una captura que falla necesita estilo propio.` |
 
-La 3 es el hueco real de esta tarea, y el paso lo dice en vez de esconderlo.
+La 3 no la cazaba ninguna prueba: es un problema de tráfico, no de resultado — el catálogo
+se vería igual de bien con la guarda que sin ella. La aserción que la caza está ya en el
+paso 1, con el resto, y no como un recuerdo del paso 10: una comprobación que depende de
+que alguien se acuerde de añadirla no es una comprobación.
+
+La 4 también tenía un problema, ya corregido: la aserción buscaba la cadena
+`.script-shop-shot.is-error` sin ancla, y el CSS tiene dos reglas que empiezan por ella
+(la base y una descendant). Borrar la base dejaba la descendant, la comprobación pasaba y
+el sabotaje no mordía. Ahora busca `^\.script-shop-shot\.is-error\s*\{` con la bandera `m`.
 
 - [ ] **Paso 11: Commit**
 
