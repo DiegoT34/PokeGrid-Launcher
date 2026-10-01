@@ -35,7 +35,16 @@ function esCapturaDeShop(rawUrl, id) {
   // `https://otro-sitio.example/DiegoT34/PokeGrid-Script-Shop/main/screenshots/x-1.png`,
   // que tiene la ruta exactamente igual y un host que no es el nuestro. En la Tarea 2
   // esta comprobación es la frontera de seguridad del `net.fetch` del proceso principal,
-  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que hay.
+  // y ese `fetch` no está sujeto al CSP, así que la lista blanca es lo único que decide
+  // **de dónde se pide**.
+  //
+  // Lo que decide es el origen de la petición, no el de la respuesta: `net.fetch` sigue las
+  // redirecciones y no revalida `response.url` al volver, al contrario que el catálogo y los
+  // scripts, que van con `redirect: 'error'`. Se acepta por dos razones: quien pueda hacer
+  // redirigir una captura desde el repositorio oficial ya puede escribir el catálogo entero,
+  // y con él un `downloadUrl` que se descarga mucho mejor; y cerrar eso exigiría tocar el
+  // cargador de sprites, que es del juego y no de este trabajo. Lo que sí se comprueba
+  // siempre es que la respuesta sea una imagen y pese lo justo.
   if (url.hostname !== 'raw.githubusercontent.com') return false;
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return false;
   const encontrado = RUTA_CAPTURA.exec(url.pathname);
