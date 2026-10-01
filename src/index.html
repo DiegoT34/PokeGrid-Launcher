@@ -320,6 +320,10 @@
             <span aria-hidden="true">&#128722;</span> Shop online
             <i id="scriptShopUpdateBadge" hidden>0</i>
           </button>
+          <button id="scriptShopUpdatesTab" class="scripts-view-tab" type="button" aria-selected="false">
+            <span aria-hidden="true">&#8635;</span> Actualizaciones
+            <i id="scriptShopUpdatesBadge" hidden>0</i>
+          </button>
         </nav>
 
         <div id="installedScriptsView" class="script-center-view">
@@ -437,9 +441,9 @@
         <section id="scriptShopView" class="script-center-view script-shop" aria-labelledby="scriptShopHeading" hidden>
           <header class="script-shop-toolbar">
             <div>
-              <span class="eyebrow">CAT&Aacute;LOGO OFICIAL POKEGRID</span>
+              <span class="eyebrow" id="scriptShopEyebrow">CAT&Aacute;LOGO OFICIAL POKEGRID</span>
               <h2 id="scriptShopHeading">Shop de scripts</h2>
-              <p>Instala y actualiza scripts publicados por DiegoT34, con verificaci&oacute;n de integridad antes de guardarlos.</p>
+              <p id="scriptShopIntro">Instala y actualiza scripts publicados por DiegoT34, con verificaci&oacute;n de integridad antes de guardarlos.</p>
             </div>
             <div class="script-shop-tools">
               <label class="script-shop-search">
@@ -450,6 +454,7 @@
             </div>
           </header>
           <div id="scriptShopSummary" class="script-shop-summary" aria-live="polite"></div>
+          <div id="scriptShopCategories" class="script-shop-categories" role="group" aria-label="Filtrar por categor&iacute;a"></div>
           <div id="scriptShopGrid" class="script-shop-grid"></div>
           <p id="scriptShopMessage" class="modal-message script-shop-message" role="status"></p>
         </section>

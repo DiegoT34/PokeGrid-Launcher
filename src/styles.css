@@ -4260,3 +4260,59 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 
 .hamburger-aviso-dot[hidden] { display: none; }
+
+/* Pastillas de categoría de la Shop. Con número, y solo con las que existen de verdad
+   en el catálogo: un «Combate» vacío no aparece, porque una pastilla sin nada detrás
+   promete algo que no hay. El contador tiene ancho mínimo con ch para que cambiar el
+   número no mueva el resto de la fila. */
+.script-shop-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.script-shop-categories:empty {
+  display: none;
+}
+
+.script-shop-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .05);
+  color: inherit;
+  font: 600 12px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.script-shop-category:hover {
+  border-color: rgba(255, 255, 255, .28);
+}
+
+.script-shop-category:focus-visible {
+  outline: 2px solid var(--warning);
+  outline-offset: 2px;
+}
+
+.script-shop-category[aria-pressed="true"] {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: #17140a;
+}
+
+.script-shop-category-count {
+  min-width: 1.6ch;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .28);
+  font-size: 11px;
+  text-align: center;
+}
+
+.script-shop-category[aria-pressed="true"] .script-shop-category-count {
+  background: rgba(0, 0, 0, .22);
+}

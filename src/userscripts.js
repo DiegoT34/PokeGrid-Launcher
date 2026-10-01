@@ -39,8 +39,9 @@
     '#scriptPermissionSummary', '#scriptsMessage', '#deleteScriptButton', '#exportScriptButton',
     '#cancelScriptChangesButton', '#pickExtensionButton', '#extensionPathOutput',
     '#extensionAccountToggles', '#extensionStatus', '#applyExtensionButton',
-    '#installedScriptsTab', '#scriptShopTab', '#installedScriptsView', '#scriptShopView',
-    '#scriptShopUpdateBadge', '#updateLauncherBadge', '#scriptShopSearch', '#refreshScriptShopButton',
+    '#installedScriptsTab', '#scriptShopTab', '#scriptShopUpdatesTab', '#installedScriptsView', '#scriptShopView',
+    '#scriptShopUpdateBadge', '#scriptShopUpdatesBadge', '#updateLauncherBadge', '#scriptShopSearch', '#refreshScriptShopButton',
+    '#scriptShopEyebrow', '#scriptShopHeading', '#scriptShopIntro', '#scriptShopCategories',
     '#scriptShopSummary', '#scriptShopGrid', '#scriptShopMessage'
   ];
 

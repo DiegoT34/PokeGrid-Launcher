@@ -56,4 +56,25 @@ assert.doesNotMatch(manager, /scriptShopUpdateBadge\.textContent\s*=/);
 assert.doesNotMatch(manager, /scriptsMenuBadge\.textContent\s*=/);
 assert.doesNotMatch(manager, /hamburgerScriptBadge/);
 
+// La tercera pestaña y el filtro de categoría tienen que existir en el HTML. Si el
+// nombre se cambia en un sitio y no en el otro, REQUIRED_SCRIPT_ELEMENTS avisa.
+for (const id of ['#scriptShopUpdatesTab', '#scriptShopUpdatesBadge', '#scriptShopCategories', '#scriptShopEyebrow', '#scriptShopIntro']) {
+  assert.ok(htmlHasId(id), `${id} tiene que existir en index.html.`);
+}
+// Y las dos vistas comparten sección: la de Actualizaciones no es un segundo contenedor,
+// es la misma con otro filtro. Dos secciones obligarían a duplicar el render entero.
+assert.doesNotMatch(html, /id="scriptShopUpdatesView"/,
+  'Actualizaciones no necesita una segunda sección: la de Shop sirve para las dos vistas.');
+// Y el estilo existe, no solo el marcado. Sin esto, vaciar el bloque del CSS deja las
+// pastillas en el sitio pero sin forma, y ninguna otra prueba lo nota.
+// La llave va exigida justo despues del cierre del selector, y no solo el selector: hay
+// una regla descendiente que tambien lleva [aria-pressed="true"], asi que una busqueda
+// laxo seguiria encontrando texto donde ya no queda estilo. Asi lo demostro el
+// sabotaje.
+assert.match(css, /\.script-shop-category\s*\{/, 'El estilo de las pastillas tiene que existir.');
+assert.match(css, /\.script-shop-category\[aria-pressed="true"\]\s*\{/,
+  'La pastilla elegida tiene que verse distinta de las demás.');
+assert.match(css, /^\.script-shop-category-count\s*\{/m,
+  'El numero de cada pastilla tiene que tener estilo propio. La ancla va a principio de linea: si no, la regla descendiente hace de tapon.');
+
 console.log(`Multi-game userscript static smoke passed: scope, preload, injection, refresh, game labels and ${requiredSelectors.length} required script elements are wired.`);
