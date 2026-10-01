@@ -61,6 +61,8 @@ Cada línea tiene su prueba en la tarea que es dueña del código.
 **Ficheros:**
 - Crear: `src/script-shop-screenshots.js`
 - Crear: `tests/script-shop-screenshots-smoke.js`
+- Modificar: `src/index.html` (una etiqueta `<script>`, para que el navegador lo cargue)
+- Modificar: `tests/script-shop-smoke.js` (que la etiqueta exista y vaya antes de `userscripts.js`)
 
 **Interfaces:**
 - Consume: nada.
@@ -230,17 +232,47 @@ if (typeof window !== 'undefined') {
 }
 ```
 
-- [ ] **Paso 4: Ejecutar y verificar que pasa**
+- [ ] **Paso 4: Cargar el módulo en el navegador**
+
+Un módulo que existe y que nadie carga es un módulo que no existe. `userscripts.js` lo
+usará en la Tarea 3, y sin esta etiqueta `window.pokeGridShopScreenshots` será `undefined`
+y `planCapturas(item)` reventará con un TypeError al pintar la primera tarjeta.
+
+En `src/index.html`, en el bloque de scripts:
+
+```html
+    <script src="script-shop-order.js"></script>
+    <script src="script-shop-view.js"></script>
+    <script src="script-shop-screenshots.js"></script>
+```
+
+Y en `tests/script-shop-smoke.js`, antes del `console.log`:
+
+```js
+// El modulo tiene que cargarse en el navegador y antes de quien lo usa. Un modulo
+// puro que nadie carga es un modulo que no existe, y el fallo es un TypeError al
+// pintar la primera tarjeta, lejos de la causa.
+{
+  const orden = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const pos = orden.indexOf('script-shop-screenshots.js');
+  assert.ok(pos > -1, 'script-shop-screenshots.js tiene que cargarse en index.html.');
+  assert.ok(pos < orden.indexOf('userscripts.js'),
+    `Y antes de userscripts.js, que es quien lo usa. Orden actual: ${orden.join(', ')}`);
+}
+```
+
+- [ ] **Paso 5: Ejecutar y verificar que pasa**
 
 Run: `node tests\script-shop-screenshots-smoke.js`
 Expected: PASS con `Script shop screenshots smoke passed: aceptadas, rechazadas por motivo, plan y recorte a 6.`
+Run: `node tests\script-shop-smoke.js` → PASS.
 
-- [ ] **Paso 5: Correr el puerto de Node**
+- [ ] **Paso 6: Correr el puerto de Node**
 
 Run: `node scripts\run-tests.cjs node`
 Expected: todas verdes.
 
-- [ ] **Paso 6: Sabotear para comprobar que muerde**
+- [ ] **Paso 7: Sabotear para comprobar que muerde**
 
 Cada sabotaje copia `src\script-shop-screenshots.js` **en ese instante**, lo muta, corre la
 prueba y lo restaura comprobando `git hash-object src/script-shop-screenshots.js`.
@@ -256,7 +288,7 @@ prueba y lo restaura comprobando `git hash-object src/script-shop-screenshots.js
 El 5 es el más traicionero: `undefined === 'https:'` es `false` pero `get` devuelve la
 cadena, así que una URL mal formada pasa. Por eso está el `try/catch` alrededor del `new URL`.
 
-- [ ] **Paso 7: Commit**
+- [ ] **Paso 8: Commit**
 
 ```bash
 git add src/script-shop-screenshots.js tests/script-shop-screenshots-smoke.js
@@ -495,12 +527,27 @@ En `tests/script-shop-smoke.js`, antes del `console.log`:
 // 1200 imagenes posibles; descargarlas al pintar dispararia 1200 peticiones al abrir la
 // Shop. El harness tiene un script sin capturas, asi que aqui no se observa ninguna
 // peticion: se comprueba que la llamada NO esta en el render.
+//
+// El recorte va de "function renderScriptShop(" hasta "function renderScriptShopCategories("
+// y las funciones nuevas van DESPUES de esa segunda. Si el ayudante se metiera entre las
+// dos, la asercion leeria su propio codigo como si fuera el del render y pasaria sin
+// comprobar nada, que es el peor fallo posible de una comprobacion de este tipo.
 {
-  const cuerpo = manager.slice(manager.indexOf('function renderScriptShop('), manager.indexOf('function renderScriptShopCategories'));
+  const desde = manager.indexOf('function renderScriptShop(');
+  const hasta = manager.indexOf('function renderScriptShopCategories(');
+  const cuerpo = manager.slice(desde, hasta);
+  assert.ok(desde > -1 && hasta > desde, 'No se ha encontrado el cuerpo de renderScriptShop.');
   assert.doesNotMatch(cuerpo, /loadImageDataUrl/,
     'renderScriptShop no puede descargar imagenes: se descarga al abrir los detalles.');
   assert.match(manager, /addEventListener\('toggle'/, 'La descarga tiene que ir en el toggle de los detalles.');
   assert.match(manager, /planCapturas\(item\)/, 'La galeria se decide con el modulo puro.');
+  // Y que el ayudante este despues de donde acaba el recorte, no dentro.
+  assert.ok(manager.indexOf('function cargarCapturasDeShop') > hasta,
+    'cargarCapturasDeShop va despues de renderScriptShopCategories, o la comprobacion de arriba leeria su codigo.');
+  // El hueco de una captura que falla: una captura que responde 404, o no es imagen, o
+  // pesa mas de 2 MB. El comportamiento no se puede observar con el harness, asi que al
+  // menos se fija que el camino de error existe y pinta el hueco.
+  assert.match(manager, /classList\.add\('is-error'\)/, 'Una captura que no se puede cargar tiene que pintar un hueco.');
 }
 ```
 
@@ -648,7 +695,11 @@ los botones, añadir:
       }
 ```
 
-Y **después** de `renderScriptShop`, el cargador y el visor:
+Y **después de `renderScriptShopDebounced`** —que va justo detrás de
+`renderScriptShopCategories`—, el cargador y el visor. El sitio importa: una comprobación
+del plan recorta el texto de `renderScriptShop` hasta `renderScriptShopCategories`, y si
+el ayudante cayera entre las dos, esa comprobación leería su propio código como si fuera
+el del render y pasaría sin comprobar nada.
 
 ```js
   // Descarga perezosa. El guard `dataset.cargado` evita volver a pedir lo que ya está:
