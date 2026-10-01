@@ -56,4 +56,16 @@ for (const [id, badges] of Object.entries(porFuente)) {
   }
 }
 
+// Una fuente puede pintar un número distinto en cada uno de sus badges. Con la tercera
+// pestaña hace falta: la de Shop dice cuántos scripts nuevos quedan sin ver y la de
+// Actualizaciones cuántos hay sin actualizar, y salen del mismo recuento.
+assert.match(fuente, /\{\s*id:\s*'scriptShopUpdateBadge',\s*campo:\s*'newScripts'\s*\}/,
+  "El badge de la pestaña Shop tiene que leer su campo del desglose: 'newScripts'.");
+assert.match(fuente, /\{\s*id:\s*'scriptShopUpdatesBadge',\s*campo:\s*'updates'\s*\}/,
+  "El badge de la pestaña Actualizaciones tiene que leer su campo del desglose: 'updates'.");
+assert.match(fuente, /set\(id, count, desglose\)/,
+  'set() tiene que aceptar el desglose como tercer argumento.');
+assert.match(fuente, /Number\.isFinite\(Number\(valor\)\)/,
+  'Un campo ausente tiene que acabar en 0, no propagar NaN al texto del badge.');
+
 console.log('Notification hub static smoke passed: 3 fuentes, 3 colores, 3 bolitas en orden.');

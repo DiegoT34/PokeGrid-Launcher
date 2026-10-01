@@ -47,6 +47,11 @@ const ponerYLeer = (window, scripts, notifications) => window.webContents.execut
   };
 })()`);
 
+// Un viaje al renderer que ejecuta el cuerpo y devuelve lo que pida. Poner un recuento y
+// leerlo tienen que ser el mismo viaje: con dos, la aplicación se cuela en medio y su
+// render pisa lo que puso la prueba.
+const enElRenderer = (window, cuerpo) => window.webContents.executeJavaScript(`(() => { ${cuerpo} })()`);
+
 app.whenReady().then(async () => {
   let ventana = null;
   try {
@@ -172,7 +177,50 @@ app.whenReady().then(async () => {
     assert.equal(badgeVivo.oculto, false, 'El badge del botón de Actualizar se muestra.');
     assert.equal(badgeVivo.color, 'var(--success)', `El badge del botón usa su color, no ${badgeVivo && badgeVivo.color}.`);
 
-    console.log(JSON.stringify({ ok: true, inicial, dos, trasVer, trasInstalar, muchos, badgeVivo }));
+    // Los tres sitios que muestran un número quieren números distintos: la bolita del
+    // menú y el botón de arriba suman el total, la pestaña Shop muestra los nuevos sin
+    // ver y la de Actualizaciones los que hay sin actualizar.
+    // Primero se limpia. Los bloques anteriores dejaron esta fuente vista, y sin limpiar
+    // un total igual al que ya se vio no se considera pendiente: el fallo aparecería
+    // como si el registro estuviera mal cuando lo que está pendiente es el estado.
+    const porBadge = await enElRenderer(ventana, `
+      window.pokeGridNotifications.limpiar('scripts');
+      window.pokeGridNotifications.set('scripts', 5, { newScripts: 3, updates: 2 });
+      const leer = (id) => {
+        const nodo = document.getElementById(id);
+        return nodo ? { texto: nodo.textContent, oculto: nodo.hidden } : null;
+      };
+      return {
+        menu: leer('hamburgerAvisoDotShop'),
+        boton: leer('scriptsMenuBadge'),
+        shop: leer('scriptShopUpdateBadge'),
+        updates: leer('scriptShopUpdatesBadge')
+      };
+    `);
+    assert.ok(porBadge.menu, 'La bolita del menú existe y la pinta el registro.');
+    assert.equal(porBadge.menu.oculto, false, 'Con total 5 la bolita del menú se ve.');
+    assert.equal(porBadge.boton.texto, '5', `El botón de Scripts muestra el total, no "${porBadge.boton.texto}".`);
+    assert.equal(porBadge.shop.texto, '3', `La pestaña Shop muestra los nuevos sin ver, no "${porBadge.shop.texto}".`);
+    assert.equal(porBadge.updates.texto, '2', `La pestaña Actualizaciones muestra las actualizaciones, no "${porBadge.updates.texto}".`);
+
+    // Un badge que pide un campo que no viene no rompe nada: pinta 0 y se esconde.
+    const sinDesglose = await enElRenderer(ventana, `
+      window.pokeGridNotifications.set('scripts', 4);
+      const nodo = document.getElementById('scriptShopUpdatesBadge');
+      return { texto: nodo.textContent, oculto: nodo.hidden };
+    `);
+    assert.equal(sinDesglose.oculto, true,
+      `Sin desglose el badge de Actualizaciones se esconde, en vez de romper. Obtenido: "${sinDesglose.texto}".`);
+    assert.equal(sinDesglose.texto, '0', 'Y su texto es 0, no NaN ni undefined.');
+
+    // Y sin desglose, el resto sigue igual que antes: una fuente corriente no se entera.
+    const sinDesgloseTotal = await enElRenderer(ventana, `
+      window.pokeGridNotifications.set('scripts', 4);
+      return document.getElementById('scriptsMenuBadge').textContent;
+    `);
+    assert.equal(sinDesgloseTotal, '4', 'Sin desglose, un badge normal sigue viendo el total.');
+
+    console.log(JSON.stringify({ ok: true, inicial, dos, trasVer, trasInstalar, muchos, badgeVivo, porBadge, sinDesglose }));
     ventana.destroy();
     app.exit(0);
   } catch (error) {
