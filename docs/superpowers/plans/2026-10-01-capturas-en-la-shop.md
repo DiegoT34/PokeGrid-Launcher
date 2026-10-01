@@ -457,7 +457,7 @@ dentro del `.map`, añadir:
       }
 ```
 
-- [ ] **Paso 6: El recuento de caché**
+- [ ] **Paso 6: El recuento de caché y el mensaje del límite**
 
 En la línea ~1669, donde se cuentan las entradas para el presupuesto, incluir la caché
 nueva:
@@ -465,6 +465,26 @@ nueva:
 ```js
   const cachedEntries = remoteImageCache.size + pokeApiSpeciesCache.size + shopScreenshotCache.size;
 ```
+
+Y **en el mismo manejador, limpiar también la caché de capturas**. Contarla sin limpiarla
+haría que la limpieza de memoria informara de haber liberado entradas que no ha liberado:
+`cachedEntries` y `releasedMb` dirían una cosa y la memoria otra. Es el mismo motivo por el
+que el launcher no se fía de los mensajes de éxito sin comprobar el disco.
+
+```js
+    remoteImageCache.clear();
+    pokeApiSpeciesCache.clear();
+    shopScreenshotCache.clear();
+```
+
+Y el mensaje del catálogo, que **dice 512 KB y el límite ya no es ese**:
+
+```js
+if (!bytes.length || bytes.length > SCRIPT_SHOP_CATALOG_LIMIT) throw new Error('El catálogo está vacío o supera 1 MB.');
+```
+
+Un mensaje de error que miente es peor que un mensaje feo: quien lea «supera 512 KB» con
+un límite de 1 MB buscaba un error que no existe.
 
 - [ ] **Paso 7: Ejecutar y verificar que pasa**
 
