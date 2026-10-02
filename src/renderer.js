@@ -4754,7 +4754,7 @@ function toggleExpanded(panel) {
   if (expandedPanel) expandedPanel.element.classList.add('is-expanded');
   grid.classList.toggle('has-expanded', Boolean(expandedPanel));
   panels.forEach((item) => {
-    item.expandButton.textContent = item === expandedPanel ? '↙' : '⛶';
+    item.expandButton.innerHTML = launcherUiIcon(item === expandedPanel ? 'collapse' : 'expand');
     item.expandButton.title = item === expandedPanel ? 'Volver al grid' : 'Agrandar panel';
   });
 }
@@ -7543,7 +7543,12 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   diamond: '<path d="M3 8 7 3h10l4 5-9 13L3 8Z"/><path d="m7 3 5 18 5-18M3 8h18"/>',
   medal: '<circle cx="12" cy="9" r="5"/><path d="m9 14-2 8 5-3 5 3-2-8"/>',
   benefit: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/>',
-  gift: '<path d="M3 9h18v12H3V9Zm-1-4h20v4H2V5Zm10 0v16M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/>'
+  gift: '<path d="M3 9h18v12H3V9Zm-1-4h20v4H2V5Zm10 0v16M12 5H8.5A2.5 2.5 0 1 1 11 2.5L12 5Zm0 0h3.5A2.5 2.5 0 1 0 13 2.5L12 5Z"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+  zoomOut: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.5-4.5M8 11h6"/>',
+  zoomIn: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.5-4.5M8 11h6M11 8v6"/>',
+  expand: '<path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>',
+  collapse: '<path d="M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5"/>'
 });
 
 function launcherUiIcon(name, className = '') {
@@ -8595,6 +8600,11 @@ function createPanel(index) {
   huntDeleteButton.innerHTML = `${launcherUiIcon('trash')}<span>Eliminar</span>`;
   huntPanel.querySelector('.hunt-float-close').innerHTML = launcherUiIcon('close');
   accountInfoPanel.querySelector('.account-info-close').innerHTML = launcherUiIcon('close');
+  captureLogPanel.querySelector('.capture-float-position-reset').innerHTML = launcherUiIcon('refresh');
+  captureLogPanel.querySelector('.capture-float-pin').innerHTML = launcherUiIcon('pin');
+  captureLogPanel.querySelector('.capture-float-delete').innerHTML = launcherUiIcon('trash');
+  captureLogPanel.querySelector('.capture-float-close').innerHTML = launcherUiIcon('close');
+  accountInfoButton.innerHTML = launcherUiIcon('user');
 
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
