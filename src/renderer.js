@@ -138,12 +138,13 @@ const updateLauncherButton = document.querySelector('#updateLauncherButton');
 // actualización se quedaba sin sitio donde pintarse, sin error y sin rastro.
 const updateLauncherBadge = document.querySelector('#updateLauncherBadge');
 let currentLauncherVersion = '';
-let updateLauncherState = { icon: '⇩', label: 'Actualizar', spinning: false };
+let updateLauncherState = { icono: 'download', label: 'Actualizar', spinning: false };
 function renderUpdateLauncherButton() {
   const icon = document.createElement('span');
   icon.className = updateLauncherState.spinning ? 'memory-spinner' : 'top-action-icon';
   icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = updateLauncherState.icon;
+  // El icono es un SVG, no el glifo que traía la cadena del estado.
+  icon.innerHTML = launcherUiIcon(updateLauncherState.icono || 'download');
   const copy = document.createElement('span');
   copy.className = 'update-launcher-copy';
   const label = document.createElement('span');
@@ -159,7 +160,7 @@ function renderUpdateLauncherButton() {
 }
 function setUpdateLauncherState(icon, label, spinning = false) {
   updateLauncherState = { icon, label, spinning };
-  renderUpdateLauncherButton();
+  renderUpdateLauncherButton();aplicarIconosMenu();
 }
 // Los dos canales del botón de actualizar, en un objeto sustituible. ContextBridge
 // congela lo que expone en el mundo principal, así que window.pokeGrid no se puede
@@ -1262,6 +1263,40 @@ function renderGoalCatalog() {
     goalCatalogList.appendChild(label);
   });
 }
+// Los once botones del menú del launcher. Tenían un emoji o un glifo dentro cada
+// uno, y eso los hacía ajenos al resto: un panel hecho de iconos del mismo trazo
+// y un menú con una diana, un rombo y una flecha de unicode.
+const ICONOS_MENU = {
+  '#farmButton': 'timer',
+  '#pokepediaButton': 'book',
+  '#scriptsButton': 'code',
+  '#statisticsButton': 'chartColumn',
+  '#notificationButton': 'bell',
+  '#accountsButton': 'users',
+  '#cleanupMemoryButton': 'trash',
+  '#loginAllButton': 'play',
+  '#reloadAllButton': 'refresh',
+  '#updateLauncherButton': 'download',
+  '#viewModeButton': 'layout'
+};
+function aplicarIconosMenu() {
+  for (const [selector, icono] of Object.entries(ICONOS_MENU)) {
+    const boton = document.querySelector(selector);
+    if (!boton) continue;
+    // El de actualizar se repinta entero en cada cambio de estado, así que se
+    // deja a su propio camino y no se toca.
+    if (boton.id === 'updateLauncherButton') continue;
+    // El icono es el primer hijo con esa clase: en algunos botones, el badge de
+    // actualizaciones va antes y también lleva `menu-update-badge`.
+    const hueco = boton.querySelector('.top-action-icon');
+    if (!hueco) continue;
+    hueco.classList.add('menu-svg-icon');
+    hueco.innerHTML = launcherUiIcon(icono);
+  }
+}
+// Se llama aquí y no antes: `ICONOS_MENU` es una `const` y una llamada anterior a su
+// declaración caería en zona muerta temporal.
+aplicarIconosMenu();
 function initializeGoalTierButtons() {
   const tiers = ['weak', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ancient', 'divine'];
   tiers.forEach((tier) => {
@@ -6719,9 +6754,11 @@ function cleanFarmError(error) {
 function setFarmButtonRunning(running) {
   farmRunning = running;
   farmButton.classList.toggle('is-running', running);
+  // Los iconos van dentro del HTML porque el botón se rehace entero aquí, y
+  // el SVG es lo único que queda igual que antes.
   farmButton.innerHTML = running
-    ? '<span class="top-action-icon" aria-hidden="true">●</span><span>Farmeando</span>'
-    : '<span class="top-action-icon" aria-hidden="true">🎯</span><span>Modo farmeo</span>';
+    ? `${launcherUiIcon('play')}<span>Farmeando</span>`
+    : `${launcherUiIcon('timer')}<span>Modo farmeo</span>`;
 }
 async function disableFarmMode() {
   if (farmBusy) return;
@@ -7478,6 +7515,15 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   medal: '<circle cx="12" cy="15" r="6"/><path d="m8.5 10-2-7h3l2.5 7"/><path d="m15.5 10 2-7h-3L12 10"/><path d="m12 13.2.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z"/>',
   benefit: '<path d="m12 3 2.6 6.4L21 11l-6.4 1.6L12 19l-2.6-6.4L3 11l6.4-1.6z"/><path d="M19 17v4"/><path d="M17 19h4"/>',
   coin: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9.4A2.6 2.6 0 0 0 12 8c-1.4 0-2.6.9-2.6 2s1 1.6 2.4 1.9 2.6.9 2.6 2-1.2 2.1-2.6 2.1a2.7 2.7 0 0 1-2.5-1.4"/><path d="M12 6.5v11"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5"/><path d="M9 2h6"/>',
+  book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V5a2 2 0 0 1 2-2h5a3 3 0 0 1 3 3v15a3 3 0 0 0-3-3z"/><path d="M21 18a1 1 0 0 0 1-1V5a2 2 0 0 0-2-2h-5a3 3 0 0 0-3 3v15a3 3 0 0 1 3-3z"/>',
+  code: '<path d="m16 18 5-6-5-6"/><path d="m8 6-5 6 5 6"/><path d="m14 3-4 18"/>',
+  chartColumn: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  bell: '<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  play: '<path d="M6 4.5v15l13-7.5z"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  layout: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>'
 });
 function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;

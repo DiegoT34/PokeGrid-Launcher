@@ -5233,3 +5233,169 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   gap: 4px;
   flex: none;
 }
+
+/* ============================================================================
+   Las tarjetas de Hunt Analyzer.
+
+   Tres cosas molestaban. Los iconos se veían descuadrados dentro de su recuadro.
+   Los recuadros llevaban un color propio por métrica —morado, azul, rojo, verde—
+   que sobre el cristal salía sucio. Y los valores de «Derrotados» y «Tiempo» were
+   blancos por una regla con `!important`, los únicos dos de todo el panel que no
+   seguían su color.
+
+   Ahora: la tarjeta es cristal como el panel, sin tinte. El recuadro del icono es
+   neomórfico —sombra hacia dentro en dos direcciones, sin relieve hacia fuera— y
+   transparente. Y ningún texto es blanco puro.
+   ============================================================================ */
+
+.hunt-flat-metric {
+  background: rgba(255, 255, 255, .028);
+  border: 1px solid rgba(255, 255, 255, .065);
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .045);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* El recuadro del icono: neomórfico. Sin borde de color, sin degradado propio, y
+   con la misma cara de cristal que el resto. La sombra hacia dentro es lo que lo
+   hace «hundido» en vez de «puesto encima». */
+.hunt-flat-metric-icon {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .05);
+  border-radius: 12px;
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, .55),
+    inset -2px -2px 5px rgba(255, 255, 255, .045);
+  color: var(--metric-accent);
+  /* El SVG mide 1em. Sin esto tomaba el tamaño de letra heredado de la tarjeta
+     y se salía del recuadro: ese era el descentrado. */
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Los textos. El color de la métrica es el acento, que ya es visible de sobra; lo
+   que no puede ser es blanco, porque sobre el cristal blanco es lo que más
+   canta y menos se lee. */
+.hunt-flat-metric-copy > span {
+  color: #93aabb;
+}
+.hunt-flat-metric-copy > small {
+  color: #8299ab;
+}
+
+/* Los dos que estaban en blanco por un `!important`: usan su color de métrica,
+   que es justo lo que hacen los otros siete. */
+.hunt-flat-metric[data-metric-card="defeated"] b,
+.hunt-flat-metric[data-metric-card="time"] b {
+  color: var(--metric-accent) !important;
+}
+
+/* El «En vivo · 19:01:45 · hace 0s». También es cristal: sin barra, sin fondo. */
+.hunt-flat-state {
+  background: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  color: rgba(190, 214, 230, .7);
+}
+
+
+/* ============================================================================
+   El menú del launcher.
+
+   Cada botón llevaba su propio color: fondo teñido con ese color, borde del mismo
+   tono y una barra de acento de tres píxeles en el borde izquierdo. Once botones,
+   once colores, y encima de un panel de cristal. Salía una escalera de pintura.
+
+   Ahora el menú es cristal neutro: fondo translúcido, borde de pelo, y el color
+   se queda solo en el icono, que es donde sirve para reconocer la herramienta de
+   un vistazo. La barra de acento desaparece: separaba, pero gritaba.
+   ============================================================================ */
+
+.global-actions > .button,
+.global-actions > .notification-button,
+.global-actions > .view-mode-control > .button {
+  --toolbar-accent: #83909a;
+  background: rgba(255, 255, 255, .028);
+  border: 1px solid rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  color: #c3cfd8;
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+.global-actions > .button:hover,
+.global-actions > .notification-button:hover,
+.global-actions > .view-mode-control > .button:hover,
+.global-actions > .notification-button[aria-expanded="true"] {
+  background: rgba(255, 255, 255, .07);
+  border-color: rgba(255, 255, 255, .16);
+  color: #eaf1f6;
+  transform: none;
+}
+
+/* El color de la herramienta vive solo en el icono. */
+.global-actions > .button-farm { --toolbar-accent: #42d88f; }
+.global-actions > .button-pokepedia { --toolbar-accent: #69aef4; }
+.global-actions > .button-scripts { --toolbar-accent: #a485f4; }
+.global-actions > .button-statistics { --toolbar-accent: #45cbc5; }
+.global-actions > .notification-button { --toolbar-accent: #efbd4e; }
+.global-actions > .button-accounts { --toolbar-accent: #9fb0bd; }
+.global-actions > .memory-cleanup-button { --toolbar-accent: #4fd0a2; }
+.global-actions > .button-launch-all { --toolbar-accent: #5ec98a; }
+.global-actions > .button-reload { --toolbar-accent: #57b9e2; }
+.global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #7e96df; }
+.global-actions > .button-update { --toolbar-accent: #55cfe6; }
+
+/* Nada de `color` forzado por botón: el texto es uno solo para los once. */
+.global-actions > .button,
+.global-actions > .notification-button,
+.global-actions > .view-mode-control > .button,
+.global-actions > .button-update {
+  color: #c3cfd8;
+}
+
+/* El hueco del icono: cristal, sin tinte. */
+.global-actions .top-action-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid rgba(255, 255, 255, .05);
+  color: var(--toolbar-accent);
+  font-size: 0;
+}
+/* El que lleva el SVG: nada de anchuras automáticas ni de fuentes monoespaciadas,
+   que es lo que se usaba para que el `</>` de Scripts cupiera en la caja. */
+.global-actions .top-action-icon.menu-svg-icon {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  font: 400 12px/1 inherit;
+}
+.global-actions .top-action-icon .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+/* Los estados que tenían fondo propio: el de «Iniciar todas», el de «Actualizar»
+   y el aviso de que hay actualizaciones. También a cristal. */
+.button-primary,
+.global-actions > .button-launch-all {
+  background: rgba(255, 255, 255, .04);
+  border-color: rgba(255, 255, 255, .1);
+  color: #d6e2ea;
+}
+.button-primary:hover,
+.global-actions > .button-launch-all:hover {
+  background: rgba(94, 201, 138, .14);
+  border-color: rgba(94, 201, 138, .4);
+  color: #bdf0d3;
+}
+
+.button-update { color: #c3cfd8; }
+.button-update:hover:not(:disabled) { color: #eaf1f6; border-color: rgba(85, 207, 230, .4); background: rgba(85, 207, 230, .1); }
+
+/* La insignia de notificaciones conserva su color: es una alerta, y ahí el color
+   es información, no decoración. */
+.notification-button[aria-expanded="true"] { background: rgba(255, 255, 255, .07); }
