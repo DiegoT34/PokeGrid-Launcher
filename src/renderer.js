@@ -4495,19 +4495,34 @@ function clearNativeHuntAnalyzerScript() {
   return `(${clearHuntAnalyzer.toString()})()`;
 }
 
-async function hydrateHuntDropIcons(snapshot) {
-  if (!snapshot?.drops?.length || typeof window.pokeGrid?.loadImageDataUrl !== 'function') return snapshot;
-  await Promise.all(snapshot.drops.map(async (drop) => {
+async function hidratarIconosHunt(panel, snapshot) {
+  if (!snapshot?.drops?.length || typeof window.pokeGrid?.loadImageDataUrl !== 'function') return;
+  // Las celdas se localizan una vez y se guardan por posición, para que cuando
+  // llegue un icono se sepa a cuál parchea sin volver a recorrer el panel.
+  const indice = new Map();
+  panel.huntContent.querySelectorAll('[data-drop-index]').forEach((celda) => {
+    indice.set(String(celda.dataset.dropIndex), celda);
+  });
+
+  // Cada icono va por su cuenta y captura su propio fallo. Esta función NO espera
+  // a ninguno: devuelve enseguida y el que llega parchea su celda. Antes sí se
+  // esperaba, y un icono lento retenía el refresco hasta 4 segundos, lo que
+  // bloqueaba huntPollBusy y retrasaba la lectura de todas las cuentas.
+  snapshot.drops.forEach((drop, posicion) => {
     if (!/^https:\/\//i.test(drop.icon || '')) return;
+    const celda = indice.get(String(posicion));
     let request = huntDropIconCache.get(drop.icon);
     if (!request) {
-      request = window.pokeGrid.loadImageDataUrl(drop.icon).catch(() => '');
+      request = window.pokeGrid.loadImageDataUrl(drop.icon).catch(() => '').then((dataUrl) => {
+        if (dataUrl && celda) celda.src = dataUrl;
+        return dataUrl;
+      });
       rememberLauncherCache(huntDropIconCache, drop.icon, request, 48);
     }
-    const dataUrl = await request;
-    if (dataUrl) drop.icon = dataUrl;
-  }));
-  return snapshot;
+    request.then((dataUrl) => {
+      if (dataUrl) drop.icon = dataUrl;
+    }).catch(() => {});
+  });
 }
 
 function parseHuntDuration(value) {
@@ -4645,12 +4660,15 @@ function renderHuntAnalyzer(panel, snapshot) {
     empty.textContent = 'Todavía no hay drops registrados en esta caza.';
     drops.appendChild(empty);
   } else {
-    snapshot.drops.forEach((drop) => {
+    snapshot.drops.forEach((drop, posicion) => {
       const row = document.createElement('div');
       row.className = 'hunt-flat-drop';
       if (drop.icon) {
         const icon = document.createElement('img');
         icon.className = 'hunt-flat-drop-icon';
+        // La posición con la que hidratarIconosHunt encuentra esta celda cuando el
+        // icono llegue, sin volver a recorrer el panel.
+        icon.dataset.dropIndex = String(posicion);
         icon.src = drop.icon;
         icon.alt = '';
         row.appendChild(icon);
@@ -4684,8 +4702,10 @@ async function refreshPanelHuntAnalyzer(panel) {
   if (!panel?.huntOpen || panel.huntPreview) return;
   try {
     const snapshot = await withTimeout(panel.webview.executeJavaScript(huntAnalyzerSnapshotScript()), PANEL_READ_TIMEOUT_MS, 'Hunt Analyzer no respondió a tiempo.');
-    await withTimeout(hydrateHuntDropIcons(snapshot), 4000, 'Los iconos de Hunt Analyzer tardaron demasiado.').catch(() => snapshot);
+    // El panel se dibuja antes de lanzar la hidratación: un icono lento solo se
+    // pierde él y no retrasa el sondeo. Antes se esperaba aquí, y bloqueaba 4 s.
     renderHuntAnalyzer(panel, snapshot);
+    hidratarIconosHunt(panel, snapshot);
   } catch (error) {
     renderHuntAnalyzer(panel, { ok: false, error: cleanFarmError(error) });
   }
@@ -7794,11 +7814,15 @@ async function readPanelStatistics(panel) {
           'Hunt Analyzer no respondió a tiempo.'
         );
         if (snapshot?.ok) {
-          await withTimeout(hydrateHuntDropIcons(snapshot), 3000, 'Los iconos de drops tardaron demasiado.').catch(() => snapshot);
           hunt = snapshot;
           panel.huntSnapshot = snapshot;
           huntFresh = true;
-          if (panel.huntOpen) renderHuntAnalyzer(panel, snapshot);
+          // El panel se dibuja antes de lanzar la hidratación, y solo si está abierto:
+          // un icono lento no debe dibujar nada ni retrasar la lectura.
+          if (panel.huntOpen) {
+            renderHuntAnalyzer(panel, snapshot);
+            hidratarIconosHunt(panel, snapshot);
+          }
         }
       } catch {}
     }
@@ -10120,8 +10144,8 @@ window.__pokeGridPreviewHuntAnalyzer = async (expanded = false) => {
       { name: 'Bottles of Poison', quantity: 'x24', price: '$1', total: '$24', icon: 'https://pokexguides.com/images/items/drops/Bottles_of_Poison.png' }
     ]
   };
-  await hydrateHuntDropIcons(previewSnapshot);
   renderHuntAnalyzer(panel, previewSnapshot);
+  hidratarIconosHunt(panel, previewSnapshot);
   return true;
 };
 window.__pokeGridPreviewNotifications = () => {

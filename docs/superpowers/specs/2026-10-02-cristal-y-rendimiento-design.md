@@ -189,17 +189,38 @@ Tres medidas:
 
 1. **`pollHuntAnalyzers` de 1.500 ms a 3.000 ms.** Es el único sondeo por debajo de 3.000; los otros cinco (`pollCaptureNotifications` 3.500, `pollCaptureLogs` 4.000, `pollAccountProfiles` 4.000, `updatePanelLiveClocks` 1.000) están fuera de ese rango. En un panel que se lee mirando, nadie nota 300 ms.
 2. **Caché del diálogo de Hunt por cuenta.** Si ya se encontró el diálogo, se reutiliza la referencia y **solo se vuelve a buscar si ha desaparecido**. Eso elimina la parte más cara del bucle, que es el `querySelectorAll` sobre todos los candidatos y su `.sort()`.
-3. **Un icono lento ya no puede tumbar el panel entero.** Esta medida cambió al medirla, y el fallo real es peor de lo que parecía.
+3. **Un icono lento ya no bloquea el sondeo. Esta medida cambió al medirla.**
 
-   Lo que se creía: «`hydrateHuntDropIcons` espera 4.000 ms **por icono**, en serie».
+   Lo que se creía: «`hydrateHuntDropIcons` espera 4.000 ms **por icono**, en serie, y si uno se
+   cuelga el `catch` deja Hunt Analyzer entero en un mensaje de error, sin las nueve métricas».
 
-   Lo que hay: `hydrateHuntDropIcons` (`renderer.js:4462-4474`) recorre los drops con **`Promise.all`**, o sea **en paralelo**, y el 4.000 ms es un único `withTimeout` que envuelve a la llamada entera (`renderer.js:4651`). **No hay espera por icono.**
+   **Las dos partes eran falsas, y eso lo cambia todo.** La función recorre los drops con
+   `Promise.all`, o sea **en paralelo**, y los 4.000 ms son un único `withTimeout` sobre la llamada
+   entera. Y sobre ese `withTimeout` hay un `.catch(() => snapshot)` (`renderer.js:4687`), así que
+   **el panel se dibuja siempre**: el `renderHuntAnalyzer` de la línea siguiente se ejecuta
+   llegue lo que llegue. La parte de «se queda en error y pierde las métricas» era una suposición
+   mía, escrita sin haber leído la línea entera.
 
-   El fallo real está en lo que pasa cuando ese techo se agota. `withTimeout` rechaza, el `catch` de `refreshPanelHuntAnalyzer` (`renderer.js:4653`) pinta `{ ok: false, error }`, y **`renderHuntAnalyzer` nunca llega a ejecutarse** (`renderer.js:4652` está después del `await`). Consecuencia: **si un solo icono tarda más de 4 segundos, Hunt Analyzer deja de mostrar los datos enteros** y se queda con un mensaje de error. Un icono lento borra las nueve métricas.
+   El defecto real es de **coste**, y es el que se arregla: esa línea es un `await`.
+   `refreshPanelHuntAnalyzer` **espera** a la hidratación, hasta 4.000 ms. Y `pollHuntAnalyzers` no
+   suelta `huntPollBusy` hasta que **todos** los paneles terminan (`renderer.js:4750-4756`).
+   Consecuencia medible: **un solo icono lento retrasa 4 segundos la actualización de Hunt
+   Analyzer de todas las cuentas abiertas.** Con ocho cuentas, ocho iconos que tarden son cuatro
+   segundos de lectura obsoleta en la pantalla.
 
-   El arreglo: **renderizar primero, hidratar después.** `renderHuntAnalyzer` se llama con el snapshot ya leído; la hidratación de iconos se dispara después, sin `await`, y cuando un icono llega se parchea su celda. Si un icono no llega nunca, se queda sin icono y **el resto del panel sigue vivo**. El techo de 4.000 ms se conserva, pero deja de ser una puerta de salida y pasa a ser el límite de una mejora cosmetic.
+   El arreglo: **dibujar primero, lanzar la hidratación después y sin `await`.**
+   `hidratarIconosHunt` recorre los iconos, se devuelve enseguida, y cada icono parchea su celda
+   cuando llega. Un icono que no llega nunca se queda sin icono y **el resto del panel sigue vivo y
+   puntual**. Las celdas llevan `data-drop-index` para que el parcheo sepa a cuál escribir. El techo
+   de 4.000 ms desaparece de este camino, porque ya no hay nada que esperar. La caché de iconos se
+   mantiene, así que uno ya descargado no se vuelve a pedir.
 
-   Y por qué esto importa más de lo que parece: los iconos vienen de URLs externas de objetos del juego. **Una sola URL lenta tumba el panel entero.** Con el arreglo, solo se pierde ese icono.
+   **Y hay tres caminos, no uno.** `refreshPanelHuntAnalyzer` (`renderer.js:4687`), el legacy
+   (`renderer.js:7797`, con su propio `withTimeout` de 3.000 ms) y la previsualización
+   (`renderer.js:10123`). Los tres hidratan antes de dibujar y los tres esperan. Arreglar solo el
+   primero deja el fallo vivo por los otros dos; y el segundo dibuja dentro de un
+   `if (panel.huntOpen)` que hay que conservar, porque con el panel cerrado no se dibuja.
+
 
 ### Lo que esto NO arregla, y va escrito para que nadie lo confunda
 
@@ -242,15 +263,29 @@ Las seis tienen que fallar contra el `renderer.js` de hoy, menos la última, que
 
 Un perfil que cuenta cuántas veces se llama al script de Hunt con 1, 4 y 8 cuentas, y comprueba que a 3.000 ms la carga por segundo es la mitad, y que con 8 cuentas la vuelta **ya no crece linealmente** por el diálogo cacheado.
 
-### Un icono lento no puede tumbar el panel
+### Un icono lento no bloquea el sondeo
 
-El RED más valioso de este proyecto, porque **describe un fallo real y no un riesgo futuro**.
+El RED más valioso de este proyecto, porque **describe un fallo real y medido, no un riesgo
+futuro**. Y todas son sobre el código, no sobre el juego:
 
-Una vuelta de Hunt Analyzer con **un icono que no resuelve nunca**, y las nueve métricas presentes en el snapshot. Hoy el resultado es que el panel **no muestra ninguna métrica**: se queda en el mensaje de error del `catch`. Lo que hay que comprobar es que **las nueve métricas se pintan igualmente**, y que solo ese icono se queda vacío.
+- **La hidratación no se espera.** En los tres caminos no puede quedar un `await` sobre la
+  hidratación, ni dentro de un `withTimeout`. Ese `await` es el que bloqueaba `huntPollBusy`.
+- **El panel se dibuja antes.** En los tres caminos, el `renderHuntAnalyzer` de datos va antes de
+  la hidratación. El render de **error** sí va después, porque está en el `catch`, y eso es
+  correcto; la comprobación tiene que distinguir los dos o da un falso positivo.
+- **La hidratación no rechaza ni espera dentro.** Si rechaza, el error sube al `catch` del
+  refresco y vuelve a pintar el panel en error, que es el modo de fallo que ya existía.
 
-Y un segundo caso: **una URL que tarda 10 segundos** pero acaba resuelviendo. Hoy, a los 4 segundos el panel ya está en error y se queda ahí. Después, el panel enseña los datos y, cuando el icono llega, su celda se actualiza sola.
+Y dos comprobaciones que vigilan lo que se rompió **al arreglarlo**, porque las dos han pasado:
 
-Los dos casos tienen que **fallar contra el `renderer.js` de hoy**.
+- **El legacy dibuja exactamente una vez, dentro de `if (panel.huntOpen)`.** Al reordenar las
+  líneas se añadió una segunda llamada sin guarda, que dibujaba con el panel cerrado. La prueba
+  cuenta las apariciones y dice cuántas ha encontrado.
+- **Cada celda lleva `data-drop-index`.** Sin eso la hidratación se llama, no encuentra a quién
+  parchear y no pasa nada: el peor tipo de fallo, porque no se ve.
+
+Las cinco tienen que **fallar contra el `renderer.js` de hoy**.
+
 
 ### Regresión
 
