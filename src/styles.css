@@ -1073,75 +1073,6 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .hunt-toggle:hover { color: #fff; background: #34383b; }
 .capture-log-toggle.is-active { border-color: #ef5a50; background: #352524; color: #fff; }
 .hunt-toggle.is-active { border-color: #efbc45; background: #353024; color: #fff; }
-.capture-pokeball-icon {
-  position: relative;
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
-  overflow: hidden;
-  border: 1px solid #f3f4f5;
-  border-radius: 50%;
-  background: linear-gradient(#ed574f 0 43%, #17191b 43% 57%, #f1f2f3 57% 100%);
-  box-shadow: 0 1px 3px rgba(0,0,0,.45);
-}
-.capture-pokeball-icon::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  border: 2px solid #17191b;
-  border-radius: 50%;
-  background: #f4f5f6;
-  transform: translate(-50%, -50%);
-}
-.hunt-coin-sword-icon {
-  position: relative;
-  width: 18px;
-  height: 17px;
-  flex: 0 0 18px;
-}
-.hunt-coin-sword-icon::before {
-  content: '$';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 13px;
-  height: 13px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #ffe083;
-  border-radius: 50%;
-  background: #c98d22;
-  color: #fff7ca;
-  font: 900 8px/1 Arial, sans-serif;
-  box-shadow: inset 0 0 0 1px rgba(255,224,111,.28);
-}
-.hunt-coin-sword-icon::after {
-  content: '';
-  position: absolute;
-  right: 2px;
-  top: 0;
-  width: 3px;
-  height: 15px;
-  border-radius: 2px 2px 0 0;
-  background: linear-gradient(90deg, #eaf4fa, #8fabb9);
-  box-shadow: 0 0 0 1px rgba(20,23,25,.45);
-  transform: rotate(42deg);
-  transform-origin: center;
-}
-.hunt-coin-sword-icon i {
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  top: 10px;
-  width: 8px;
-  height: 2px;
-  border-radius: 2px;
-  background: #e9bd54;
-  transform: rotate(42deg);
-}
 .account-info-toggle { color: #62d9ff; }
 .account-info-toggle.is-active { border-color: #42caf5; background: #10354a; color: white; }
 .zoom-label { width: 38px; color: #a9b6c6; text-align: center; font-size: 10px; font-variant-numeric: tabular-nums; }
@@ -1192,9 +1123,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   position: absolute;
   z-index: 35;
   top: 49px;
-  right: 7px;
+  left: 7px;
   bottom: 7px;
-  width: min(var(--float-w, 430px), calc(100% - 14px));
+  width: min(var(--float-w, 470px), calc(100% - 14px));
   height: var(--float-h, auto);
   display: flex;
   flex-direction: column;
@@ -1351,9 +1282,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   position: absolute;
   z-index: 36;
   top: 49px;
-  right: 7px;
+  left: 7px;
   bottom: 7px;
-  width: min(var(--float-w, 520px), calc(100% - 14px));
+  width: min(var(--float-w, 560px), calc(100% - 14px));
   height: var(--float-h, auto);
   display: flex;
   flex-direction: column;
@@ -4575,3 +4506,356 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   background: linear-gradient(180deg, var(--glass-shine), transparent);
   pointer-events: none;
 }
+
+/* ---- Los iconos SVG de la barra de cada cuenta --------------------------------
+   Los de Capturas y Hunt eran formas hechas con pseudo-elementos: un pokeball con
+   gradiente y una moneda con una espada encima. Ahora son SVG, con el color de
+   siempre: el de Capturas en rojo y el de Hunt en ámbar. */
+.mini-button .launcher-ui-icon {
+  width: 15px;
+  height: 15px;
+  color: currentColor;
+}
+.mini-button.zoom-out .launcher-ui-icon,
+.mini-button.zoom-in .launcher-ui-icon { width: 14px; height: 14px; }
+.mini-button.expand .launcher-ui-icon { width: 14px; height: 14px; }
+.mini-button.reload .launcher-ui-icon { width: 14px; height: 14px; }
+
+.capture-log-toggle .capture-toggle-svg {
+  width: 16px;
+  height: 16px;
+  color: #ff5a4e;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45));
+}
+.hunt-toggle .hunt-toggle-svg {
+  width: 17px;
+  height: 17px;
+  color: #f0b840;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45));
+}
+
+/* El interior del detalle de un Pokémon. Lo que se ve en las capturas es que el
+   texto era diminuto, las casillas de estadísticas pegadas a los bordes del panel y
+   Fuerza en una esquina sin contexto. Aquí: más aire, texto legible, casillas con
+   holgura y Fuerza como una fila más. */
+.capture-detail-popover {
+  /* El mismo material que el otro bloque de este selector: los dos tienen que ser
+     el mismo cristal, o el detalle cambia de aspecto según qué regla gane. */
+  position: static;
+  background: var(--glass-pop-bg);
+  border: 1px solid var(--glass-pop-edge);
+  box-shadow: 0 20px 46px rgba(0,0,0,.60), inset 0 1.5px 0 rgba(255,255,255,.22);
+  backdrop-filter: var(--glass-pop-filtro);
+  -webkit-backdrop-filter: var(--glass-pop-filtro);
+}
+.capture-detail-head {
+  grid-template-columns: 60px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.capture-detail-sprite { width: 60px; height: 60px; }
+.capture-detail-name { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.capture-detail-type {
+  padding: 3px 9px;
+  font-size: 10px;
+  letter-spacing: .07em;
+  background: rgba(150, 120, 220, .26);
+  color: #d5bcff;
+  border: 1px solid rgba(180, 150, 240, .28);
+}
+
+/* La fila de datos: cada dato con su valor debajo y separando los grupos, en vez de
+   una línea de texto corrido que no se distingue. */
+.capture-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 0;
+  padding: 11px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, .13);
+  font-size: 9px;
+  line-height: 1.25;
+  color: #9db2c4;
+}
+.capture-detail-summary > * {
+  display: grid;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .07);
+}
+.capture-detail-summary b { font-size: 12px; font-weight: 700; letter-spacing: -.01em; }
+.capture-detail-summary .is-level b { color: #7fd4ff; }
+.capture-detail-summary .is-quality b { color: #d8b4ff; }
+.capture-detail-summary .is-iv b { color: #c79cff; }
+.capture-detail-summary .is-ball b { color: #ffc969; }
+.capture-detail-summary .is-number b { color: #6fe8b0; }
+.capture-detail-summary .is-time b { color: #8fc8ff; }
+.capture-detail-summary .is-gender b { color: #ff91cf; }
+.capture-detail-summary .is-nature b { color: #9fe47c; }
+
+.capture-detail-stats-title {
+  margin-top: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  color: #b79ae0;
+}
+
+/* Las seis casillas: con holgura, separadas y con el nombre encima del número.
+   Antes iban pegadas al borde, sin padding, que era lo que señalaba la captura. */
+.capture-detail-stats {
+  margin-top: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.capture-detail-stat {
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .08);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: #8ea3b4;
+}
+.capture-detail-stat b { margin-top: 0; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.capture-detail-stat.is-hp b { color: #65e59a; }
+.capture-detail-stat.is-atk b { color: #ff9a62; }
+.capture-detail-stat.is-def b { color: #6ebcff; }
+.capture-detail-stat.is-spa b { color: #cf8dff; }
+.capture-detail-stat.is-spd b { color: #62e0d1; }
+.capture-detail-stat.is-speed b { color: #f1d45f; }
+
+/* Fuerza: era una fila suelta pegada a una esquina, con el emoji dentro. Ahora es
+   una fila con su icono y su valor, con el mismo aire que el resto. */
+.capture-detail-power {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(94, 230, 168, .12);
+  border: 1px solid rgba(94, 230, 168, .22);
+  font-size: 13px;
+  font-weight: 700;
+  color: #6fe8b0;
+}
+.capture-detail-power .launcher-ui-icon { width: 17px; height: 17px; flex: none; }
+.capture-detail-power span { display: block; font-size: 9px; font-weight: 800; letter-spacing: .08em; color: #8fb0a0; margin-bottom: 2px; }
+
+/* Las baldosas del detalle: etiqueta pequeña encima, valor debajo. Es lo que pedía
+   el arreglo; antes los datos iban en una línea corrida sin separación. */
+.capture-detail-field {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+.capture-detail-field-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #8ea3b4;
+}
+.capture-detail-field b {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  line-height: 1.15;
+}
+.capture-detail-field.is-level b { color: #7fd4ff; }
+.capture-detail-field.is-quality b { color: #d8b4ff; }
+.capture-detail-field.is-iv b { color: #c79cff; }
+.capture-detail-field.is-ball b { color: #ffc969; }
+.capture-detail-field.is-number b { color: #6fe8b0; }
+.capture-detail-field.is-time b { color: #8fc8ff; }
+.capture-detail-field.is-gender b { color: #ff91cf; }
+.capture-detail-field.is-nature b { color: #9fe47c; }
+
+/* Fuerza: una baldosa más, con su icono y sin el emoji. */
+.capture-detail-power .capture-detail-field-label { color: #8fb0a0; }
+.capture-detail-power b { font-size: 14px; }
+
+/* ---- Los filtros de Capture Log, que seguían con el aspecto plano ----------- */
+.capture-advanced-filters {
+  margin: 0 12px 10px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .07);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  overflow: hidden;
+}
+.capture-advanced-filters > summary {
+  padding: 11px 13px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #c3d4e2;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.capture-advanced-filters > summary::-webkit-details-marker { display: none; }
+.capture-advanced-filters > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border: 4px solid transparent;
+  border-left-color: #8ea3b4;
+  transition: transform 140ms ease;
+}
+.capture-advanced-filters[open] > summary::before { transform: rotate(90deg); }
+.capture-advanced-filters > summary:hover { background: rgba(255, 255, 255, .08); }
+
+.capture-filter-badge {
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  letter-spacing: .08em;
+  background: rgba(94, 230, 168, .18);
+  border: 1px solid rgba(94, 230, 168, .3);
+  color: #6fe8b0;
+}
+
+.capture-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 10px;
+  padding: 12px 13px 13px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+.capture-filter-grid > label {
+  display: grid;
+  gap: 5px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #8ea3b4;
+  min-width: 0;
+}
+.capture-filter-grid > label:first-child { grid-column: 1 / -1; }
+
+.capture-filter-grid select,
+.capture-filter-grid input {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .09);
+  color: #eaf2f8;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  min-width: 0;
+}
+.capture-filter-grid select:hover,
+.capture-filter-grid input:hover { border-color: rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .13); }
+.capture-filter-grid select:focus-visible,
+.capture-filter-grid input:focus-visible {
+  outline: 2px solid rgba(127, 212, 255, .55);
+  outline-offset: 1px;
+}
+.capture-filter-grid input::placeholder { color: #6d8090; }
+
+/* El selector múltiple de Pokémon: con scroll fino y glass, no la lista nativa. */
+.capture-filter-names {
+  min-height: 104px;
+  padding: 6px !important;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .22) transparent;
+}
+.capture-filter-names option {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: transparent;
+  color: #dbe7f0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.capture-filter-names option:checked {
+  background: rgba(127, 212, 255, .22);
+  color: #fff;
+}
+
+.capture-filter-reset {
+  padding: 10px 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .08);
+  color: #cfdce8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 130ms ease, border-color 130ms ease;
+}
+.capture-filter-reset:hover { background: rgba(255, 255, 255, .15); border-color: rgba(255, 255, 255, .28); color: #fff; }
+
+/* El botón de los precios del mercado. Antes era un <p> con un ☑ o ☐ pegado
+   dentro, que no se podía pulsar. Ahora es un botón con su icono, y el estado lo
+   lee del propio juego. */
+.hunt-flat-market {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: calc(100% - 24px);
+  margin: 10px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 200, 90, .22);
+  border-radius: 12px;
+  background: rgba(255, 200, 90, .10);
+  color: #f0c777;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 130ms ease, border-color 130ms ease;
+}
+.hunt-flat-market:hover { background: rgba(255, 200, 90, .17); border-color: rgba(255, 200, 90, .38); color: #ffe0a0; }
+.hunt-flat-market:active { background: rgba(255, 200, 90, .22); }
+.hunt-flat-market:disabled { opacity: .55; cursor: wait; }
+.hunt-flat-market:focus-visible { outline: 2px solid rgba(255, 200, 90, .6); outline-offset: 1px; }
+.hunt-flat-market .launcher-ui-icon { width: 17px; height: 17px; flex: none; }
+.hunt-flat-market > span { min-width: 0; }
+
+/* Cuando está activado, el color pasa a verde: es el estado, y tiene que verse de
+   un vistazo sin leer el texto. */
+.hunt-flat-market[aria-pressed='true'] {
+  border-color: rgba(94, 230, 168, .28);
+  background: rgba(94, 230, 168, .12);
+  color: #6fe8b0;
+}
+.hunt-flat-market[aria-pressed='true']:hover { background: rgba(94, 230, 168, .19); border-color: rgba(94, 230, 168, .42); color: #8df0c4; }
+
+/* El icono de shiny delante del nombre, en vez del emoji. */
+.capture-flat-name .launcher-ui-icon,
+.capture-detail-name .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: #ffd76a;
+  vertical-align: -2px;
+  margin-right: 4px;
+  filter: drop-shadow(0 0 4px rgba(255, 215, 106, .55));
+}
+
+/* Los botones de la barra del navegador embebido, que llevaban glifos sueltos. */
+.browser-instance-actions .launcher-ui-icon { width: 15px; height: 15px; color: currentColor; }
+.browser-instance-actions button { display: grid; place-items: center; }

@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
 
 // --- Los cinco iconos del encargo existen y dibujan algo ----------------------
 const bloque = renderer.slice(renderer.indexOf('const LAUNCHER_ICON_PATHS'));
@@ -60,6 +61,33 @@ assert.equal(
 const iconoUser = renderer.slice(renderer.indexOf("huntPanel.querySelector('.hunt-float-position-reset')"));
 assert.ok(/accountInfoButton\.innerHTML = launcherUiIcon\('user'\)/.test(iconoUser),
   'El botón de datos de la cuenta tiene que recibir launcherUiIcon("user").');
+
+// --- Los cuatro que se quedaron EN BLANCO, que es el fallo que había ----------
+// Estos botones se vaciaron en el HTML y nunca se conectaron, así que salían sin
+// nada dentro. Es justo lo que se veía en la captura.
+for (const [variable, icono] of [
+  ['zoomOutButton', 'zoomOut'],
+  ['zoomInButton', 'zoomIn'],
+  ['reloadButton', 'refresh'],
+  ['expandPanelButton', 'expand']
+]) {
+  assert.ok(new RegExp(`${variable}\\.innerHTML = launcherUiIcon\\('${icono}'\\)`).test(renderer),
+    `${variable} se quedó en blanco: tiene que recibir launcherUiIcon("${icono}").`);
+}
+
+// --- Capturas y Hunt, que eran formas con pseudo-elementos CSS ----------------
+assert.ok(/captureLogButton\.querySelector\('\.capture-pokeball-icon'\)\.outerHTML = launcherUiIcon\('capture'/.test(renderer),
+  'El icono de Capturas era un pokeball hecho con CSS. Tiene que ser un SVG.');
+assert.ok(/hunt-toggle \.hunt-coin-sword-icon'\)\.outerHTML = launcherUiIcon\('hunt'/.test(renderer),
+  'El icono de Hunt era una moneda con una espada hecha con CSS. Tiene que ser un SVG.');
+
+// --- Y sus reglas CSS desaparecidas ------------------------------------------
+// Si el SVG sustituye a la forma dibujada, las reglas de la forma sobran. Si
+// volvieran, pelearían con el SVG por el mismo sitio.
+assert.equal(styles.includes('.capture-pokeball-icon'), false,
+  'Quedan reglas CSS del pokeball dibujado. Con el SVG de encima, sobran y estorban.');
+assert.equal(styles.includes('.hunt-coin-sword-icon'), false,
+  'Quedan reglas CSS de la moneda con espada. Con el SVG de encima, sobran y estorban.');
 
 // --- Agrandar y recoger usan innerHTML, no textContent -------------------------
 // Ojo: `expandButton` a secas es el botón del NAVEGADOR EMBEBIDO, que es otra

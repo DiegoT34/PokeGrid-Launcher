@@ -20,7 +20,6 @@ const NOTIFICATION_COUNTER_KEY = 'pokegrid:notification-counters:v1';
 // abiertas son ocho scripts de más de 200 líneas cada 1500 ms. En un panel que se lee
 // mirando, nadie nota 300 ms.
 const HUNT_SONDEO_MS = 3000;
-
 const PANEL_READ_TIMEOUT_MS = 9000;
 const CAPTURE_ARCHIVE_DB = 'pokegrid-capture-archive-v1';
 const GAME_ORIGIN = 'https://poke.idleworld.online';
@@ -42,7 +41,6 @@ const LEGENDARY_POKEMON = new Set([
   'zacian', 'zamazenta', 'eternatus', 'kubfu', 'urshifu', 'zarude', 'regieleki', 'regidrago', 'glastrier', 'spectrier', 'calyrex',
   'wo chien', 'chien pao', 'ting lu', 'chi yu', 'koraidon', 'miraidon', 'okidogi', 'munkidori', 'fezandipiti', 'ogerpon', 'terapagos', 'pecharunt'
 ]);
-
 const grid = document.querySelector('#grid');
 const instanceTabs = document.querySelector('#instanceTabs');
 const addBrowserInstanceButton = document.querySelector('#addBrowserInstanceButton');
@@ -141,13 +139,11 @@ const updateLauncherButton = document.querySelector('#updateLauncherButton');
 const updateLauncherBadge = document.querySelector('#updateLauncherBadge');
 let currentLauncherVersion = '';
 let updateLauncherState = { icon: '⇩', label: 'Actualizar', spinning: false };
-
 function renderUpdateLauncherButton() {
   const icon = document.createElement('span');
   icon.className = updateLauncherState.spinning ? 'memory-spinner' : 'top-action-icon';
   icon.setAttribute('aria-hidden', 'true');
   icon.textContent = updateLauncherState.icon;
-
   const copy = document.createElement('span');
   copy.className = 'update-launcher-copy';
   const label = document.createElement('span');
@@ -161,12 +157,10 @@ function renderUpdateLauncherButton() {
   // HTML, y es position:absolute, así que el orden no lo cambia visualmente.
   updateLauncherButton.replaceChildren(...(updateLauncherBadge ? [updateLauncherBadge] : []), icon, copy);
 }
-
 function setUpdateLauncherState(icon, label, spinning = false) {
   updateLauncherState = { icon, label, spinning };
   renderUpdateLauncherButton();
 }
-
 // Los dos canales del botón de actualizar, en un objeto sustituible. ContextBridge
 // congela lo que expone en el mundo principal, así que window.pokeGrid no se puede
 // reemplazar desde una prueba. Poner los dos aquí detrás de unos métodos con valor
@@ -182,7 +176,6 @@ const pokeGridUpdateChannels = {
   }
 };
 window.pokeGridUpdateChannels = pokeGridUpdateChannels;
-
 // Sondeo de actualizaciones del launcher.
 //
 // No espera a que el usuario pulse nada: comprueba al arrancar y luego cada 6
@@ -191,11 +184,9 @@ window.pokeGridUpdateChannels = pokeGridUpdateChannels;
 // conexión perdería el aviso hasta que recuperase la red.
 const ACTUALIZACION_LLAVE = 'pokegrid:launcher-update-pending:v1';
 const ACTUALIZACION_CADA_MS = 6 * 60 * 60 * 1000;
-
 const pokeGridUpdatePoll = {
   ultimaPasada: 0,
   temporizador: 0,
-
   // Se puede cambiar para probar el sondeo sin red. El valor por defecto es el que
   // usa la aplicación. Se separa porque contextBridge congela lo que expone en el
   // mundo principal: la prueba no puede sustituir window.pokeGrid, así que sustituye
@@ -203,7 +194,6 @@ const pokeGridUpdatePoll = {
   peeker() {
     return pokeGridUpdateChannels.peek();
   },
-
   recordar(masReciente) {
     if (masReciente) window.localStorage.setItem(ACTUALIZACION_LLAVE, String(masReciente));
   },
@@ -217,7 +207,6 @@ const pokeGridUpdatePoll = {
       return '';
     }
   },
-
   // Repinta lo que ya se sabía, sin preguntar a nadie. Para el arranque.
   restaurar() {
     const guardada = this.pendienteGuardada();
@@ -229,7 +218,6 @@ const pokeGridUpdatePoll = {
     window.pokeGridNotifications.set('updater', hay ? 1 : 0);
     return guardada;
   },
-
   async run({ forzar = false } = {}) {
     const ahora = Date.now();
     if (!forzar && ahora - this.ultimaPasada < ACTUALIZACION_CADA_MS) return null;
@@ -260,7 +248,6 @@ const pokeGridUpdatePoll = {
     }
     return resultado;
   },
-
   arrancar() {
     this.restaurar();
     this.run({ forzar: true });
@@ -269,7 +256,6 @@ const pokeGridUpdatePoll = {
   }
 };
 window.pokeGridUpdatePoll = pokeGridUpdatePoll;
-
 Promise.resolve(window.pokeGrid.getAppVersion?.())
   .then((version) => {
     currentLauncherVersion = String(version || '').trim();
@@ -307,7 +293,6 @@ const goalManagerKindFilter = document.querySelector('#goalManagerKindFilter');
 const goalManagerCreateButton = document.querySelector('#goalManagerCreateButton');
 const goalManagerList = document.querySelector('#goalManagerList');
 const notificationToastLayer = document.querySelector('#notificationToastLayer');
-
 let accounts = [];
 let linkedAccountsSource = '';
 // Si hay una generación anterior distinta de lo que está guardado. Lo manda el proceso
@@ -327,7 +312,6 @@ let farmCatalog = [];
 let pokemonReferenceIndex = new Map();
 let captureReferencePromise = null;
 let farmContexts = [];
-
 function resetFarmContexts() {
   const count = accounts.length || DEFAULT_ACCOUNT_COUNT;
   farmContexts = Array.from({ length: count }, () => ({ level: null, location: '', ready: false, leader: null }));
@@ -379,14 +363,12 @@ const statisticsAccountViews = new Map();
 const huntDropIconCache = new Map();
 const pokeApiSpeciesCache = new Map();
 const pokeApiSpriteCache = new Map();
-
 function rememberLauncherCache(cache, key, value, limit) {
   cache.delete(key);
   cache.set(key, value);
   while (cache.size > limit) cache.delete(cache.keys().next().value);
   return value;
 }
-
 function applySidebarState(open, { persist = true } = {}) {
   const expanded = Boolean(open);
   appbar.classList.toggle('is-sidebar-open', expanded);
@@ -402,7 +384,6 @@ function applySidebarState(open, { persist = true } = {}) {
   }
   if (persist) localStorage.setItem('launcherSidebarOpen', expanded ? '1' : '0');
 }
-
 function applyTopbarCollapsedState(collapsed, { persist = true } = {}) {
   const isCollapsed = Boolean(collapsed);
   appbar.classList.toggle('is-topbar-collapsed', isCollapsed);
@@ -415,18 +396,15 @@ function applyTopbarCollapsedState(collapsed, { persist = true } = {}) {
   if (!viewModeMenu.hidden) requestAnimationFrame(positionViewModeMenu);
   if (persist) localStorage.setItem('launcherTopbarCollapsed', isCollapsed ? '1' : '0');
 }
-
 function accountCount() {
   return accounts.length || DEFAULT_ACCOUNT_COUNT;
 }
-
 // "4 cuentas" o "32 cuentas", nunca un número escrito a mano: el launcher admite
 // hasta MAX_ACCOUNTS y varios textos seguían diciendo "las cuatro cuentas".
 function accountCountText() {
   const count = accountCount();
   return `${count} ${count === 1 ? 'cuenta' : 'cuentas'}`;
 }
-
 // Los textos que dependen del número de cuentas. Se reescriben siempre desde aquí
 // para que no puedan divergir entre sí: el HTML arranca con un texto honesto
 // ("Tus sesiones") porque hasta que loadAccounts responde no se sabe cuántas hay, y
@@ -463,11 +441,9 @@ function renderDynamicAccountLabels() {
     loginAll.title = etiqueta;
   }
 }
-
 function defaultProxy() {
   return { enabled: false, protocol: '', host: '', port: 0, username: '', password: '' };
 }
-
 function normalizeProxy(value) {
   if (!value || typeof value !== 'object') return defaultProxy();
   const protocol = ['http', 'socks5'].includes(String(value.protocol || '').toLowerCase()) ? String(value.protocol).toLowerCase() : '';
@@ -483,7 +459,6 @@ function normalizeProxy(value) {
     password: valid ? String(value.password || '').slice(0, 200) : ''
   };
 }
-
 // "HTTP · 127.0.0.1:1080" para una cuenta que sale por su propio proxy, y cadena
 // vacía para una que sigue heredando la del equipo. Es el único sitio que nombra un
 // destino de conexión y lo usan tanto la etiqueta del panel como el texto de
@@ -494,7 +469,6 @@ function proxyDestino(account) {
   if (!proxy?.enabled) return '';
   return `${String(proxy.protocol).toUpperCase()} · ${proxy.host}:${proxy.port}`;
 }
-
 // Huella del destino de una cuenta: si la huella no cambia, su sesión no necesita
 // recargarse. Describe DÓNDE sale la conexión y deja la contraseña fuera a
 // propósito, porque es el único secreto de esta estructura y no tiene por qué
@@ -517,7 +491,6 @@ function proxyHuella(account) {
     String(proxy.username || '').trim()
   ]);
 }
-
 // ¿Hay que recargar la sesión de una cuenta? applyAccountProxies ya llama a
 // session.setProxy, y eso solo afecta a las conexiones nuevas: los sockets que
 // Chromium tiene abiertos siguen saliendo por la IP anterior, así que una cuenta ya
@@ -532,7 +505,6 @@ function proxyCambiado(previous, next) {
   if (proxyHuella(previous) !== proxyHuella(next)) return true;
   return String(previous.proxy?.password || '') !== String(next.proxy?.password || '');
 }
-
 function normalizeAccounts(value) {
   const rows = Array.isArray(value) ? value : [];
   if (rows.length > MAX_ACCOUNTS) throw new Error(`Máximo ${MAX_ACCOUNTS} cuentas por launcher.`);
@@ -554,11 +526,9 @@ function normalizeAccounts(value) {
     };
   });
 }
-
 function defaultFarmConfig() {
   return { enabled: true, target: null };
 }
-
 function normalizePokemonType(value) {
   const type = normalizeSearchText(typeof value === 'object' ? value?.name || value?.type || value?.slug : value)
     .replace(/[^a-z]/g, '');
@@ -566,7 +536,6 @@ function normalizePokemonType(value) {
   const normalized = aliases[type] || type;
   return POKEMON_TYPES.includes(normalized) ? normalized : '';
 }
-
 function normalizePokemonTypes(value) {
   const rows = Array.isArray(value) ? value : [value];
   return [...new Set(rows.flatMap((entry) => {
@@ -574,7 +543,6 @@ function normalizePokemonTypes(value) {
     return [entry];
   }).map(normalizePokemonType).filter(Boolean))].slice(0, 2);
 }
-
 function normalizeFarmStats(value) {
   const source = value && typeof value === 'object' ? value : {};
   const read = (...keys) => {
@@ -587,7 +555,6 @@ function normalizeFarmStats(value) {
     speed: read('speed')
   };
 }
-
 function farmCollectionRows(value) {
   if (value == null || value === false) return [];
   if (Array.isArray(value)) return value.flatMap(farmCollectionRows);
@@ -600,11 +567,9 @@ function farmCollectionRows(value) {
     return [{ name: String(entry), _sourceKey: key }];
   });
 }
-
 function farmTypeFromLabel(value) {
   return String(value || '').split(/[^\p{L}]+/u).map(normalizePokemonType).find(Boolean) || '';
 }
-
 function normalizeFarmMoves(value) {
   const rows = farmCollectionRows(value);
   return rows.map((move) => {
@@ -629,7 +594,6 @@ function normalizeFarmMoves(value) {
     };
   }).filter(Boolean).slice(0, 12);
 }
-
 function normalizeFarmItems(value) {
   const rows = farmCollectionRows(value);
   return rows.map((item) => {
@@ -655,7 +619,6 @@ function normalizeFarmItems(value) {
     };
   }).filter(Boolean).slice(0, 12);
 }
-
 function farmLeaderTmSummary(leader) {
   if (!leader) return { all: [], aoe: [], type: [] };
   const candidates = [
@@ -671,7 +634,6 @@ function farmLeaderTmSummary(leader) {
   const all = [...unique.values()];
   return { all, aoe: all.filter((entry) => entry.kind === 'aoe'), type: all.filter((entry) => entry.kind === 'type') };
 }
-
 function farmTierMultiplier(value, label = '') {
   const numeric = Number(String(value ?? '').replace(',', '.').replace(/[^0-9.-]/g, ''));
   if (Number.isFinite(numeric) && numeric > 0) return numeric;
@@ -685,7 +647,6 @@ function farmTierMultiplier(value, label = '') {
   if (/uncommon|incomun/.test(tier)) return 1.2;
   return 1;
 }
-
 function normalizeFarmTarget(value) {
   if (!value || typeof value !== 'object') return null;
   const nestedPokemon = value.pokemon && typeof value.pokemon === 'object' ? value.pokemon : {};
@@ -766,7 +727,6 @@ function normalizeFarmTarget(value) {
     }
   };
 }
-
 function normalizeFarmLeader(value) {
   if (!value || typeof value !== 'object') return null;
   const name = String(value.name || '').trim().slice(0, 80);
@@ -819,7 +779,6 @@ function normalizeFarmLeader(value) {
     updatedAt: Math.max(0, Number(value.updatedAt) || 0)
   };
 }
-
 const TYPE_EFFECTIVENESS = {
   normal: { rock: .5, ghost: 0, steel: .5 },
   fire: { fire: .5, water: .5, grass: 2, ice: 2, bug: 2, rock: .5, dragon: .5, steel: 2 },
@@ -840,7 +799,6 @@ const TYPE_EFFECTIVENESS = {
   steel: { fire: .5, water: .5, electric: .5, ice: 2, rock: 2, steel: .5, fairy: 2 },
   fairy: { fire: .5, fighting: 2, poison: .5, dragon: 2, dark: 2, steel: .5 }
 };
-
 function pokemonTypeLabel(type) {
   return {
     normal: 'Normal', fire: 'Fuego', water: 'Agua', electric: 'Eléctrico', grass: 'Planta', ice: 'Hielo',
@@ -848,16 +806,13 @@ function pokemonTypeLabel(type) {
     rock: 'Roca', ghost: 'Fantasma', dragon: 'Dragón', dark: 'Siniestro', steel: 'Acero', fairy: 'Hada'
   }[type] || String(type || 'Desconocido');
 }
-
 function typeMultiplier(attackingType, defendingTypes) {
   return normalizePokemonTypes(defendingTypes).reduce((multiplier, defendingType) =>
     multiplier * (TYPE_EFFECTIVENESS[attackingType]?.[defendingType] ?? 1), 1);
 }
-
 function formatMultiplier(value) {
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
 }
-
 function evaluateFarmTarget(target, context) {
   const leader = context?.leader;
   const trainerAccessible = !context?.ready || context.level === null || target.level <= context.level;
@@ -886,7 +841,6 @@ function evaluateFarmTarget(target, context) {
   const bestIncoming = incomingOptions.sort((left, right) => right.potential - left.potential)[0] || { type: '', multiplier: 1 };
   const incoming = bestIncoming.multiplier;
   const incomingType = bestIncoming.type;
-
   const leaderLevel = Number(leader?.level) || Number(context?.level) || 0;
   const levelDifference = leaderLevel ? leaderLevel - target.level : 0;
   const leaderStatTotal = Object.values(leader?.stats || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
@@ -906,7 +860,6 @@ function evaluateFarmTarget(target, context) {
   const orreCheck = validateOrreTarget(target, context, { offensive, incoming, score });
   if (!orreCheck.ok) score -= orreCheck.penalty;
   score = Math.max(0, Math.min(100, Math.round(score)));
-
   const reasons = [];
   if (leaderTypes.length && targetTypes.length) {
     if (offensive > 1) reasons.push(`${bestAttack.name || pokemonTypeLabel(offensiveType)} golpea ×${formatMultiplier(offensive)}`);
@@ -921,7 +874,6 @@ function evaluateFarmTarget(target, context) {
   if (!targetTypes.length) reasons.push('compatibilidad de tipo no disponible');
   if (!trainerAccessible) reasons.unshift(`requiere nivel de entrenador ${target.level}`);
   if (isOrreFarmTarget(target) && !orreCheck.ok) reasons.unshift(orreCheck.message);
-
   let label = 'Combate exigente';
   if (!trainerAccessible) label = 'Bloqueado';
   else if (score >= 75) label = 'Muy recomendado';
@@ -941,13 +893,11 @@ function evaluateFarmTarget(target, context) {
     , orreCheck
   };
 }
-
 function isOrreFarmTarget(target) {
   return normalizeSearchText([target?.map, target?.mapName, target?.area, target?.areaName].filter(Boolean).join(' '))
     .split(/[^a-z0-9]+/)
     .includes('orre');
 }
-
 function validateOrreTarget(target, context, seed = {}) {
   if (!isOrreFarmTarget(target)) return { ok: true, required: 0, equipped: 0, penalty: 0, message: '' };
   const leader = context?.leader;
@@ -980,7 +930,6 @@ function validateOrreTarget(target, context, seed = {}) {
     message: `Orre requiere ${required} MT efectiva${required === 1 ? '' : 's'} (${equipped} detectada${equipped === 1 ? '' : 's'})`
   };
 }
-
 function normalizeFarmConfigs(value) {
   const rows = Array.isArray(value) ? value : [];
   return Array.from({ length: accountCount() }, (_, index) => ({
@@ -989,7 +938,6 @@ function normalizeFarmConfigs(value) {
     target: normalizeFarmTarget(rows[index]?.target)
   }));
 }
-
 function loadFarmConfigs() {
   try {
     return normalizeFarmConfigs(JSON.parse(localStorage.getItem(FARM_CONFIG_KEY) || 'null'));
@@ -997,11 +945,9 @@ function loadFarmConfigs() {
     return normalizeFarmConfigs([]);
   }
 }
-
 function saveFarmConfigs() {
   localStorage.setItem(FARM_CONFIG_KEY, JSON.stringify(farmConfigs));
 }
-
 function normalizeSearchText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -1009,7 +955,6 @@ function normalizeSearchText(value) {
     .toLowerCase()
     .trim();
 }
-
 function normalizePokemonName(value) {
   return normalizeSearchText(value)
     .replace(/^(?:brave|furious|ancient|taekwondo)\s+/, '')
@@ -1019,19 +964,16 @@ function normalizePokemonName(value) {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
-
 function isInvalidNotificationPokemonName(value) {
   return new Set([
     'you', 'your', 'voce', 'tu', 'usted', 'ustedes', 'player', 'jogador', 'jugador',
     'pokemon', 'shiny', 'it', 'he', 'she', 'ele', 'ela'
   ]).has(normalizePokemonName(value));
 }
-
 function createLocalId(prefix) {
   try { return `${prefix}-${crypto.randomUUID()}`; } catch {}
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
-
 function normalizeCaptureGoal(value) {
   if (!value || typeof value !== 'object') return null;
   const kind = value.kind === 'drop' ? 'drop' : 'capture';
@@ -1054,7 +996,6 @@ function normalizeCaptureGoal(value) {
     minQuantity: Math.max(1, Math.min(999999, Number(value.minQuantity) || 1))
   };
 }
-
 function loadCaptureGoals() {
   try {
     const rows = JSON.parse(localStorage.getItem(CAPTURE_GOAL_KEY) || '[]');
@@ -1063,11 +1004,9 @@ function loadCaptureGoals() {
     return [];
   }
 }
-
 function saveCaptureGoals() {
   localStorage.setItem(CAPTURE_GOAL_KEY, JSON.stringify(captureGoals));
 }
-
 function loadNotificationCounters() {
   const historyCounts = {
     goal: launcherNotifications.filter((notification) => notification.types.includes('goal')).length,
@@ -1085,18 +1024,15 @@ function loadNotificationCounters() {
     return historyCounts;
   }
 }
-
 function saveNotificationCounters() {
   try { localStorage.setItem(NOTIFICATION_COUNTER_KEY, JSON.stringify(notificationCounters)); } catch {}
 }
-
 function countNotification(notification) {
   ['goal', 'shiny', 'legendary'].forEach((type) => {
     if (notification.types.includes(type)) notificationCounters[type] += 1;
   });
   saveNotificationCounters();
 }
-
 function normalizeLauncherNotification(value) {
   if (!value || typeof value !== 'object') return null;
   const capture = value.capture && typeof value.capture === 'object' ? value.capture : {};
@@ -1162,7 +1098,6 @@ function normalizeLauncherNotification(value) {
     }
   };
 }
-
 function loadLauncherNotifications() {
   try {
     const rows = JSON.parse(localStorage.getItem(NOTIFICATION_KEY) || '[]');
@@ -1171,7 +1106,6 @@ function loadLauncherNotifications() {
     return [];
   }
 }
-
 function saveLauncherNotifications() {
   try {
     localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(launcherNotifications.slice(0, 500)));
@@ -1179,7 +1113,6 @@ function saveLauncherNotifications() {
     console.warn('El historial visual de notificaciones superó el espacio local; los contadores y monitores continúan activos.', error);
   }
 }
-
 function captureTier(value) {
   const text = normalizeSearchText(value);
   if (/divine|divin/.test(text)) return 'divine';
@@ -1193,7 +1126,6 @@ function captureTier(value) {
   if (/weak|debil|d[eé]bil|fraco/.test(text)) return 'weak';
   return '';
 }
-
 function captureTierFromQuality(value) {
   const quality = Number(String(value ?? '').replace(',', '.').replace(/[^0-9.-]/g, ''));
   if (!Number.isFinite(quality) || quality <= 0) return '';
@@ -1207,11 +1139,9 @@ function captureTierFromQuality(value) {
   if (quality >= 1) return 'common';
   return 'weak';
 }
-
 function tierRank(tier) {
   return { any: 0, weak: 1, common: 2, uncommon: 3, rare: 4, epic: 5, legendary: 6, mythic: 7, ancient: 8, divine: 9 }[tier] || 0;
 }
-
 function tierLabel(tier) {
   return {
     any: 'Cualquier tier',
@@ -1226,7 +1156,6 @@ function tierLabel(tier) {
     divine: 'Divino'
   }[tier] || 'Sin tier';
 }
-
 function pokemonReferenceKeys(name) {
   const exact = normalizeSearchText(name).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   const base = exact.replace(
@@ -1235,7 +1164,6 @@ function pokemonReferenceKeys(name) {
   );
   return [...new Set([exact, base].filter(Boolean))];
 }
-
 function pokemonReferenceForName(name) {
   for (const key of pokemonReferenceKeys(name)) {
     const record = pokemonReferenceIndex.get(key);
@@ -1243,14 +1171,12 @@ function pokemonReferenceForName(name) {
   }
   return null;
 }
-
 function isLegendaryPokemonName(name) {
   const normalizedName = normalizePokemonName(name);
   return LEGENDARY_POKEMON.has(normalizedName) || [...LEGENDARY_POKEMON].some((legendaryName) =>
     normalizedName.startsWith(`${legendaryName} `) || normalizedName.endsWith(` ${legendaryName}`)
   );
 }
-
 function notificationLevel(value) {
   const text = String(value ?? '').trim();
   if (!text) return '';
@@ -1258,7 +1184,6 @@ function notificationLevel(value) {
   const number = match ? Number(match[0]) : NaN;
   return Number.isFinite(number) && number > 0 ? `Lv.${Math.floor(number)}` : text.slice(0, 30);
 }
-
 function refreshNotificationAccountOptions() {
   const selected = goalAccountSelect.value || '-1';
   goalAccountSelect.replaceChildren();
@@ -1274,11 +1199,9 @@ function refreshNotificationAccountOptions() {
   });
   goalAccountSelect.value = [...goalAccountSelect.options].some((option) => option.value === selected) ? selected : '-1';
 }
-
 function refreshGoalPokemonSuggestions() {
   renderGoalCatalog();
 }
-
 async function loadGoalDropCatalog() {
   if (goalDropCatalog.length) return goalDropCatalog;
   if (goalDropCatalogPromise) return goalDropCatalogPromise;
@@ -1297,7 +1220,6 @@ async function loadGoalDropCatalog() {
   })().catch(() => []).finally(() => { goalDropCatalogPromise = null; });
   return goalDropCatalogPromise;
 }
-
 function renderGoalCatalog() {
   const isDrop = goalKindSelect.value === 'drop';
   const search = normalizeSearchText(goalCatalogSearch.value);
@@ -1340,7 +1262,6 @@ function renderGoalCatalog() {
     goalCatalogList.appendChild(label);
   });
 }
-
 function initializeGoalTierButtons() {
   const tiers = ['weak', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ancient', 'divine'];
   tiers.forEach((tier) => {
@@ -1358,7 +1279,6 @@ function initializeGoalTierButtons() {
     goalTierButtons.appendChild(button);
   });
 }
-
 function renderCaptureGoals() {
   captureGoalList.replaceChildren();
   captureGoalCount.textContent = String(captureGoals.length);
@@ -1397,7 +1317,6 @@ function renderCaptureGoals() {
     captureGoalList.appendChild(chip);
   });
 }
-
 function renderGoalManager() {
   const query = normalizeSearchText(goalManagerSearch.value);
   const kind = goalManagerKindFilter.value;
@@ -1442,18 +1361,15 @@ function renderGoalManager() {
     goalManagerList.appendChild(row);
   });
 }
-
 function openGoalManager() {
   closeNotificationPanel();
   goalManagerBackdrop.hidden = false;
   renderGoalManager();
   requestAnimationFrame(() => goalManagerSearch.focus());
 }
-
 function closeGoalManager() {
   goalManagerBackdrop.hidden = true;
 }
-
 function notificationTitle(notification) {
   if (notification.eventKind === 'drop') {
     return `📦 Meta de drop: ${notification.capture.name} × ${notification.capture.quantity}`;
@@ -1468,7 +1384,6 @@ function notificationTitle(notification) {
   if (notification.types.includes('goal')) labels.push('Meta cumplida');
   return `${notification.types.includes('legendary') ? '🏆' : '🎯'} ${labels.join(' + ')}: ${notification.capture.name}`;
 }
-
 function showLauncherEventAlert(notification) {
   if (!notificationToastLayer || !notification) return;
   const alertType = notification.eventKind === 'drop' ? 'drop' : notification.eventKind === 'defeat'
@@ -1513,7 +1428,6 @@ function showLauncherEventAlert(notification) {
     window.setTimeout(() => context.close().catch(() => {}), 1200);
   } catch {}
 }
-
 function renderNotifications() {
   const unread = launcherNotifications.filter((notification) => !notification.read).length;
   // Al registro, no a mano: el hub pinta el badge con su color. Las dos líneas que
@@ -1555,7 +1469,6 @@ function renderNotifications() {
     item.className = 'notification-item';
     item.classList.toggle('is-unread', !notification.read);
     notification.types.forEach((type) => item.classList.add(`is-${type}`));
-
     const sprite = document.createElement('div');
     sprite.className = 'notification-item-sprite';
     if (/^https:\/\/poke\.idleworld\.online\//i.test(notification.capture.sprite)) {
@@ -1577,7 +1490,6 @@ function renderNotifications() {
         sprite.textContent = notification.eventKind === 'drop' ? '📦' : notification.types.includes('shiny') ? '✨' : notification.types.includes('legendary') ? '◆' : '🎯';
       }
     }
-
     const body = document.createElement('div');
     body.className = 'notification-item-body';
     const heading = document.createElement('div');
@@ -1588,7 +1500,6 @@ function renderNotifications() {
     time.dateTime = new Date(notification.createdAt).toISOString();
     time.textContent = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }).format(notification.createdAt);
     heading.append(title, time);
-
     const details = document.createElement('div');
     details.className = 'notification-item-meta';
     const account = document.createElement('span');
@@ -1607,7 +1518,6 @@ function renderNotifications() {
     if (notification.capture.ball) data.push(notification.capture.ball);
     if (notification.capture.xp) data.push(`+${notification.capture.xp.toLocaleString('es')} XP`);
     details.append(account, document.createTextNode(data.length ? ` · ${data.join(' · ')}` : ''));
-
     const tags = document.createElement('div');
     tags.className = 'notification-tags';
     notification.types.forEach((type) => {
@@ -1623,7 +1533,6 @@ function renderNotifications() {
     notificationList.appendChild(item);
   });
 }
-
 function openNotificationPanel() {
   notificationPanel.hidden = false;
   notificationButton.setAttribute('aria-expanded', 'true');
@@ -1644,12 +1553,10 @@ function openNotificationPanel() {
   }
   renderNotifications();
 }
-
 function closeNotificationPanel() {
   notificationPanel.hidden = true;
   notificationButton.setAttribute('aria-expanded', 'false');
 }
-
 function matchCaptureGoal(capture, accountIndex, goal) {
   if (goal.kind !== 'capture') return false;
   if (goal.account >= 0 && goal.account !== accountIndex) return false;
@@ -1662,7 +1569,6 @@ function matchCaptureGoal(capture, accountIndex, goal) {
   if (!goal.tiers.length && tierRank(capture.tier) < tierRank(goal.tier)) return false;
   return true;
 }
-
 function isDuplicateNotificationEvent(eventKind, accountIndex, capture, types = []) {
   const now = Date.now();
   if (capture.sourceKey) {
@@ -1679,7 +1585,6 @@ function isDuplicateNotificationEvent(eventKind, accountIndex, capture, types = 
   recentNotificationSignatures.set(signature, now);
   return now - previous < 60_000;
 }
-
 function addCaptureNotification(captureValue, accountIndex) {
   const captureNumber = Number(String(captureValue.captureNumber || '').replace(/\D/g, '')) || 0;
   const capture = {
@@ -1718,7 +1623,6 @@ function addCaptureNotification(captureValue, accountIndex) {
   if (!types.length) return;
   const duplicate = isDuplicateNotificationEvent('capture', accountIndex, capture, types);
   if (duplicate) return;
-
   const notification = normalizeLauncherNotification({
     id: createLocalId('notification'),
     createdAt: Date.now(),
@@ -1751,7 +1655,6 @@ function addCaptureNotification(captureValue, accountIndex) {
     }
   } catch {}
 }
-
 function addDefeatNotification(defeatValue, accountIndex) {
   if (defeatValue?.isShiny !== true && defeatValue?.shiny !== true) return;
   if (isInvalidNotificationPokemonName(defeatValue?.name)) return;
@@ -1810,7 +1713,6 @@ function addDefeatNotification(defeatValue, accountIndex) {
     }
   } catch {}
 }
-
 function matchDropGoal(drop, accountIndex, goal) {
   if (goal.kind !== 'drop') return false;
   if (goal.account >= 0 && goal.account !== accountIndex) return false;
@@ -1825,7 +1727,6 @@ function matchDropGoal(drop, accountIndex, goal) {
   if (!goalName || !dropName || goalName !== dropName) return false;
   return Number(drop.quantity) >= goal.minQuantity;
 }
-
 function addDropNotification(dropValue, accountIndex) {
   const quantityText = String(dropValue?.quantity ?? dropValue?.qty ?? dropValue?.amount ?? dropValue?.count ?? '').replace(',', '.');
   const drop = {
@@ -1872,7 +1773,6 @@ function addDropNotification(dropValue, accountIndex) {
     }
   } catch {}
 }
-
 function captureSnapshotScript() {
   return `(async () => {
     const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -1989,7 +1889,6 @@ function captureSnapshotScript() {
     };
   })()`;
 }
-
 function captureLogPanelSnapshotScript() {
   const readCaptureLogPanel = async () => {
     const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -2066,7 +1965,6 @@ function captureLogPanelSnapshotScript() {
     }
     if (!captureLog) return { ok: false, error: 'Capture Log todavía no está disponible en esta sesión.' };
     hideSource(captureLog, 'capture');
-
     let apiPayload = window.__pokeGridCaptureLogPayload;
     if (!apiPayload || Date.now() - Number(window.__pokeGridCaptureLogPayloadAt || 0) > 2500) {
       try {
@@ -2347,7 +2245,6 @@ function captureLogPanelSnapshotScript() {
         }
       };
     };
-
     const tierFrom = (value) => {
       const text = normalized(value);
       const qualityText = clean(value).replace(',', '.');
@@ -2635,7 +2532,6 @@ function captureLogPanelSnapshotScript() {
   };
   return `(${readCaptureLogPanel.toString()})()`;
 }
-
 function captureMonitorInstallScript() {
   const installCaptureMonitor = () => {
     if (window.__pokeGridCaptureMonitorInstalled) {
@@ -2968,7 +2864,6 @@ function captureMonitorInstallScript() {
   };
   return `(${installCaptureMonitor.toString()})()`;
 }
-
 function clearNativeCaptureLogScript() {
   const clearCaptureLog = async () => {
     const captureLog = document.querySelector('.clog-window');
@@ -3004,13 +2899,11 @@ function clearNativeCaptureLogScript() {
   };
   return `(${clearCaptureLog.toString()})()`;
 }
-
 function captureKeyCounts(rows) {
   const counts = new Map();
   rows.forEach((row) => counts.set(row.key, (counts.get(row.key) || 0) + 1));
   return counts;
 }
-
 async function executePanelCaptureRead(panel, script, errorMessage, { skipIfBusy = false } = {}) {
   while (panel.captureDataReadPromise) {
     if (skipIfBusy) return null;
@@ -3028,13 +2921,11 @@ async function executePanelCaptureRead(panel, script, errorMessage, { skipIfBusy
     if (panel.captureDataReadPromise === readPromise) panel.captureDataReadPromise = null;
   }
 }
-
 function telegramCaptureNumber(value) {
   const match = String(value ?? '').replace(',', '.').match(/-?[0-9]+(?:[.][0-9]+)?/);
   const number = match ? Number(match[0]) : NaN;
   return Number.isFinite(number) ? number : null;
 }
-
 function telegramCaptureName(value) {
   return normalizeSearchText(value)
     .replace(/[♀♂]/g, ' ')
@@ -3044,7 +2935,6 @@ function telegramCaptureName(value) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-
 async function enrichTelegramCapture(panel, capture) {
   const hasTier = Boolean(captureTier(`${capture.tier || ''} ${capture.meta || ''} ${capture.quality || ''}`) ||
     captureTierFromQuality(capture.qualityValue ?? capture.qualityMultiplier));
@@ -3089,7 +2979,6 @@ async function enrichTelegramCapture(panel, capture) {
   } catch {}
   return capture;
 }
-
 function bridgeCaptureToTelegram(panel, capture, source) {
   enrichTelegramCapture(panel, capture).then((enriched) => {
     const row = {
@@ -3105,13 +2994,11 @@ function bridgeCaptureToTelegram(panel, capture, source) {
     })()`);
   }).catch(() => {});
 }
-
 async function processCapturedEvent(panel, capture, source) {
   const enriched = await enrichTelegramCapture(panel, capture).catch(() => capture);
   addCaptureNotification(enriched, panel.index);
   bridgeCaptureToTelegram(panel, enriched, source);
 }
-
 async function pollCaptureNotifications() {
   if (capturePollBusy) return;
   capturePollBusy = true;
@@ -3162,7 +3049,6 @@ async function pollCaptureNotifications() {
     capturePollBusy = false;
   }
 }
-
 function computeCapturedPokemonStats(baseStats, growth, levelValue, qualityValue) {
   const level = Number(levelValue);
   const quality = Number(qualityValue);
@@ -3175,7 +3061,6 @@ function computeCapturedPokemonStats(baseStats, growth, levelValue, qualityValue
     Math.round((level / 100) * (Number(baseStats[key]) + (2 * Number(growth[key]))) * Math.pow(quality, exponent[key]))
   ]));
 }
-
 function captureQualityNumber(capture) {
   for (const value of [capture?.qualityValue, capture?.qualityMultiplier, capture?.quality]) {
     const parsed = Number(String(value ?? '').replace(',', '.').replace(/[^0-9.-]/g, ''));
@@ -3183,7 +3068,6 @@ function captureQualityNumber(capture) {
   }
   return null;
 }
-
 function enrichCaptureLogEntry(capture) {
   const referenceKey = normalizeSearchText(capture.name).replace(/^(brave|furious|ancient|taekwondo)\s+/, '');
   const reference = pokemonReferenceIndex.get(referenceKey) || farmCatalog.find((pokemon) =>
@@ -3221,7 +3105,6 @@ function enrichCaptureLogEntry(capture) {
     statsSource: capture.statsSource || (hasCaptureStats ? 'capture' : (computedStats ? 'calculated' : 'unavailable'))
   };
 }
-
 function createCaptureLogSprite(capture, size, detail = false) {
   if (capture.sprite) {
     const image = document.createElement('img');
@@ -3242,7 +3125,6 @@ function createCaptureLogSprite(capture, size, detail = false) {
   fallback.textContent = '◉';
   return fallback;
 }
-
 function sortedCaptureLogRows(rows, sort) {
   const tierValue = (capture) => tierRank(capture.tier);
   const numberValue = (capture, key) => Number(capture[key]) || 0;
@@ -3265,13 +3147,10 @@ function sortedCaptureLogRows(rows, sort) {
     return (Number(b.archivedAt) || 0) - (Number(a.archivedAt) || 0);
   });
 }
-
 function captureLogFilterDefaults() {
   return { days: '', number: '', names: [], ivMin: '', ivMax: '', powerMin: '', powerMax: '', ball: '', shiny: '' };
 }
-
 let captureArchiveDbPromise = null;
-
 function openCaptureArchiveDb() {
   if (captureArchiveDbPromise) return captureArchiveDbPromise;
   captureArchiveDbPromise = new Promise((resolve, reject) => {
@@ -3290,7 +3169,6 @@ function openCaptureArchiveDb() {
   });
   return captureArchiveDbPromise;
 }
-
 async function persistLauncherNotifications(rows) {
   if (!rows.length) return;
   const db = await openCaptureArchiveDb();
@@ -3302,7 +3180,6 @@ async function persistLauncherNotifications(rows) {
     transaction.onerror = () => reject(transaction.error);
   });
 }
-
 async function hydrateNotificationArchive() {
   try {
     const db = await openCaptureArchiveDb();
@@ -3324,7 +3201,6 @@ async function hydrateNotificationArchive() {
     console.warn('No se pudo hidratar el historial permanente de notificaciones.', error);
   }
 }
-
 async function clearNotificationArchive() {
   try {
     const db = await openCaptureArchiveDb();
@@ -3336,7 +3212,6 @@ async function clearNotificationArchive() {
     });
   } catch {}
 }
-
 function captureArchiveIdentity(accountIndex, capture) {
   const captureNumber = Number(String(capture?.captureNumber || '').replace(/\D/g, ''));
   if (capture?.captureNumberTrusted !== false && Number.isFinite(captureNumber) && captureNumber > 0) return `${accountIndex}:number:${captureNumber}`;
@@ -3344,7 +3219,6 @@ function captureArchiveIdentity(accountIndex, capture) {
   if (id) return `${accountIndex}:id:${id}`;
   return `${accountIndex}:fallback:${normalizeSearchText(capture?.name)}:${capture?.when || capture?.detectedAt || Date.now()}`;
 }
-
 function captureRowCompleteness(capture) {
   let score = 0;
   if (String(capture?.id || capture?.recordId || '').trim()) score += 12;
@@ -3361,7 +3235,6 @@ function captureRowCompleteness(capture) {
     .filter((key) => Number(capture?.stats?.[key]) > 0).length * 2;
   return score;
 }
-
 function durableCaptureRow(panel, capture) {
   const row = { ...capture };
   if (/^data:/i.test(row.sprite || '') && String(row.sprite).length > 100_000) row.sprite = '';
@@ -3371,7 +3244,6 @@ function durableCaptureRow(panel, capture) {
   row.dataCompleteness = captureRowCompleteness(row);
   return row;
 }
-
 function mergeCaptureArchiveRow(previous, incoming) {
   if (!previous) return incoming;
   const empty = (value) => value === '' || value === null || value === undefined ||
@@ -3417,7 +3289,6 @@ function mergeCaptureArchiveRow(previous, incoming) {
   merged.dataCompleteness = Math.max(previousCompleteness, incomingCompleteness, captureRowCompleteness(merged));
   return merged;
 }
-
 async function ensureCaptureArchive(panel) {
   if (panel.captureArchiveLoaded) return panel.captureArchive;
   if (panel.captureArchivePromise) return panel.captureArchivePromise;
@@ -3439,7 +3310,6 @@ async function ensureCaptureArchive(panel) {
   });
   return panel.captureArchivePromise;
 }
-
 function archiveCaptureRows(panel, captures) {
   if (!panel || panel.captureLogPreview || panel.captureLogActionBusy || panel.captureArchiveResetPending ||
       !Array.isArray(captures) || !captures.length) return;
@@ -3474,7 +3344,6 @@ function archiveCaptureRows(panel, captures) {
     changed.forEach((row) => store.put(row));
   }).catch((error) => console.warn('No se pudo guardar el archivo de capturas.', error));
 }
-
 async function clearCaptureArchive(panel) {
   panel.captureArchive.clear();
   panel.captureArchiveSignatures.clear();
@@ -3493,7 +3362,6 @@ async function clearCaptureArchive(panel) {
     transaction.onerror = () => reject(transaction.error);
   });
 }
-
 function loadCaptureLogFilters(index) {
   try {
     const value = JSON.parse(localStorage.getItem(`captureLogFilters:${index}`) || 'null');
@@ -3502,7 +3370,6 @@ function loadCaptureLogFilters(index) {
     return captureLogFilterDefaults();
   }
 }
-
 function capturePowerNumber(value) {
   const text = String(value ?? '').trim().replace(/\s/g, '');
   if (!text) return null;
@@ -3512,7 +3379,6 @@ function capturePowerNumber(value) {
   const number = Number(normalized);
   return Number.isFinite(number) ? number : null;
 }
-
 function captureStrengthNumber(capture) {
   const directStrength = capturePowerNumber(capture?.strength);
   if (directStrength !== null) return directStrength;
@@ -3524,7 +3390,6 @@ function captureStrengthNumber(capture) {
   }
   return capturePowerNumber(capture?.power);
 }
-
 function captureTimestamp(capture, now = Date.now()) {
   const exact = Number(capture?.capturedAt || capture?.detectedAt);
   if (Number.isFinite(exact) && exact > 0) return exact < 10_000_000_000 ? exact * 1000 : exact;
@@ -3551,7 +3416,6 @@ function captureTimestamp(capture, now = Date.now()) {
   }
   return null;
 }
-
 function filteredCaptureLogRows(rows, filters, now = Date.now()) {
   const chosenNames = new Set((filters.names || []).map(normalizeSearchText));
   const days = Number(filters.days);
@@ -3579,11 +3443,9 @@ function filteredCaptureLogRows(rows, filters, now = Date.now()) {
     return true;
   });
 }
-
 function captureFiltersActive(filters) {
   return Object.entries(filters).some(([key, value]) => key === 'names' ? value.length > 0 : String(value) !== '');
 }
-
 function syncCaptureFilterOptions(panel, rows) {
   const nameValues = [...new Set(rows.map((row) => String(row.name || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
   const selectedNames = new Set(panel.captureFilters.names || []);
@@ -3616,7 +3478,6 @@ function syncCaptureFilterOptions(panel, rows) {
     panel.captureFilterBall.value = panel.captureFilters.ball;
   }
 }
-
 function hideCaptureDetail(panel) {
   if (panel.captureDetailRow) {
     panel.captureDetailRow.classList.remove('is-detail-open');
@@ -3628,7 +3489,6 @@ function hideCaptureDetail(panel) {
   delete panel.captureLogTooltip.dataset.tier;
   panel.captureLogTooltip.replaceChildren();
 }
-
 function showCaptureDetail(panel, capture, row) {
   if (panel.captureDetailRow && panel.captureDetailRow !== row) {
     panel.captureDetailRow.classList.remove('is-detail-open');
@@ -3647,7 +3507,7 @@ function showCaptureDetail(panel, capture, row) {
   const identity = document.createElement('div');
   const name = document.createElement('h3');
   name.className = 'capture-detail-name';
-  name.textContent = `${capture.isShiny ? '✨ ' : ''}${capture.name}`;
+  name.innerHTML = `${capture.isShiny ? launcherUiIcon('shiny') : ''}<span>${escapeHtml(String(capture.name))}</span>`;
   const types = document.createElement('div');
   types.className = 'capture-detail-types';
   (capture.types || []).forEach((type) => {
@@ -3664,7 +3524,6 @@ function showCaptureDetail(panel, capture, row) {
   }
   identity.append(name, types);
   head.append(sprite, identity);
-
   const summary = document.createElement('div');
   summary.className = 'capture-detail-summary';
   const quality = capture.quality || (capture.tier ? tierLabel(capture.tier) : 'Sin quality');
@@ -3678,22 +3537,25 @@ function showCaptureDetail(panel, capture, row) {
   ];
   if (capture.gender) summaryItems.push(['Sexo', capture.gender, 'is-gender']);
   if (capture.nature) summaryItems.push(['Naturaleza', capture.nature, 'is-nature']);
-  summaryItems.forEach(([label, value, className]) => {
-    const item = document.createElement('span');
-    item.className = className;
-    const strong = document.createElement('b');
-    strong.textContent = value;
-    item.append(`${label} `, strong);
-    summary.appendChild(item);
+    // Cada dato en su baldosa, con la etiqueta encima y el valor debajo.
+    // Correrlos en una línea noyuk permite saber dónde acaba uno y empieza otro.
+    summaryItems.forEach(([label, value, className]) => {
+      const item = document.createElement('div');
+      item.className = 'capture-detail-field ' + className;
+      const caption = document.createElement('span');
+      caption.className = 'capture-detail-field-label';
+      caption.textContent = label;
+      const strong = document.createElement('b');
+      strong.textContent = value;
+      item.append(caption, strong);
+      summary.appendChild(item);
   });
-
   // Seis casillas con guiones ocupan un tercio del detalle para no decir nada.
   // Si el juego no las da, no se pintan; si algún día las da, aparecen solas.
   const hayEstadisticas = [
     capture.stats?.hp, capture.stats?.attack, capture.stats?.defense,
     capture.stats?.specialAttack, capture.stats?.specialDefense, capture.stats?.speed
   ].some((value) => value !== null && value !== undefined && value !== '');
-
   const stats = document.createElement('div');
   stats.className = 'capture-detail-stats';
   const statsTitle = document.createElement('div');
@@ -3722,10 +3584,16 @@ function showCaptureDetail(panel, capture, row) {
     tooltip.append(statsTitle, stats);
   }
   if (capture.power) {
-    const power = document.createElement('div');
-    power.className = 'capture-detail-power';
-    power.innerHTML = `${launcherUiIcon('trend')}<span>Fuerza ${escapeHtml(String(capture.power))}</span>`;
-    tooltip.appendChild(power);
+  const power = document.createElement('div');
+  power.className = 'capture-detail-power';
+  const caption = document.createElement('span');
+  caption.className = 'capture-detail-field-label';
+  caption.textContent = 'Fuerza';
+  const value = document.createElement('b');
+  value.textContent = escapeHtml(String(capture.power));
+  power.innerHTML = launcherUiIcon('trend');
+  power.append(caption, value);
+  tooltip.appendChild(power);
   }
   tooltip.hidden = false;
   // El detalle es hermano de su fila, no una caja flotante: el CSS lo coloca y
@@ -3734,11 +3602,9 @@ function showCaptureDetail(panel, capture, row) {
   // arriba y tapaba las de antes, y encima cubría la fila que acababas de pulsar.
   row.after(tooltip);
 }
-
 function captureDetailKeyOf(capture) {
   return String(capture?.key || capture?.id || capture?.captureNumber || '');
 }
-
 // Cuando llega una captura nueva, renderCaptureLog tira la lista entera. Antes
 // eso关闭aba también el detalle que estabas leyendo, sin avisar. Aquí se guarda
 // la clave antes de tirar, y al final se vuelve a abrir si esa captura sigue
@@ -3751,7 +3617,6 @@ function reabrirCaptureDetail(panel, key) {
   if (!captura) return;
   showCaptureDetail(panel, captura, fila);
 }
-
 function renderCaptureLog(panel, snapshot) {
   panel.captureLogSnapshot = snapshot?.ok ? snapshot : null;
   panel.captureLogState.classList.toggle('is-live', Boolean(snapshot?.ok));
@@ -3821,7 +3686,7 @@ function renderCaptureLog(panel, snapshot) {
     main.className = 'capture-flat-main';
     const name = document.createElement('strong');
     name.className = 'capture-flat-name';
-    name.textContent = `${capture.isShiny ? '✨ ' : ''}${capture.name}`;
+    name.innerHTML = `${capture.isShiny ? launcherUiIcon('shiny') : ''}<span>${escapeHtml(String(capture.name))}</span>`;
     const tags = document.createElement('div');
     tags.className = 'capture-flat-tags';
     [
@@ -3881,7 +3746,6 @@ function renderCaptureLog(panel, snapshot) {
   // qué volver a apuntar.
   reabrirCaptureDetail(panel, detalleAbierto);
 }
-
 async function refreshPanelCaptureLogLegacy(panel) {
   if (!panel?.captureLogOpen || panel.captureLogPreview) return;
   try {
@@ -3898,7 +3762,6 @@ async function refreshPanelCaptureLogLegacy(panel) {
     renderCaptureLog(panel, { ok: false, error: cleanFarmError(error) });
   }
 }
-
 async function refreshPanelCaptureLog(panel, { force = false } = {}) {
   if (!panel?.captureLogOpen || panel.captureLogPreview || (panel.captureLogActionBusy && !force)) return;
   if (panel.captureLogReadPromise) {
@@ -3935,7 +3798,6 @@ async function refreshPanelCaptureLog(panel, { force = false } = {}) {
     if (panel.captureLogReadPromise === readPromise) panel.captureLogReadPromise = null;
   }
 }
-
 async function pollCaptureLogs() {
   if (captureLogPollBusy) return;
   const activePanels = panels.filter((panel) => panel.captureLogOpen);
@@ -3947,7 +3809,6 @@ async function pollCaptureLogs() {
     captureLogPollBusy = false;
   }
 }
-
 async function deletePanelCaptureLog(panel) {
   if (!panel || panel.captureLogActionBusy) return;
   const accountName = accounts[panel.index]?.label || `Cuenta ${panel.index + 1}`;
@@ -3977,7 +3838,6 @@ async function deletePanelCaptureLog(panel) {
     panel.captureLogDeleteButton.disabled = false;
   }
 }
-
 function setCaptureLogOpen(panel, open) {
   panel.captureLogOpen = Boolean(open);
   panel.captureLogReadGeneration += 1;
@@ -3998,7 +3858,6 @@ function setCaptureLogOpen(panel, open) {
     panel.captureLogSignature = '';
   }
 }
-
 /*
  * Código histórico de preferencias de batalla retirado de la aplicación.
  * Se conserva temporalmente dentro de este comentario para migrar instalaciones
@@ -4014,7 +3873,6 @@ function updateGamePreferenceButtons() {
   battleViewButton.querySelector('.toolbar-state-value').textContent = cards ? 'Cards' : '3D';
   battleViewButton.title = cards ? 'Vista Cards activa; pulsar para usar 3D' : 'Vista 3D activa; pulsar para usar Cards';
 }
-
 function buildGamePreferencesScript(preferences, interactive = false) {
   const battleNotifications = preferences.battleNotifications !== false;
   const battleView = preferences.battleView === '3d' ? '3d' : 'cards';
@@ -4053,7 +3911,6 @@ function buildGamePreferencesScript(preferences, interactive = false) {
       button.querySelector('img')?.alt,
       button.querySelector('img')?.src
     ].filter(Boolean).join(' '));
-
     localStorage.setItem('ui:battleView', battleView);
     document.documentElement.dataset.pgBattleNotifications = battleNotifications ? 'on' : 'off';
     let notificationStyle = document.querySelector('#pg-launcher-battle-notifications');
@@ -4066,7 +3923,6 @@ function buildGamePreferencesScript(preferences, interactive = false) {
       '.battle-notification', '.battle-toast', '.combat-toast', '.battle-message',
       '.battle-float', '.floating-damage', '.damage-popup', '[data-battle-notification="true"]'
     ].join(',') + '{display:none!important;visibility:hidden!important;}';
-
     if (!interactive) return { ok: true, battleNotifications, battleView, settingsApplied: false };
     let settings = document.querySelector('.cfg-window');
     if (!visible(settings)) {
@@ -4079,7 +3935,6 @@ function buildGamePreferencesScript(preferences, interactive = false) {
       });
     }
     if (!settings) return { ok: true, battleNotifications, battleView, settingsApplied: false };
-
     const rows = [...settings.querySelectorAll('.cfg-row')];
     const battleRow = rows.find((row) => /battle mode|modo de batalha|modo batalla/.test(normalize(row.textContent)));
     const desiredView = [...(battleRow?.querySelectorAll('button') || [])].find((button) => {
@@ -4087,7 +3942,6 @@ function buildGamePreferencesScript(preferences, interactive = false) {
       return battleView === '3d' ? /(^| )3d($| )/.test(label) : /cards|cartas/.test(label);
     });
     if (desiredView && !desiredView.classList.contains('on') && desiredView.getAttribute('aria-pressed') !== 'true') desiredView.click();
-
     const notificationRow = rows.find((row) => {
       const text = normalize(row.textContent);
       return /battle.*notif|notif.*battle|avisos.*batalla|notificaciones.*batalla|notificacoes.*batalha/.test(text);
@@ -4121,13 +3975,11 @@ function buildGamePreferencesScript(preferences, interactive = false) {
     return { ok: true, battleNotifications, battleView, settingsApplied: true, notificationSettingApplied };
   })()`;
 }
-
 async function applyStoredGamePreferences(panel) {
   try {
     await panel.webview.executeJavaScript(buildGamePreferencesScript(gamePreferences, false));
   } catch {}
 }
-
 async function applyGlobalGamePreferences(changedButton) {
   saveGamePreferences();
   updateGamePreferenceButtons();
@@ -4146,7 +3998,6 @@ async function applyGlobalGamePreferences(changedButton) {
   changedButton.title += ` · Aplicado en ${applied}/${ACCOUNT_COUNT} cuentas disponibles`;
 }
 */
-
 function farmAreaLabel(area) {
   const labels = {
     kanto: 'Kanto',
@@ -4159,7 +4010,6 @@ function farmAreaLabel(area) {
     .replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
-
 function farmTargetLocationLabel(target) {
   const map = String(target?.mapName || target?.map || '').trim();
   const area = String(target?.areaName || target?.area || '').trim();
@@ -4168,18 +4018,15 @@ function farmTargetLocationLabel(target) {
   }
   return farmAreaLabel(area || map);
 }
-
 function setFarmGlobalState(text, state = '') {
   farmGlobalState.textContent = text;
   farmGlobalState.classList.toggle('is-ready', state === 'ready');
   farmGlobalState.classList.toggle('is-busy', state === 'busy');
 }
-
 function setFarmMessage(text, kind = '') {
   farmMessage.textContent = text;
   farmMessage.classList.toggle('is-ok', kind === 'ok');
 }
-
 function pokeApiSpeciesSlug(target) {
   const rawName = String(target?.name || target?.slug || '').trim();
   if (!rawName) return '';
@@ -4198,7 +4045,6 @@ function pokeApiSpeciesSlug(target) {
   };
   return aliases[normalized] || normalized;
 }
-
 async function resolvePokeApiSpeciesId(target) {
   const directId = Math.max(0, Number(target?.spriteSpeciesId || target?.speciesId) || 0);
   const slug = pokeApiSpeciesSlug(target);
@@ -4217,7 +4063,6 @@ async function resolvePokeApiSpeciesId(target) {
   }
   return Number.isInteger(directId) && directId > 0 && directId <= 2_000 ? directId : 0;
 }
-
 async function loadPokeApiSpriteData(speciesId) {
   const id = Math.max(0, Number(speciesId) || 0);
   if (!id || typeof window.pokeGrid?.loadImageDataUrl !== 'function') return '';
@@ -4239,7 +4084,6 @@ async function loadPokeApiSpriteData(speciesId) {
   }
   return pokeApiSpriteCache.get(id);
 }
-
 function createFarmSprite(target, size = 48) {
   const sprite = document.createElement('span');
   sprite.className = 'farm-sprite is-pokeapi is-loading';
@@ -4276,7 +4120,6 @@ function createFarmSprite(target, size = 48) {
   })();
   return sprite;
 }
-
 function huntAnalyzerSnapshotScript() {
   const readHuntAnalyzer = async () => {
     const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -4329,7 +4172,6 @@ function huntAnalyzerSnapshotScript() {
       dialog = await waitFor(findDialog);
     }
     if (!dialog) return { ok: false, error: 'Hunt Analyzer todavía no está disponible en esta sesión.' };
-
     dialog.dataset.pgLauncherHuntSource = 'true';
     dialog.style.setProperty('position', 'fixed', 'important');
     dialog.style.setProperty('left', '-10000px', 'important');
@@ -4338,7 +4180,6 @@ function huntAnalyzerSnapshotScript() {
     dialog.style.setProperty('visibility', 'hidden', 'important');
     dialog.style.setProperty('pointer-events', 'none', 'important');
     document.documentElement.classList.remove('pg-hunt-analyzer-open');
-
     const all = [...dialog.querySelectorAll('*')];
     const findLabel = (pattern) => all.find((element) => pattern.test(normalized(ownText(element)))) || null;
     const metricCard = (label) => {
@@ -4414,10 +4255,14 @@ function huntAnalyzerSnapshotScript() {
     const balanceCard = dialog.querySelector('.ha-balance') || metricCard(balanceLabel);
     const balance = readCardValue(balanceCard, balanceLabel);
     const marketControl = dialog.querySelector('.ha-market-toggle');
+    // Se le da un id al control para poder pulsarlo desde el launcher. El juego no lo
+    // trae, y sin esto el botón del panel no tendría a qué llamar.
     const marketLabel = marketControl || findLabel(/market prices|preco.*mercado|precio.*mercado/);
     const market = marketLabel ? {
       label: clean((marketControl || marketLabel.closest('label') || marketLabel.parentElement)?.textContent || marketLabel.textContent),
-      enabled: Boolean((marketControl || marketLabel.closest('label'))?.querySelector('input')?.checked)
+    enabled: Boolean((marketControl || marketLabel.closest('label'))?.querySelector('input')?.checked),
+    // Se le pone id al input para que el botón del launcher lo pueda pulsar.
+    control: (marketControl || marketLabel.closest('label'))?.querySelector('input') || marketControl || null
     } : null;
     const dropsScope = dialog.querySelector('.ha-drops, .pg-hunt-drops') || (() => {
       const title = findLabel(/session drops|drops da sessao|drops de la sesion/);
@@ -4492,7 +4337,17 @@ function huntAnalyzerSnapshotScript() {
   };
   return `(${readHuntAnalyzer.toString()})()`;
 }
-
+function toggleHuntMarketScript() {
+  return (async () => {
+    const dialog = document.querySelector('[data-pg-launcher-hunt-source="true"], .ha-window');
+    const control = dialog?.querySelector('.ha-market-toggle input, .ha-market-toggle');
+    if (!control) return { ok: false, error: 'Este Hunt Analyzer no trae el control de precios.' };
+    control.click();
+    // El juego actualiza el estado al vuelo; se espera un poco y se lee.
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    return { ok: true };
+  })();
+}
 function clearNativeHuntAnalyzerScript() {
   const clearHuntAnalyzer = () => {
     const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -4510,7 +4365,6 @@ function clearNativeHuntAnalyzerScript() {
   };
   return `(${clearHuntAnalyzer.toString()})()`;
 }
-
 async function hidratarIconosHunt(panel, snapshot) {
   if (!snapshot?.drops?.length || typeof window.pokeGrid?.loadImageDataUrl !== 'function') return;
   // Las celdas se localizan una vez y se guardan por posición, para que cuando
@@ -4519,7 +4373,6 @@ async function hidratarIconosHunt(panel, snapshot) {
   panel.huntContent.querySelectorAll('[data-drop-index]').forEach((celda) => {
     indice.set(String(celda.dataset.dropIndex), celda);
   });
-
   // Cada icono va por su cuenta y captura su propio fallo. Esta función NO espera
   // a ninguno: devuelve enseguida y el que llega parchea su celda. Antes sí se
   // esperaba, y un icono lento retenía el refresco hasta 4 segundos, lo que
@@ -4540,7 +4393,6 @@ async function hidratarIconosHunt(panel, snapshot) {
     }).catch(() => {});
   });
 }
-
 function parseHuntDuration(value) {
   const text = String(value || '').trim().toLowerCase();
   if (!text || text === '—') return null;
@@ -4551,7 +4403,6 @@ function parseHuntDuration(value) {
   const seconds = Number(text.match(/(\d+)\s*s/)?.[1] || 0);
   return hours || minutes || seconds || /0\s*s/.test(text) ? hours * 3600 + minutes * 60 + seconds : null;
 }
-
 function formatHuntDuration(totalSeconds) {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const hours = Math.floor(seconds / 3600);
@@ -4559,7 +4410,6 @@ function formatHuntDuration(totalSeconds) {
   const remainder = seconds % 60;
   return `${hours ? `${hours}h ` : ''}${minutes ? `${minutes}m ` : ''}${remainder}s`;
 }
-
 function updatePanelLiveClocks() {
   const now = Date.now();
   const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -4596,7 +4446,6 @@ function updatePanelLiveClocks() {
     });
   }
 }
-
 function renderHuntAnalyzer(panel, snapshot) {
   if (snapshot?.ok) panel.huntSnapshot = snapshot;
   panel.huntContent.replaceChildren();
@@ -4659,10 +4508,19 @@ function renderHuntAnalyzer(panel, snapshot) {
   balance.append(balanceIcon, balanceLabel, balanceValue);
   panel.huntContent.append(metricGrid, balance);
   if (snapshot.market) {
-    const market = document.createElement('p');
+    // Un botón de verdad, no un párrafo con un ☑ pegado dentro. El estado lo lee
+    // del propio juego, así que lo que se pinta es el suyo.
+    const market = document.createElement('button');
+    market.type = 'button';
     market.className = 'hunt-flat-market';
-    market.textContent = `${snapshot.market.enabled ? '☑' : '☐'} ${snapshot.market.label}`;
+    market.setAttribute('aria-pressed', String(snapshot.market.enabled));
+    market.title = snapshot.market.enabled
+      ? 'Quitar la vinculación con los precios del mercado'
+      : 'Vincular los objetos con los precios del mercado';
+    market.innerHTML = `${launcherUiIcon(snapshot.market.enabled ? 'market-on' : 'market-off')}
+      <span>${escapeHtml(snapshot.market.label || 'Precios del mercado')}</span>`;
     panel.huntContent.appendChild(market);
+    market.addEventListener('click', () => togglePanelHuntMarket(panel));
   }
   const drops = document.createElement('section');
   drops.className = 'hunt-flat-drops';
@@ -4713,7 +4571,6 @@ function renderHuntAnalyzer(panel, snapshot) {
     panel.huntContent.appendChild(note);
   }
 }
-
 async function refreshPanelHuntAnalyzer(panel) {
   if (!panel?.huntOpen || panel.huntPreview) return;
   try {
@@ -4727,6 +4584,29 @@ async function refreshPanelHuntAnalyzer(panel) {
   }
 }
 
+async function togglePanelHuntMarket(panel) {
+if (!panel?.huntOpen || panel.huntActionBusy) return;
+panel.huntActionBusy = true;
+const boton = panel.huntContent.querySelector('.hunt-flat-market');
+if (boton) boton.disabled = true;
+try {
+  // Se llama al control del propio juego por su camino normal, que es hacer clic.
+  // El launcher no calcula precios: solo le da al botón y lee lo que el juego
+  // responda, que es justo lo que hace el Hunt Analyzer original.
+  const resultado = await panel.webview.executeJavaScript(toggleHuntMarketScript());
+  if (!resultado?.ok) throw new Error(resultado?.error || 'El juego no confirmo el cambio.');
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await refreshPanelHuntAnalyzer(panel);
+} catch (error) {
+  panel.huntState.textContent = cleanFarmError(error);
+  panel.huntState.classList.remove('is-live');
+  panel.huntState.classList.add('is-error');
+} finally {
+  panel.huntActionBusy = false;
+  const otro = panel.huntContent.querySelector('.hunt-flat-market');
+  if (otro) otro.disabled = false;
+}
+}
 async function resetPanelHuntAnalyzer(panel) {
   if (!panel || panel.huntActionBusy) return;
   panel.huntActionBusy = true;
@@ -4741,7 +4621,6 @@ async function resetPanelHuntAnalyzer(panel) {
     panel.huntResetButton.disabled = false;
   }
 }
-
 async function deletePanelHuntSession(panel) {
   if (!panel || panel.huntActionBusy) return;
   const accountName = accounts[panel.index]?.label || `Cuenta ${panel.index + 1}`;
@@ -4762,7 +4641,6 @@ async function deletePanelHuntSession(panel) {
     panel.huntDeleteButton.disabled = false;
   }
 }
-
 async function pollHuntAnalyzers() {
   if (huntPollBusy) return;
   const activePanels = panels.filter((panel) => panel.huntOpen);
@@ -4774,7 +4652,6 @@ async function pollHuntAnalyzers() {
     huntPollBusy = false;
   }
 }
-
 function setHuntAnalyzerOpen(panel, open) {
   panel.huntOpen = Boolean(open);
   if (!panel.huntOpen) panel.huntPreview = false;
@@ -4792,18 +4669,15 @@ function setHuntAnalyzerOpen(panel, open) {
     panel.huntContent.replaceChildren();
   }
 }
-
 function setPanelState(panel, status, text) {
   panel.element.classList.toggle('is-online', status === 'online');
   panel.element.classList.toggle('is-error', status === 'error');
   panel.status.textContent = text;
 }
-
 function getStoredZoom(index) {
   const value = Number(localStorage.getItem(`panelZoom:${index}`));
   return Number.isFinite(value) && value >= MIN_ZOOM && value <= MAX_ZOOM ? value : 1;
 }
-
 function updateZoom(panel, nextZoom) {
   panel.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(nextZoom * 10) / 10));
   panel.zoomLabel.textContent = `${Math.round(panel.zoom * 100)}%`;
@@ -4812,13 +4686,11 @@ function updateZoom(panel, nextZoom) {
     panel.webview.setZoomFactor(panel.zoom);
   } catch {}
 }
-
 async function applyGameTheme(panel) {
   try {
     await panel.webview.executeJavaScript(window.pokeGridTheme.buildInstallScript());
   } catch {}
 }
-
 function toggleExpanded(panel) {
   const willExpand = expandedPanel !== panel;
   panels.forEach((item) => item.element.classList.remove('is-expanded'));
@@ -4830,11 +4702,9 @@ function toggleExpanded(panel) {
     item.expandButton.title = item === expandedPanel ? 'Volver al grid' : 'Agrandar panel';
   });
 }
-
 function restoreGrid() {
   if (expandedPanel) toggleExpanded(expandedPanel);
 }
-
 // Cuántas cuentas había cuando se guardó el orden y la visibilidad. Sin ese dato no
 // se puede distinguir una cuenta que el usuario ocultó a propósito de una que aún no
 // existía al guardar, y dar por visibles todas las que falten rompería "Modo vista".
@@ -4844,7 +4714,6 @@ function savedAccountCount() {
   const stored = Number(localStorage.getItem(GRID_SAVED_ACCOUNTS_KEY));
   return Number.isInteger(stored) && stored >= 1 ? stored : DEFAULT_ACCOUNT_COUNT;
 }
-
 function loadVisibleAccountIndexes() {
   const total = accountCount();
   try {
@@ -4859,7 +4728,6 @@ function loadVisibleAccountIndexes() {
   const legacyCount = Math.max(1, Math.min(total, Number(localStorage.getItem(GRID_VIEW_KEY)) || total));
   return new Set(Array.from({ length: legacyCount }, (_, index) => index));
 }
-
 function loadPanelOrder() {
   const total = accountCount();
   try {
@@ -4897,7 +4765,6 @@ function loadPanelOrder() {
   // paneles sobrantes se quedan sin order y se renderizan antes que los demás.
   return Array.from({ length: total }, (_, index) => index);
 }
-
 function renderViewModeMenu() {
   viewModeAccounts.replaceChildren();
   panelOrder.forEach((index) => {
@@ -4919,7 +4786,6 @@ function renderViewModeMenu() {
     viewModeAccounts.appendChild(label);
   });
 }
-
 function positionViewModeMenu() {
   if (viewModeMenu.hidden) return;
   const viewportPadding = 8;
@@ -4928,7 +4794,6 @@ function positionViewModeMenu() {
   const menuWidth = Math.min(260, availableWidth);
   viewModeMenu.style.width = `${menuWidth}px`;
   viewModeMenu.style.maxHeight = `${Math.max(180, window.innerHeight - (viewportPadding * 2))}px`;
-
   const anchor = viewModeButton.getBoundingClientRect();
   const sidebarEdge = globalActions.getBoundingClientRect().right;
   const menuHeight = Math.min(viewModeMenu.scrollHeight, window.innerHeight - (viewportPadding * 2));
@@ -4936,11 +4801,9 @@ function positionViewModeMenu() {
   if (left + menuWidth > window.innerWidth - viewportPadding) left = anchor.left - menuWidth - gap;
   if (left < viewportPadding) left = Math.max(viewportPadding, (window.innerWidth - menuWidth) / 2);
   const top = Math.max(viewportPadding, Math.min(anchor.bottom - menuHeight, window.innerHeight - menuHeight - viewportPadding));
-
   viewModeMenu.style.left = `${Math.round(left)}px`;
   viewModeMenu.style.top = `${Math.round(top)}px`;
 }
-
 function applyGridView(_value = null, { persist = true } = {}) {
   if (expandedPanel) toggleExpanded(expandedPanel);
   grid.dataset.viewCount = String(visibleAccountIndexes.size);
@@ -4961,7 +4824,6 @@ function applyGridView(_value = null, { persist = true } = {}) {
   renderViewModeMenu();
   positionViewModeMenu();
 }
-
 function reorderPanels(draggedIndex, targetIndex) {
   if (draggedIndex === targetIndex) return;
   const from = panelOrder.indexOf(draggedIndex);
@@ -4971,7 +4833,6 @@ function reorderPanels(draggedIndex, targetIndex) {
   applyGridView();
   renderFarmAccounts();
 }
-
 function farmContextScript() {
   return `(() => {
     const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -5000,7 +4861,6 @@ function farmContextScript() {
     };
   })()`;
 }
-
 function farmEnhancedContextScriptLegacy() {
   const readContext = async () => {
     const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -5029,7 +4889,6 @@ function farmEnhancedContextScriptLegacy() {
       const place = pieces.find((part) => !/(?:level|nivel|n[ií]vel|lv|nv)\.?\s*\d+/i.test(part));
       if (place && !currentPlace) currentPlace = place;
     }
-
     const activeSlot = document.querySelector(
       '[data-pg-team-selected="true"], .phud-mon.active, .phud-mon.selected, .phud-mon.on, ' +
       '.pg-team-slot.active, .pg-team-slot.selected, .pg-team-slot.on, .phud-mon, .pg-team-slot'
@@ -5087,7 +4946,6 @@ function farmEnhancedContextScriptLegacy() {
         .filter((key) => /^__react(?:Props|Fiber|Container)/.test(key))
         .forEach((key) => inspectReactState(activeSlot[key]));
     }
-
     const apiRoots = [];
     for (const endpoint of ['/api/characters/me', '/api/game/profile']) {
       try {
@@ -5187,7 +5045,6 @@ function farmEnhancedContextScriptLegacy() {
   };
   return '(' + readContext.toString() + ')()';
 }
-
 function farmEnhancedContextScript(forcePokes = false) {
   const readServerContext = async (forcePokes = false) => {
     const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -5586,7 +5443,6 @@ function farmEnhancedContextScript(forcePokes = false) {
         items: [...(leader.items || []), ...visibleTmItems]
       };
     }
-
     const hpSelectors = [
       '.dock-poke-wrap .sbar-hp .sbar-txt',
       '.phud-mon.active .sbar-hp .sbar-txt',
@@ -5604,7 +5460,6 @@ function farmEnhancedContextScript(forcePokes = false) {
       maxHp = liveHp.maxHp;
     }
     if (maxHp && (hp === null || hp > maxHp)) hp = maxHp;
-
     const profileTexts = [
       ...document.querySelectorAll('.phud-tloc, .pg-player-meta, [class*="trainer-meta"], [class*="trainerMeta"], [data-player-name], [data-trainer-name]')
     ].map((element) => clean(element.textContent)).filter(Boolean);
@@ -5663,7 +5518,6 @@ function farmEnhancedContextScript(forcePokes = false) {
   };
   return `(${readServerContext.toString()})(${JSON.stringify(Boolean(forcePokes))})`;
 }
-
 function farmEnhancedCatalogScript() {
   const readCatalog = async () => {
     const requestJson = async (url) => {
@@ -5733,7 +5587,6 @@ function farmEnhancedCatalogScript() {
         entry.zoneSlug, entry.zone?.slug, entry.area, entry.region, entry.zone, nextContext.area
       );
       nextContext.areaName = first(entry.areaName, entry.area?.name, entry.regionName, entry.region?.name, entry.zoneName, entry.zone?.name, nextContext.areaName, nextContext.area);
-
       const level = numberFrom(entry.huntLevel, entry.hunt_level, entry.requiredLevel, entry.required_level, entry.minLevel, entry.min_level, entry.level);
       const name = first(
         entry.pokemonName, entry.pokemon_name, entry.huntName, entry.hunt_name,
@@ -5789,7 +5642,6 @@ function farmEnhancedCatalogScript() {
   };
   return '(' + readCatalog.toString() + ')()';
 }
-
 function captureReferenceCatalogScript() {
   const readReferences = async () => {
     const requestJson = async (url) => {
@@ -5805,7 +5657,6 @@ function captureReferenceCatalogScript() {
   };
   return `(${readReferences.toString()})()`;
 }
-
 async function loadCaptureReferenceCatalog(panel) {
   if (!panel?.webview) return;
   const result = await panel.webview.executeJavaScript(captureReferenceCatalogScript());
@@ -5843,7 +5694,6 @@ async function loadCaptureReferenceCatalog(panel) {
     pokemonReferenceIndex = nextIndex;
   }
 }
-
 function farmReferenceRecords(value) {
   const records = [];
   const seen = new WeakSet();
@@ -5894,7 +5744,6 @@ function farmReferenceRecords(value) {
   visit(value);
   return records;
 }
-
 async function loadFarmCatalogFromGame() {
   const gamePanels = panels.filter((panel) => {
     try { return panel.webview.getURL().startsWith(GAME_ORIGIN); } catch { return false; }
@@ -5974,7 +5823,6 @@ async function loadFarmCatalogFromGame() {
     left.name.localeCompare(right.name)
   );
 }
-
 async function refreshFarmData() {
   if (farmBusy) return;
   refreshFarmButton.disabled = true;
@@ -5995,7 +5843,6 @@ async function refreshFarmData() {
   renderFarmAccounts();
   if (!farmPickerLayer.hidden) renderFarmPicker();
 }
-
 async function refreshFarmContexts({ render = true, forcePokes = false, accountIndex = null } = {}) {
   if (farmContextPollBusy) return farmContexts;
   farmContextPollBusy = true;
@@ -6032,7 +5879,6 @@ async function refreshFarmContexts({ render = true, forcePokes = false, accountI
     farmContextPollBusy = false;
   }
 }
-
 async function rereadFarmLeaders(accountIndex = null) {
   if (farmContextPollBusy) return;
   if (accountIndex === null) rereadFarmLeadersButton.disabled = true;
@@ -6048,7 +5894,6 @@ async function rereadFarmLeaders(accountIndex = null) {
   renderFarmAccounts();
   if (!farmPickerLayer.hidden) renderFarmPicker();
 }
-
 function setPanelFarmChip(panel, config, visible) {
   if (!panel?.farmChip) return;
   panel.farmChip.hidden = !visible;
@@ -6056,7 +5901,6 @@ function setPanelFarmChip(panel, config, visible) {
     ? `🎯 ${config.target.name}`
     : '';
 }
-
 function renderFarmAccounts() {
   farmAccountGrid.replaceChildren();
   panelOrder.forEach((index) => {
@@ -6069,7 +5913,6 @@ function renderFarmAccounts() {
     account.classList.toggle('is-disabled', !config.enabled);
     account.classList.toggle('is-running', panel?.farmRunState === 'ok');
     account.classList.toggle('is-error', panel?.farmRunState === 'error');
-
     const head = document.createElement('div');
     head.className = 'farm-account-head';
     const identity = document.createElement('div');
@@ -6089,7 +5932,6 @@ function renderFarmAccounts() {
       : 'Esperando que la sesión entre al juego';
     identityCopy.append(accountName, accountMeta);
     identity.append(accountIndex, identityCopy);
-
     const enableLabel = document.createElement('label');
     enableLabel.className = 'farm-enable';
     enableLabel.title = config.enabled ? 'Incluir esta cuenta' : 'Cuenta excluida';
@@ -6116,7 +5958,6 @@ function renderFarmAccounts() {
     rereadButton.addEventListener('click', () => rereadFarmLeaders(index));
     headActions.append(rereadButton, enableLabel);
     head.append(identity, headActions);
-
     const leaderCard = document.createElement('section');
     leaderCard.className = 'farm-leader-card';
     const leader = context.leader;
@@ -6200,7 +6041,6 @@ function renderFarmAccounts() {
       }
       leaderCard.appendChild(tmPanel);
     }
-
     const body = document.createElement('div');
     body.className = 'farm-account-body';
     const targetButton = document.createElement('button');
@@ -6223,7 +6063,6 @@ function renderFarmAccounts() {
     targetArrow.textContent = '›';
     targetButton.append(targetCopy, targetArrow);
     targetButton.addEventListener('click', () => openFarmPicker(index));
-
     const accountAction = document.createElement('button');
     accountAction.type = 'button';
     accountAction.className = 'button button-farm farm-account-action';
@@ -6236,7 +6075,6 @@ function renderFarmAccounts() {
     accountAction.disabled = panel?.farmRunState === 'busy' || !config.target || !context.ready;
     accountAction.addEventListener('click', () => startFarmAccount(index));
     body.append(targetButton, accountAction);
-
     const status = document.createElement('div');
     status.className = 'farm-account-status';
     status.classList.toggle('is-ok', panel?.farmRunState === 'ok');
@@ -6252,7 +6090,6 @@ function renderFarmAccounts() {
     farmAccountGrid.appendChild(account);
   });
 }
-
 async function openFarmPicker(index) {
   farmPickerIndex = index;
   farmPickerArea = 'all';
@@ -6272,12 +6109,10 @@ async function openFarmPicker(index) {
   farmSearchInput.focus();
   if (!farmCatalog.length) await refreshFarmData();
 }
-
 function closeFarmPicker() {
   farmPickerLayer.hidden = true;
   farmPickerIndex = -1;
 }
-
 function farmLevelFilterMatches(target, context) {
   if (farmPickerLevel === 'all') return true;
   if (farmPickerLevel === 'accessible') return !context.ready || context.level === null || target.level <= context.level;
@@ -6285,7 +6120,6 @@ function farmLevelFilterMatches(target, context) {
   const [minimum, maximum] = farmPickerLevel.split('-').map(Number);
   return Number.isFinite(minimum) && Number.isFinite(maximum) ? target.level >= minimum && target.level <= maximum : true;
 }
-
 function createFarmTypeBadge(type) {
   const badge = document.createElement('span');
   badge.className = 'farm-type-badge';
@@ -6293,7 +6127,6 @@ function createFarmTypeBadge(type) {
   badge.textContent = pokemonTypeLabel(type);
   return badge;
 }
-
 function renderFarmRoute(scoredTargets, context) {
   farmRecommendedRoute.replaceChildren();
   const leader = context.leader;
@@ -6312,7 +6145,6 @@ function renderFarmRoute(scoredTargets, context) {
   leaderScore.textContent = leader ? `Nv.${leader.level || '?'} · Fuerza ${leader.strength || '?'}${leader.strengthSource === 'Estimado' ? ' est.' : ''}` : 'Sin líder';
   heading.append(copy, leaderScore);
   farmRecommendedRoute.appendChild(heading);
-
   const routeList = document.createElement('div');
   routeList.className = 'farm-route-list';
   const route = scoredTargets.filter(({ matchup }) => matchup.accessible).slice(0, 5);
@@ -6348,7 +6180,6 @@ function renderFarmRoute(scoredTargets, context) {
   }
   farmRecommendedRoute.appendChild(routeList);
 }
-
 function renderFarmPickerLegacy() {
   if (farmPickerIndex < 0) return;
   const context = farmContexts[farmPickerIndex] || { level: null };
@@ -6357,7 +6188,6 @@ function renderFarmPickerLegacy() {
   farmPickerAccount.textContent = context.ready
     ? `${accountName} · Nivel ${context.level ?? '?'} · Elige una zona accesible`
     : `${accountName} · Sesión aún no detectada · Puedes preparar la selección`;
-
   const areas = ['all', ...new Set(farmCatalog.map((target) => target.area))];
   farmAreaFilters.replaceChildren();
   areas.forEach((area) => {
@@ -6372,7 +6202,6 @@ function renderFarmPickerLegacy() {
     });
     farmAreaFilters.appendChild(button);
   });
-
   const search = normalizeSearchText(farmSearchInput.value);
   const filtered = farmCatalog.filter((target) => {
     if (farmPickerArea !== 'all' && target.area !== farmPickerArea) return false;
@@ -6411,7 +6240,6 @@ function renderFarmPickerLegacy() {
   });
   farmPickerEmpty.hidden = filtered.length > 0;
 }
-
 function renderFarmPicker() {
   if (farmPickerIndex < 0) return;
   const context = farmContexts[farmPickerIndex] || { level: null, leader: null };
@@ -6422,7 +6250,6 @@ function renderFarmPicker() {
       ? `${accountName} · ${context.leader.name} Nv.${context.leader.level || '?'} · Fuerza ${context.leader.strength || '?'}${context.leader.strengthSource === 'Estimado' ? ' estimada' : ''}`
       : `${accountName} · Nivel ${context.level ?? '?'} · Líder no detectado`
     : `${accountName} · Sesión aún no detectada · Puedes preparar la selección`;
-
   const areas = ['all', ...new Set(farmCatalog.map((target) => target.area))];
   farmAreaFilters.replaceChildren();
   areas.forEach((area) => {
@@ -6437,7 +6264,6 @@ function renderFarmPicker() {
     });
     farmAreaFilters.appendChild(button);
   });
-
   const availableTypes = [...new Set(farmCatalog.flatMap((target) => target.types || []))].sort((left, right) =>
     pokemonTypeLabel(left).localeCompare(pokemonTypeLabel(right))
   );
@@ -6457,7 +6283,6 @@ function renderFarmPicker() {
   farmLevelFilter.value = farmPickerLevel;
   farmMatchupFilter.value = farmPickerMatchup;
   farmSortSelect.value = farmPickerSort;
-
   const search = normalizeSearchText(farmSearchInput.value);
   const evaluated = farmCatalog.map((target) => ({ target, matchup: evaluateFarmTarget(target, context) }));
   const matchesStructuredFilters = ({ target, matchup }) => {
@@ -6496,13 +6321,11 @@ function renderFarmPicker() {
     left.target.name.localeCompare(right.target.name);
   const routeTargets = evaluated.filter(matchesStructuredFilters).filter(matchesSearch).sort(compareRecommended);
   renderFarmRoute(routeTargets, context);
-
   const filtered = [...routeTargets];
   if (farmPickerSort === 'level-asc') filtered.sort((left, right) => left.target.level - right.target.level || right.matchup.score - left.matchup.score);
   else if (farmPickerSort === 'level-desc') filtered.sort((left, right) => right.target.level - left.target.level || right.matchup.score - left.matchup.score);
   else if (farmPickerSort === 'name') filtered.sort((left, right) => left.target.name.localeCompare(right.target.name));
   else filtered.sort(compareRecommended);
-
   farmPokemonGrid.replaceChildren();
   filtered.forEach(({ target, matchup }, index) => {
     const locked = context.ready && context.level !== null && target.level > context.level;
@@ -6516,7 +6339,6 @@ function renderFarmPicker() {
     button.dataset.matchup = locked ? 'locked' : matchup.score >= 75 ? 'excellent' : matchup.score >= 58 ? 'good' : matchup.score >= 40 ? 'possible' : 'dangerous';
     button.disabled = locked;
     button.appendChild(createFarmSprite(target));
-
     const copy = document.createElement('span');
     copy.className = 'farm-smart-copy';
     const nameRow = document.createElement('span');
@@ -6542,7 +6364,6 @@ function renderFarmPicker() {
     reason.className = 'farm-smart-reason';
     reason.textContent = matchup.reasons.join(' · ') || 'Comparación basada en nivel disponible';
     copy.append(nameRow, typeRow, meta, reason);
-
     const verdict = document.createElement('span');
     verdict.className = 'farm-matchup-verdict';
     const verdictScore = document.createElement('b');
@@ -6562,7 +6383,6 @@ function renderFarmPicker() {
   });
   farmPickerEmpty.hidden = filtered.length > 0;
 }
-
 async function openFarmModal() {
   farmBackdrop.hidden = false;
   setFarmMessage('');
@@ -6571,7 +6391,6 @@ async function openFarmModal() {
   window.clearInterval(farmContextTimer);
   farmContextTimer = window.setInterval(() => refreshFarmContexts(), 5000);
 }
-
 function closeFarmModal() {
   if (farmBusy) return;
   closeFarmPicker();
@@ -6579,7 +6398,6 @@ function closeFarmModal() {
   window.clearInterval(farmContextTimer);
   farmContextTimer = null;
 }
-
 function buildFarmAutomationScript(config, options = {}) {
   const target = JSON.stringify(config.target);
   const allowOrreTravel = Boolean(options.allowOrreTravel);
@@ -6641,7 +6459,6 @@ function buildFarmAutomationScript(config, options = {}) {
       button.click();
       return true;
     };
-
     const findMapWindow = () => {
       const direct = [
         '.map-window', '[data-map-window]', '[data-guide="map-window"]',
@@ -6664,7 +6481,6 @@ function buildFarmAutomationScript(config, options = {}) {
       return visible(element) ? element : null;
     }, 8500);
     if (!mapWindow) throw new Error('El mapa del juego no abrió a tiempo.');
-
     const isSelected = (element) => Boolean(
       element?.classList?.contains('on') || element?.classList?.contains('active') ||
       element?.classList?.contains('selected') || element?.getAttribute('aria-selected') === 'true' ||
@@ -6698,7 +6514,6 @@ function buildFarmAutomationScript(config, options = {}) {
       }
       return true;
     };
-
     const targetMap = normalize(target.map || target.mapName);
     const targetMapName = normalize(target.mapName);
     const targetArea = normalize(target.area);
@@ -6712,7 +6527,6 @@ function buildFarmAutomationScript(config, options = {}) {
       const areaSelected = await selectNavigation(targetArea, 'area');
       if (!areaSelected && targetAreaName !== targetArea) await selectNavigation(targetAreaName, 'area');
     }
-
     const markerGuide = 'hunt-' + target.slug;
     const targetSlug = normalize(target.slug);
     const targetName = normalize(target.name);
@@ -6809,7 +6623,6 @@ function buildFarmAutomationScript(config, options = {}) {
     }, 15000);
     if (!travelConfirmed) throw new Error('El juego no confirmó la llegada a ' + target.name + '.');
     await delay(350);
-
     let hunt = document.querySelector('[data-pg-hunt-dialog="true"], [data-pg-launcher-hunt-source="true"], [data-pg-launcher-monitor-source="hunt"]');
     if (!visible(hunt)) {
       if (!clickDockAction('analyzer')) throw new Error('No se encontró el botón Hunt Analyzer.');
@@ -6819,7 +6632,6 @@ function buildFarmAutomationScript(config, options = {}) {
       }, 8000);
     }
     if (!hunt) throw new Error('Hunt Analyzer no abrió a tiempo.');
-
     let capture = document.querySelector('.clog-window');
     if (!visible(capture)) {
       const logButton = hunt.querySelector('.pg-hunt-log-button') ||
@@ -6834,7 +6646,6 @@ function buildFarmAutomationScript(config, options = {}) {
       }, 8000);
     }
     if (!capture) throw new Error('Capture Log no abrió a tiempo.');
-
     const setRect = (element, geometry, role) => {
       element.dataset.pgFarmMonitor = role;
       element.dataset.pgFloating = 'true';
@@ -6889,7 +6700,6 @@ function buildFarmAutomationScript(config, options = {}) {
     }
     arrangeMonitors();
     window.__pokeGridFarmTarget = { ...target, startedAt: Date.now() };
-
     const trainerMeta = document.querySelector('.phud-tloc, .pg-player-meta')?.textContent?.replace(/\\s+/g, ' ').trim() || '';
     return {
       ok: true,
@@ -6900,14 +6710,12 @@ function buildFarmAutomationScript(config, options = {}) {
     };
   })()`;
 }
-
 function cleanFarmError(error) {
   return String(error?.message || error || 'No se pudo iniciar esta cuenta')
     .replace(/^Error invoking remote method ['"]GUEST_VIEW_MANAGER_CALL['"]:\s*Error:\s*/i, '')
     .replace(/^Error:\s*/i, '')
     .trim();
 }
-
 function setFarmButtonRunning(running) {
   farmRunning = running;
   farmButton.classList.toggle('is-running', running);
@@ -6915,7 +6723,6 @@ function setFarmButtonRunning(running) {
     ? '<span class="top-action-icon" aria-hidden="true">●</span><span>Farmeando</span>'
     : '<span class="top-action-icon" aria-hidden="true">🎯</span><span>Modo farmeo</span>';
 }
-
 async function disableFarmMode() {
   if (farmBusy) return;
   const activePanels = panels.filter((panel) => panel.farmRunState === 'ok' || panel.farmRunState === 'busy');
@@ -6945,7 +6752,6 @@ async function disableFarmMode() {
   stopFarmButton.disabled = false;
   renderFarmAccounts();
 }
-
 async function startFarmAccount(index) {
   const config = farmConfigs[index];
   const context = farmContexts[index];
@@ -6959,7 +6765,6 @@ async function startFarmAccount(index) {
   const orreCheck = validateOrreTarget(config.target, context);
   if (!orreCheck.ok && !farmAllowOrreTravel) return setFarmMessage(`${accountName}: ${orreCheck.message}. Equipa las MT o activa el permiso de viaje a Orre.`);
   if (panel.farmRunState === 'busy') return;
-
   panel.farmRunState = 'busy';
   panel.farmRunMessage = 'Abriendo mapa y viajando…';
   setPanelState(panel, 'loading', 'Preparando farmeo…');
@@ -6987,7 +6792,6 @@ async function startFarmAccount(index) {
     renderFarmAccounts();
   }
 }
-
 async function startFarmMode() {
   if (farmBusy) return;
   const selected = farmConfigs
@@ -7020,7 +6824,6 @@ async function startFarmMode() {
     setFarmMessage(invalidOrre.map(({ index, check }) => `${farmContexts[index]?.trainerName || accounts[index]?.label || `Cuenta ${index + 1}`}: ${check.message}`).join(' · '));
     return;
   }
-
   farmBusy = true;
   startFarmButton.disabled = true;
   refreshFarmButton.disabled = true;
@@ -7033,7 +6836,6 @@ async function startFarmMode() {
     setPanelState(panel, 'loading', 'Preparando farmeo…');
   });
   renderFarmAccounts();
-
   const results = await Promise.all(selected.map(async ({ config, index }) => {
     const panel = panels[index];
     try {
@@ -7051,7 +6853,6 @@ async function startFarmMode() {
       return { ok: false, index, error: panel.farmRunMessage };
     }
   }));
-
   const successes = results.filter((result) => result.ok);
   const failures = results.filter((result) => !result.ok);
   farmBusy = false;
@@ -7077,7 +6878,6 @@ async function startFarmMode() {
     }, 650);
   }
 }
-
 function loginScript(credentials) {
   return `(async () => {
     const username = ${JSON.stringify(credentials.username)};
@@ -7095,7 +6895,6 @@ function loginScript(credentials) {
         [...form.querySelectorAll('button')].find((button) => /log in|login|entrar|iniciar/i.test(button.getAttribute('aria-label') || button.textContent || '')) ||
         [...form.querySelectorAll('button')].find((button) => button.type !== 'button');
     };
-
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const userInput = document.querySelector('input[autocomplete="username"]');
       const passwordInput = document.querySelector('input[autocomplete="current-password"], input[type="password"]');
@@ -7121,13 +6920,11 @@ function loginScript(credentials) {
     return 'form-not-found';
   })()`;
 }
-
 async function attemptLogin(panel, force = false) {
   const credentials = accounts[panel.index];
   if (!credentials?.username || !credentials?.password) return;
   if (!panel.webview.getURL().startsWith(LOGIN_URL)) return;
   if (!force && Date.now() - panel.lastLoginAttempt < 15_000) return;
-
   panel.lastLoginAttempt = Date.now();
   setPanelState(panel, 'loading', 'Completando acceso…');
   try {
@@ -7137,7 +6934,6 @@ async function attemptLogin(panel, force = false) {
     setPanelState(panel, 'error', 'No se pudo completar el acceso');
   }
 }
-
 function withTimeout(promise, timeoutMs, message) {
   let timer;
   return Promise.race([
@@ -7145,12 +6941,10 @@ function withTimeout(promise, timeoutMs, message) {
     new Promise((_, reject) => { timer = window.setTimeout(() => reject(new Error(message)), timeoutMs); })
   ]).finally(() => window.clearTimeout(timer));
 }
-
 function floatGeometryKey(panel, kind) {
   const version = kind === 'hunt' ? 'v2' : 'v1';
   return `pokegrid:${kind}-float-geometry:${version}:${panel.index}`;
 }
-
 function readFloatGeometry(panel, kind) {
   try {
     const geometry = JSON.parse(localStorage.getItem(floatGeometryKey(panel, kind)) || 'null');
@@ -7159,11 +6953,10 @@ function readFloatGeometry(panel, kind) {
     // rellenan con lo que ya había y el padre de ahora, y con eso se escala
     // 1:1 hasta que el usuario ajuste el panel a mano. Que no se mueva al
     // actualizar es lo correcto: está donde él lo puso.
-    const referencia = window.pokeGridFloatGeometry.referenciaDeGuardado(
-      geometry,
-      panel.element.getBoundingClientRect(),
-      kind
-    );
+    // Las referencias base son la medida contra la que se escala al cambiar la
+    // ventana. Solo se actualizan cuando el usuario toca el tamaño a mano.
+    const parentRect = panel.element.getBoundingClientRect();
+    const referencia = window.pokeGridFloatGeometry.referenciaDeGuardado(geometry, parentRect, kind);
     return {
       ...geometry,
       baseWidth: referencia.baseWidth,
@@ -7174,7 +6967,6 @@ function readFloatGeometry(panel, kind) {
     return null;
   }
 }
-
 function applyFloatGeometry(panel, kind) {
   const floatPanel = kind === 'hunt' ? panel.huntPanel : panel.captureLogPanel;
   const pinButton = floatPanel.querySelector(`.${kind}-float-pin`);
@@ -7185,7 +6977,6 @@ function applyFloatGeometry(panel, kind) {
   pinButton.setAttribute('aria-pressed', String(locked));
   pinButton.title = locked ? 'Desbloquear tamaño y posición' : 'Fijar tamaño y posición';
   const parentRect = panel.element.getBoundingClientRect();
-
   if (!geometry || !Number.isFinite(Number(geometry.left))) {
     // Sin geometría guardada manda el CSS, y sus valores por defecto ya llevan
     // el suelo y el margen. No hay nada que escribir.
@@ -7193,9 +6984,7 @@ function applyFloatGeometry(panel, kind) {
     floatPanel.style.removeProperty('--float-h');
     return;
   }
-
   const medida = window.pokeGridFloatGeometry.calcularFloatGeometry(geometry, parentRect, kind);
-
   // El tamaño NO va en estilo inline a propósito. Mientras el JS escriba width y
   // height, el CSS no puede reaccionar y su `min(280px, calc(100% - 14px))` no
   // sirve de nada, porque el inline gana a cualquier regla. Aquí solo se
@@ -7208,22 +6997,26 @@ function applyFloatGeometry(panel, kind) {
   floatPanel.style.right = 'auto';
   floatPanel.style.bottom = 'auto';
 }
-
 function clearFloatGeometryStyle(floatPanel) {
   floatPanel.style.removeProperty('--float-w');
   floatPanel.style.removeProperty('--float-h');
   floatPanel.style.removeProperty('left');
   floatPanel.style.removeProperty('top');
 }
-
-function saveFloatGeometry(panel, kind) {
+function saveFloatGeometry(panel, kind, actualizarBase = true) {
   const floatPanel = kind === 'hunt' ? panel.huntPanel : panel.captureLogPanel;
   if (floatPanel.hidden) return;
   const parentRect = panel.element.getBoundingClientRect();
   const rect = floatPanel.getBoundingClientRect();
-  if (rect.width < 1 || rect.height < 1) return;
+// Las referencias base son la medida contra la que se escala al cambiar la
+// ventana. Si se recalcularan en cada guardado, la referencia se movería con la
+// ventana y la razón siempre saldría 1: el panel nunca crecería al maximizar.
+// Solo se actualizan cuando el usuario toca el tamaño a mano.
   const previa = readFloatGeometry(panel, kind) || {};
-  const referencia = window.pokeGridFloatGeometry.referenciaDeGuardado(previa, parentRect, kind);
+  const referencia = actualizarBase
+    ? window.pokeGridFloatGeometry.referenciaDeGuardado(previa, parentRect, kind)
+    : { baseWidth: previa.baseWidth, baseHeight: previa.baseHeight, baseParent: previa.baseParent };
+
   const geometry = {
     left: Math.round(rect.left - parentRect.left),
     top: Math.round(rect.top - parentRect.top),
@@ -7236,7 +7029,6 @@ function saveFloatGeometry(panel, kind) {
   };
   localStorage.setItem(floatGeometryKey(panel, kind), JSON.stringify(geometry));
 }
-
 function setupFloatGeometry(panel, kind) {
   const floatPanel = kind === 'hunt' ? panel.huntPanel : panel.captureLogPanel;
   const head = floatPanel.querySelector(`.${kind}-float-head`);
@@ -7252,7 +7044,15 @@ function setupFloatGeometry(panel, kind) {
   resetButton.addEventListener('click', () => {
     localStorage.removeItem(floatGeometryKey(panel, kind));
     floatPanel.classList.remove('is-geometry-locked');
-    clearFloatGeometryStyle(floatPanel);
+    // Se escribe una posición por defecto explícita en vez de borrar las
+    // propiedades. Si se borran, manda el `right: 7px` del CSS y el panel se
+    // va al lado contrario de donde estaba, que es lo que se veía.
+    floatPanel.style.removeProperty('--float-w');
+    floatPanel.style.removeProperty('--float-h');
+    floatPanel.style.left = '';
+    floatPanel.style.top = '';
+    floatPanel.style.right = '';
+    floatPanel.style.bottom = '';
     applyFloatGeometry(panel, kind);
   });
   head.addEventListener('pointerdown', (event) => {
@@ -7289,12 +7089,11 @@ function setupFloatGeometry(panel, kind) {
     event.preventDefault();
   });
   const observer = new ResizeObserver(() => {
-    if (!floatPanel.hidden && !floatPanel.classList.contains('is-geometry-locked')) saveFloatGeometry(panel, kind);
+    if (!floatPanel.hidden && !floatPanel.classList.contains('is-geometry-locked')) saveFloatGeometry(panel, kind, false);
   });
   observer.observe(floatPanel);
   window.addEventListener('resize', () => requestAnimationFrame(() => applyFloatGeometry(panel, kind)));
 }
-
 function accountProfileSnapshotScriptLegacy() {
   return `(async () => {
     const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
@@ -7470,7 +7269,6 @@ function accountProfileSnapshotScriptLegacy() {
     return result;
   })()`;
 }
-
 function accountProfileSnapshotScript() {
   return `(async () => {
     const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
@@ -7635,17 +7433,14 @@ function accountProfileSnapshotScript() {
     return result;
   })()`;
 }
-
 function formatAccountAmount(value) {
   return Number.isFinite(Number(value)) ? Math.trunc(Number(value)).toLocaleString('es-ES') : '—';
 }
-
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
   })[character]);
 }
-
 const LAUNCHER_ICON_PATHS = Object.freeze({
   refresh: '<path d="M20 11a8 8 0 1 1-2.34-5.66L20 7.68M20 3v4.68h-4.68"/>',
   pin: '<path d="m14 4 6 6-3 1-4 4-1 5-2-2-2-2 5-1 4-4 1-3-6-6Z"/><path d="m8 16-4 4"/>',
@@ -7671,14 +7466,23 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   zoomOut: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.5-4.5M8 11h6"/>',
   zoomIn: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.5-4.5M8 11h6M11 8v6"/>',
   expand: '<path d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>',
-  collapse: '<path d="M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5"/>'
+  collapse: '<path d="M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5"/>',
+  marketOn: '<path d="M3 9h18v10H3V9Zm-1-4h20v4H2V5Zm9 0v16M12 9v10"/><path d="m7 12 2 2 4-4"/>',
+  marketOff: '<path d="M3 9h18v10H3V9Zm-1-4h20v4H2V5Zm9 0v16"/><path d="m7 12 4 4m0-4-4 4"/>',
+  reload: '<path d="M20 11a8 8 0 1 1-2.34-5.66L20 7.68M20 3v4.68h-4.68"/>',
+  shiny: '<path d="m12 2 2.2 6.2L20 10l-5.8 1.8L12 18l-2.2-6.2L4 10l5.8-1.8L12 2Z"/><path d="M19 3l.7 1.8L21.5 5.5l-1.8.7L19 8l-.7-1.8L16.5 5.5l1.8-.7L19 3Z"/>',
+  home: '<path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+  capture: '<circle cx="12" cy="12" r="9"/><path d="M3 12h6m6 0h6"/><circle cx="12" cy="12" r="3"/>',
+  hunt: '<circle cx="12" cy="12" r="8"/><path d="m14.5 9.5-3 3M9.5 14.5l5-5"/><path d="m13 8 3-1 1-3"/>',
+  filter: '<path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/>',
+  market: '<path d="M3 9h18v10H3V9Zm-1-4h20v4H2V5Zm9 0v16"/>',
+  sword: '<path d="m4 4 16 16M20 4 4 20M7 17l-3 3m13-3 3 3M5 3l5 2-3 3-2-5Zm14 0-5 2 3 3 2-5Z"/>',
+  gem: '<path d="M3 8 7 3h10l4 5-9 13L3 8Z"/><path d="m7 3 5 18 5-18M3 8h18"/>'
 });
-
 function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
   return `<svg class="launcher-ui-icon ${escapeHtml(className)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
-
 function renderAccountProfile(panel, profile) {
   const previous = panel.accountProfileLastGood || null;
   if (!profile?.ok && !previous) {
@@ -7714,7 +7518,6 @@ function renderAccountProfile(panel, profile) {
   panel.accountInfoState.textContent = `${profile?.ok ? 'Actualizado' : 'Último dato válido'} ${new Date(merged.updatedAt).toLocaleTimeString('es-ES')}`;
   panel.accountInfoState.hidden = false;
 }
-
 function setAccountInfoOpen(panel, open) {
   panel.accountInfoOpen = Boolean(open);
   panel.accountInfoPanel.hidden = !panel.accountInfoOpen;
@@ -7723,7 +7526,6 @@ function setAccountInfoOpen(panel, open) {
   if (panel.accountInfoOpen) pollAccountProfiles();
   else panel.accountInfoContent.replaceChildren();
 }
-
 async function pollAccountProfiles() {
   if (accountProfilePollBusy) return;
   const active = panels.filter((panel) => panel.accountInfoOpen && panel.webview?.isConnected);
@@ -7742,7 +7544,6 @@ async function pollAccountProfiles() {
     accountProfilePollBusy = false;
   }
 }
-
 function statisticNumber(value) {
   const text = String(value ?? '').trim().toLowerCase();
   if (!text || text === '—') return null;
@@ -7762,19 +7563,15 @@ function statisticNumber(value) {
   const number = Number(raw);
   return Number.isFinite(number) ? (negative ? -number : number) * multiplier : null;
 }
-
 function statisticMetric(snapshot, key) {
   return snapshot?.metrics?.find((metric) => metric.key === key)?.value || '—';
 }
-
 function statisticMetricNumber(snapshot, key) {
   return statisticNumber(statisticMetric(snapshot, key));
 }
-
 function formatStatisticNumber(value) {
   return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString('es-ES') : '—';
 }
-
 function mergeStatisticsProfile(panel, profile) {
   const previous = panel.accountProfileLastGood || null;
   if (!profile?.ok) return previous;
@@ -7786,7 +7583,6 @@ function mergeStatisticsProfile(panel, profile) {
   panel.accountProfileLastGood = merged;
   return merged;
 }
-
 function statisticsHuntContextScript() {
   const readContext = () => {
     const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
@@ -7817,7 +7613,6 @@ function statisticsHuntContextScript() {
   };
   return `(${readContext.toString()})()`;
 }
-
 async function readPanelStatistics(panel) {
   await ensureCaptureArchive(panel);
   const now = Date.now();
@@ -7916,11 +7711,9 @@ async function readPanelStatistics(panel) {
     drops: [...drops.values()].sort((left, right) => right.quantity - left.quantity)
   };
 }
-
 function statisticsMetricMarkup(label, value, kind = 'default') {
   return `<div class="statistics-account-metric is-${escapeHtml(kind)}" data-statistic-kind="${escapeHtml(kind)}"><span>${escapeHtml(label)}</span><b title="${escapeHtml(value)}">${escapeHtml(value)}</b></div>`;
 }
-
 function statisticsDropRows(row) {
   return (Array.isArray(row?.drops) ? row.drops : []).map((drop) => {
     if (Array.isArray(drop)) return { name: String(drop[0] || ''), quantity: Number(drop[1]) || 0, icon: '', price: '', total: '' };
@@ -7933,7 +7726,6 @@ function statisticsDropRows(row) {
     };
   }).filter((drop) => drop.name);
 }
-
 function statisticsDropMarkup(drop) {
   const icon = drop.icon
     ? `<img class="statistics-drop-sprite" src="${escapeHtml(drop.icon)}" alt="" loading="lazy">`
@@ -7941,14 +7733,12 @@ function statisticsDropMarkup(drop) {
   const detail = [drop.price ? `Unidad ${drop.price}` : '', drop.total ? `Valor ${drop.total}` : ''].filter(Boolean).join(' · ');
   return `<article class="statistics-drop-item">${icon}<div><strong>${escapeHtml(drop.name)}</strong><small>${escapeHtml(detail || 'Drop detectado por Hunt Analyzer')}</small></div><b>×${escapeHtml(formatStatisticNumber(drop.quantity))}</b></article>`;
 }
-
 function statisticComparisonValue(row, key) {
   if (key === 'balance') return statisticNumber(row.hunt?.balance);
   if (key === 'drops') return statisticsDropRows(row).reduce((sum, drop) => sum + drop.quantity, 0);
   if (key === 'time') return parseHuntDuration(statisticMetric(row.hunt, 'time'));
   return statisticMetricNumber(row.hunt, key);
 }
-
 function rankStatisticsComparisonRows(rows) {
   const scores = new Map(rows.map((row) => [row, 0]));
   const weightedMetrics = [
@@ -7973,7 +7763,6 @@ function rankStatisticsComparisonRows(rows) {
     return balanceDifference || left.index - right.index;
   }).map((row, index) => ({ row, rank: index + 1, score: scores.get(row) }));
 }
-
 function renderStatisticsComparison(rows) {
   const highlightDefinitions = [
     ['balance', 'Mejor balance', (row) => row.hunt?.balance || '—'],
@@ -7991,7 +7780,6 @@ function renderStatisticsComparison(rows) {
     const index = Number(card.dataset.comparisonAccountIndex) || 0;
     card.style.setProperty('--account-color', accountColor(index));
   });
-
   const columns = [
     ['defeated', 'Derrotados'], ['captured', 'Capturados'], ['xp', 'XP'], ['balance', 'Balance'],
     ['time', 'Tiempo'], ['xpRate', 'XP/h'], ['lootRate', 'Botín/h'], ['killRate', 'Kills/h'], ['drops', 'Drops']
@@ -8021,7 +7809,6 @@ function renderStatisticsComparison(rows) {
     row.style.setProperty('--account-color', accountColor(index));
   });
 }
-
 function renderStatistics(rows) {
   statisticsRows = rows;
   const total = (getter) => rows.reduce((sum, row) => sum + (Number(getter(row)) || 0), 0);
@@ -8073,7 +7860,6 @@ function renderStatistics(rows) {
   });
   renderStatisticsComparison(rows);
 }
-
 async function refreshStatistics() {
   if (statisticsBusy || statisticsBackdrop.hidden) return;
   statisticsBusy = true;
@@ -8101,7 +7887,6 @@ async function refreshStatistics() {
     statisticsTimer = statisticsBackdrop.hidden ? 0 : window.setTimeout(refreshStatistics, STATISTICS_REFRESH_INTERVAL_MS);
   }
 }
-
 function setStatisticsView(nextView) {
   statisticsView = nextView === 'comparison' ? 'comparison' : 'summary';
   statisticsViewTabs.forEach((tab) => {
@@ -8114,7 +7899,6 @@ function setStatisticsView(nextView) {
   statisticsComparisonView.hidden = statisticsView !== 'comparison';
   statisticsComparisonView.classList.toggle('is-active', statisticsView === 'comparison');
 }
-
 function openStatistics() {
   closeNotificationPanel();
   statisticsBackdrop.hidden = false;
@@ -8124,7 +7908,6 @@ function openStatistics() {
   window.clearTimeout(statisticsTimer);
   refreshStatistics();
 }
-
 function closeStatistics() {
   statisticsBackdrop.hidden = true;
   statisticsButton.setAttribute('aria-expanded', 'false');
@@ -8139,7 +7922,6 @@ function closeStatistics() {
   statisticsStatus.className = 'statistics-status';
   statisticsStatus.textContent = 'Preparando datos actuales…';
 }
-
 function normalizeBrowserInstanceUrl(rawUrl) {
   const value = String(rawUrl || '').trim();
   let target;
@@ -8153,12 +7935,10 @@ function normalizeBrowserInstanceUrl(rawUrl) {
   }
   return target.href;
 }
-
 function makeBrowserInstanceId() {
   const token = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `browser-${token.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 80)}`;
 }
-
 function normalizeBrowserInstance(value, fallbackId = '') {
   try {
     const id = String(value?.id || fallbackId || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
@@ -8171,7 +7951,6 @@ function normalizeBrowserInstance(value, fallbackId = '') {
     return null;
   }
 }
-
 function loadBrowserInstances() {
   try {
     const rows = JSON.parse(localStorage.getItem(BROWSER_INSTANCES_KEY) || '[]');
@@ -8185,16 +7964,13 @@ function loadBrowserInstances() {
     return [];
   }
 }
-
 function saveBrowserInstances() {
   localStorage.setItem(BROWSER_INSTANCES_KEY, JSON.stringify(browserInstances));
 }
-
 function browserInstancePartition(instanceId, index) {
   const safeId = String(instanceId).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
   return `persist:pokegrid-instance-${safeId}-${index + 1}`;
 }
-
 function setConnectionVisual(panel, state, text) {
   if (Number.isInteger(panel.index)) {
     setPanelState(panel, state, text);
@@ -8204,14 +7980,12 @@ function setConnectionVisual(panel, state, text) {
   panel.element.classList.toggle('is-error', state === 'error');
   panel.status.textContent = text;
 }
-
 function clearConnectionTimers(panel) {
   window.clearTimeout(panel.recoveryTimer);
   window.clearTimeout(panel.stallTimer);
   panel.recoveryTimer = 0;
   panel.stallTimer = 0;
 }
-
 // El panel de una cuenta, encontrado por id y no por posición. accounts y panels
 // solo van en paralelo mientras no cambie la estructura, y al arrancar el orden lo
 // fija el proceso principal, no este: unir por id es lo único que aguanta las dos
@@ -8223,7 +7997,6 @@ function panelForAccountId(accountId) {
   const index = accounts.findIndex((account) => Number(account.id) === id);
   return index >= 0 ? panels[index] : null;
 }
-
 // Estado visible de "esta sesión se está recargando para cambiar de conexión". Vive
 // en el panel y no en la fila del modal porque el modal se cierra a los 500 ms del
 // guardado: una fila que desaparece no es un estado que nadie pueda leer, y el panel
@@ -8240,7 +8013,6 @@ function markProxyReloading(panel, account) {
   panel.element.classList.add('is-proxy-reloading');
   setConnectionVisual(panel, 'loading', panel.proxyStatusText);
 }
-
 // El panel deja de estar recargando por cambio de proxy. Se llama tanto cuando la
 // sesión queda lista como en la ruta de error, porque un panel que entra en
 // recuperación no va a recargar nunca y se quedaría con el texto de "recargando"
@@ -8251,7 +8023,6 @@ function clearProxyReloading(panel) {
   panel.element.classList.remove('is-proxy-reloading');
   return true;
 }
-
 // El error de proxy manda sobre el texto de "sesión disponible": si el proxy no llegó
 // a aplicarse la sesión puede estar perfectamente viva y saliendo por la IP
 // equivocada, y el texto normal taparía justo lo que el usuario tiene que ver. Se
@@ -8263,7 +8034,6 @@ function setConnectionReadyVisual(panel, text = 'Sesión disponible') {
   }
   setConnectionVisual(panel, 'online', text);
 }
-
 function webviewCurrentUrl(panel) {
   try {
     const current = panel.webview.getURL();
@@ -8271,12 +8041,10 @@ function webviewCurrentUrl(panel) {
   } catch {}
   return panel.lastUrl || panel.startUrl;
 }
-
 function recoveryDelay(attempt) {
   const exponential = Math.min(WEBVIEW_RECOVERY_MAX_MS, WEBVIEW_RECOVERY_BASE_MS * (2 ** Math.min(4, Math.max(0, attempt - 1))));
   return Math.round(exponential + Math.random() * Math.min(1000, exponential * 0.2));
 }
-
 // statusText permite que quien llama deje su propio texto en la barra del panel en
 // vez del "motivo de carga" genérico, que es lo que necesita la recarga por cambio de
 // proxy para no quedarse tapada por su propio motivo.
@@ -8305,7 +8073,6 @@ async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga', statu
     return false;
   }
 }
-
 function schedulePanelRecovery(panel, reason = 'Conexión interrumpida', { immediate = false } = {}) {
   if (!panel || panel.destroyed || panel.recoveryTimer) return;
   // Un panel que entra en recuperación ya no está recargando por cambio de proxy:
@@ -8326,7 +8093,6 @@ function schedulePanelRecovery(panel, reason = 'Conexión interrumpida', { immed
     loadConnectionPanel(panel, webviewCurrentUrl(panel), { reason: 'Reconectando' });
   }, delay);
 }
-
 function startConnectionStallWatch(panel) {
   window.clearTimeout(panel.stallTimer);
   panel.stallTimer = window.setTimeout(async () => {
@@ -8352,7 +8118,6 @@ function startConnectionStallWatch(panel) {
     schedulePanelRecovery(panel, 'El documento no respondió durante dos minutos', { immediate: true });
   }, WEBVIEW_STALL_TIMEOUT_MS);
 }
-
 function markConnectionReady(panel) {
   window.clearTimeout(panel.recoveryTimer);
   window.clearTimeout(panel.stallTimer);
@@ -8373,7 +8138,6 @@ function markConnectionReady(panel) {
   }
   setConnectionReadyVisual(panel);
 }
-
 function attachResilientWebview(panel, callbacks = {}) {
   const { webview } = panel;
   panel.consoleDiagnostics ||= [];
@@ -8435,18 +8199,15 @@ function attachResilientWebview(panel, callbacks = {}) {
   webview.addEventListener('crashed', recoverRenderer);
   webview.addEventListener('unresponsive', recoverRenderer);
 }
-
 function allConnectionPanels() {
   return [
     ...panels,
     ...browserInstances.flatMap((instance) => browserInstanceViews.get(instance.id)?.panels || [])
   ];
 }
-
 function syncUserScriptPanels() {
   window.pokeGridUserScriptManager?.setPanels(allConnectionPanels());
 }
-
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
@@ -8490,7 +8251,6 @@ function renderBrowserInstanceTabs() {
   renderDynamicAccountLabels();
   updateBrowserInstanceSelection();
 }
-
 function updateBrowserInstanceSelection() {
   document.querySelectorAll('.instance-workspace').forEach((workspace) => {
     const active = workspace.dataset.instanceId === activeBrowserInstanceId;
@@ -8503,7 +8263,6 @@ function updateBrowserInstanceSelection() {
     shell.querySelector('.instance-tab')?.setAttribute('aria-selected', String(active));
   });
 }
-
 function refreshBrowserInstanceLayout(instanceId) {
   const view = browserInstanceViews.get(instanceId);
   if (!view || instanceId === PRIMARY_BROWSER_INSTANCE_ID) return;
@@ -8524,7 +8283,6 @@ function refreshBrowserInstanceLayout(instanceId) {
     });
   });
 }
-
 function activateBrowserInstance(instanceId, { persist = true } = {}) {
   const exists = instanceId === PRIMARY_BROWSER_INSTANCE_ID || browserInstances.some((row) => row.id === instanceId);
   activeBrowserInstanceId = exists ? instanceId : PRIMARY_BROWSER_INSTANCE_ID;
@@ -8533,7 +8291,6 @@ function activateBrowserInstance(instanceId, { persist = true } = {}) {
   applySidebarState(false);
   if (persist) localStorage.setItem(ACTIVE_BROWSER_INSTANCE_KEY, activeBrowserInstanceId);
 }
-
 function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   const element = document.createElement('article');
   element.className = 'browser-instance-panel';
@@ -8551,15 +8308,15 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   actions.className = 'browser-instance-actions';
   const homeButton = document.createElement('button');
   homeButton.type = 'button';
-  homeButton.textContent = '⌂';
+  homeButton.innerHTML = launcherUiIcon('home');
   homeButton.title = 'Abrir página inicial';
   const reloadButton = document.createElement('button');
   reloadButton.type = 'button';
-  reloadButton.textContent = '↻';
+  reloadButton.innerHTML = launcherUiIcon('refresh');
   reloadButton.title = 'Recargar esta pantalla';
   const expandButton = document.createElement('button');
   expandButton.type = 'button';
-  expandButton.textContent = '⛶';
+  expandButton.innerHTML = launcherUiIcon('expand');
   expandButton.title = 'Agrandar panel';
   actions.append(homeButton, reloadButton, expandButton);
   panelbar.append(identity, actions);
@@ -8611,7 +8368,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     workspace.querySelectorAll('.browser-instance-panel').forEach((candidate) => candidate.classList.remove('is-expanded'));
     workspace.classList.toggle('has-expanded', expand);
     element.classList.toggle('is-expanded', expand);
-    expandButton.textContent = expand ? '↙' : '⛶';
+    expandButton.innerHTML = launcherUiIcon(expand ? 'collapse' : 'expand');
     expandButton.title = expand ? 'Volver al mosaico' : 'Agrandar panel';
   });
   if (!window.pokeGrid.previewMode) {
@@ -8619,7 +8376,6 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   }
   return panel;
 }
-
 function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   if (browserInstanceViews.has(instance.id)) return browserInstanceViews.get(instance.id);
   const workspace = document.createElement('section');
@@ -8636,7 +8392,6 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   syncUserScriptPanels();
   return view;
 }
-
 function removeBrowserInstance(instanceId) {
   const instance = browserInstances.find((row) => row.id === instanceId);
   if (!instance || !window.confirm(`¿Cerrar y quitar la instancia "${instance.name}" del launcher?`)) return;
@@ -8654,7 +8409,6 @@ function removeBrowserInstance(instanceId) {
   if (activeBrowserInstanceId === instanceId) activateBrowserInstance(PRIMARY_BROWSER_INSTANCE_ID);
   renderBrowserInstanceTabs();
 }
-
 function openBrowserInstanceModal() {
   browserInstanceMessage.textContent = '';
   browserInstanceName.value = '';
@@ -8663,12 +8417,10 @@ function openBrowserInstanceModal() {
   browserInstanceBackdrop.hidden = false;
   browserInstanceName.focus();
 }
-
 function closeBrowserInstanceModal() {
   browserInstanceBackdrop.hidden = true;
   browserInstanceMessage.textContent = '';
 }
-
 function initializeBrowserInstances() {
   browserInstances = loadBrowserInstances();
   browserInstanceViews.set(PRIMARY_BROWSER_INSTANCE_ID, { workspace: grid, panels });
@@ -8678,7 +8430,6 @@ function initializeBrowserInstances() {
   const savedActive = localStorage.getItem(ACTIVE_BROWSER_INSTANCE_KEY) || PRIMARY_BROWSER_INSTANCE_ID;
   activateBrowserInstance(savedActive, { persist: false });
 }
-
 function createPanel(index) {
   const fragment = panelTemplate.content.cloneNode(true);
   const element = fragment.querySelector('.panel');
@@ -8715,12 +8466,16 @@ function createPanel(index) {
   const huntResetButton = fragment.querySelector('.hunt-float-reset');
   const huntDeleteButton = fragment.querySelector('.hunt-float-delete');
   const accountInfoButton = fragment.querySelector('.account-info-toggle');
+  // Los cuatro botones de la barra queiban vacíos en el HTML.
+  const zoomOutButton = fragment.querySelector('.zoom-out');
+  const zoomInButton = fragment.querySelector('.zoom-in');
+  const reloadButton = fragment.querySelector('.reload');
+  const expandPanelButton = fragment.querySelector('.expand');
   const accountInfoPanel = fragment.querySelector('.account-info-card');
   const accountInfoState = fragment.querySelector('.account-info-state');
   const accountInfoContent = fragment.querySelector('.account-info-content');
   const webviewHost = fragment.querySelector('.webview-host');
   const webview = document.createElement('webview');
-
   huntPanel.querySelector('.hunt-float-position-reset').innerHTML = launcherUiIcon('refresh');
   huntPanel.querySelector('.hunt-float-pin').innerHTML = launcherUiIcon('pin');
   huntResetButton.innerHTML = `${launcherUiIcon('reset')}<span>Reset</span>`;
@@ -8732,7 +8487,13 @@ function createPanel(index) {
   captureLogPanel.querySelector('.capture-float-delete').innerHTML = launcherUiIcon('trash');
   captureLogPanel.querySelector('.capture-float-close').innerHTML = launcherUiIcon('close');
   accountInfoButton.innerHTML = launcherUiIcon('user');
-
+  zoomOutButton.innerHTML = launcherUiIcon('zoomOut');
+  zoomInButton.innerHTML = launcherUiIcon('zoomIn');
+  reloadButton.innerHTML = launcherUiIcon('refresh');
+  expandPanelButton.innerHTML = launcherUiIcon('expand');
+  // Capturas y Hunt: el icono era una forma hecha con pseudo-elementos CSS.
+  captureLogButton.querySelector('.capture-pokeball-icon').outerHTML = launcherUiIcon('capture', 'capture-toggle-svg');
+  fragment.querySelector('.hunt-toggle .hunt-coin-sword-icon').outerHTML = launcherUiIcon('hunt', 'hunt-toggle-svg');
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
   const accountId = Number(accounts[index]?.id) || index + 1;
@@ -8742,7 +8503,6 @@ function createPanel(index) {
   webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no');
   webviewHost.appendChild(webview);
   grid.appendChild(fragment);
-
   const panel = {
     instanceId: PRIMARY_BROWSER_INSTANCE_ID,
     instanceName: 'Poke Idle World',
@@ -8755,6 +8515,10 @@ function createPanel(index) {
     farmChip,
     zoomLabel,
     expandButton,
+    zoomOutButton,
+    zoomInButton,
+    reloadButton,
+    expandPanelButton,
     captureLogButton,
     captureLogPanel,
     captureLogState,
@@ -8843,7 +8607,6 @@ function createPanel(index) {
     const sourceIndex = Number(event.dataTransfer.getData('text/plain'));
     if (Number.isInteger(sourceIndex)) reorderPanels(sourceIndex, index);
   });
-
   name.textContent = accounts[index].label || `Cuenta ${index + 1}`;
   renderPanelProxyChip(panel);
   const storedCaptureSort = localStorage.getItem(`captureLogSort:${index}`);
@@ -8860,7 +8623,6 @@ function createPanel(index) {
   updateZoom(panel, panel.zoom);
   setupFloatGeometry(panel, 'capture');
   setupFloatGeometry(panel, 'hunt');
-
   element.querySelector('.zoom-out').addEventListener('click', () => updateZoom(panel, panel.zoom - ZOOM_STEP));
   element.querySelector('.zoom-in').addEventListener('click', () => updateZoom(panel, panel.zoom + ZOOM_STEP));
   element.querySelector('.reload').addEventListener('click', () => {
@@ -8928,7 +8690,6 @@ function createPanel(index) {
   huntPanel.querySelector('.hunt-float-close').addEventListener('click', () => setHuntAnalyzerOpen(panel, false));
   accountInfoButton.addEventListener('click', () => setAccountInfoOpen(panel, !panel.accountInfoOpen));
   accountInfoPanel.querySelector('.account-info-close').addEventListener('click', () => setAccountInfoOpen(panel, false));
-
   attachResilientWebview(panel, {
     onStart: () => {
       panel.captureMonitorReady = false;
@@ -8966,20 +8727,17 @@ function createPanel(index) {
     window.setTimeout(() => loadConnectionPanel(panel, LOGIN_URL, { reason: 'Inicio escalonado' }), 450 + index * 900);
   }
 }
-
 function gridLayoutForCount(count) {
   if (count <= 1) return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)' };
   if (count <= 4) return { columns: 'repeat(2, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 2)}, minmax(0, 1fr))` };
   if (count <= 9) return { columns: 'repeat(3, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 3)}, minmax(0, 1fr))` };
   return { columns: 'repeat(4, minmax(0, 1fr))', rows: `repeat(${Math.ceil(count / 4)}, minmax(0, 1fr))` };
 }
-
 function setGridLayout() {
   const layout = gridLayoutForCount(accountCount());
   grid.style.gridTemplateColumns = layout.columns;
   grid.style.gridTemplateRows = layout.rows;
 }
-
 function rebuildGamePanels() {
   panels.forEach((panel) => {
     panel.destroyed = true;
@@ -9010,7 +8768,6 @@ function rebuildGamePanels() {
   refreshNotificationAccountOptions();
   renderCaptureGoals();
 }
-
 // La etiqueta de proxy del panel se pinta desde la cuenta, no con la cuenta, para que:
 //   - una importación que cambia el proxy la actualice en vez de dejar la etiqueta de
 //     la cuenta anterior (importAccountsFile y la sincronización manual pasan por
@@ -9026,7 +8783,6 @@ function renderPanelProxyChip(panel) {
   panel.proxyChip.textContent = 'VPN';
   panel.proxyChip.title = destino ? `Sale por ${destino}` : '';
 }
-
 // Resumen de applyAccountProxies por cuenta, pintado en el panel de cada una. El
 // modal se cierra a los 500 ms del guardado y una fila con el resultado dentro no es
 // un estado que nadie pueda leer; el panel es donde vive la sesión afectada. Lo usan
@@ -9042,7 +8798,6 @@ function applyProxyOutcomeToPanels(proxyResults) {
     renderPanelProxyChip(panel);
   });
 }
-
 function refreshPanelNames() {
   panels.forEach((panel) => {
     panel.name.textContent = accounts[panel.index].label || `Cuenta ${panel.index + 1}`;
@@ -9057,14 +8812,12 @@ function refreshPanelNames() {
   renderDynamicAccountLabels();
   window.pokeGridUserScriptManager?.setAccounts(accounts);
 }
-
 // Un solo sitio para el mensaje del modal, para que el texto y la clase is-ok no
 // diverjan entre los caminos que escriben en él.
 function setModalMessage(text, ok = false) {
   modalMessage.textContent = String(text || '');
   modalMessage.classList.toggle('is-ok', Boolean(ok));
 }
-
 // Filas con usuario y sin contraseña, o al revés. El launcher arranca con cuatro
 // filas vacías a propósito y un usuario puede dejar más huecos sin usar, así que
 // una fila totalmente vacía es válida: lo que se bloquea es la que está a medio
@@ -9076,7 +8829,6 @@ function incompleteAccountRows(rowElements) {
     return Boolean(value('username')) !== Boolean(value('password'));
   });
 }
-
 function renderAccountRow(account, index) {
   const row = document.createElement('div');
   row.className = 'account-row';
@@ -9119,7 +8871,6 @@ function renderAccountRow(account, index) {
   row.querySelector('[data-field="proxy.port"]').value = Number(proxy.port) > 0 ? String(proxy.port) : '';
   row.querySelector('[data-field="proxy.username"]').value = proxy.username || '';
   row.querySelector('[data-field="proxy.password"]').value = proxy.password || '';
-
   const removeButton = document.createElement('button');
   removeButton.type = 'button';
   removeButton.className = 'account-row-remove icon-button';
@@ -9154,19 +8905,15 @@ function renderAccountRow(account, index) {
   row.appendChild(removeButton);
   return row;
 }
-
 function reindexAccountRows() {
   accountRows.querySelectorAll('.account-row').forEach((row, index) => {
     row.querySelectorAll('[data-index]').forEach((control) => { control.dataset.index = String(index); });
   });
 }
-
 function openAccountsModal() {
   accountRows.replaceChildren();
   setModalMessage('');
-
   accounts.forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
-
   const addButton = document.createElement('button');
   addButton.type = 'button';
   addButton.className = 'button button-secondary';
@@ -9178,16 +8925,13 @@ function openAccountsModal() {
     reindexAccountRows();
   });
   accountRowActions.replaceChildren(addButton);
-
   modalBackdrop.hidden = false;
   renderAccountsSourceRow();
   accountRows.querySelector('input')?.focus();
 }
-
 const unlinkAccountsButton = document.querySelector('#unlinkAccountsButton');
 const restoreAccountsButton = document.querySelector('#restoreAccountsButton');
 const syncAccountsSourceButton = document.querySelector('#syncAccountsSourceButton');
-
 // La fila del archivo vinculado tiene dos estados y solo se escribe desde aquí, para
 // que la ruta y el botón no puedan contradecirse: un botón visible sin ruta ofrecería
 // desvincular algo que no está, y una ruta visible con el botón escondido no dejaría
@@ -9210,7 +8954,6 @@ function renderAccountsSourceRow() {
   restoreAccountsButton.hidden = !accountsBackupAvailable;
   syncAccountsSourceButton.hidden = !linkedAccountsSource;
 }
-
 // El archivo vinculado ya no se relee por su cuenta. Antes había un poller cada
 // 15 s que lo abría, descifraba accounts.enc y comparaba, para nada: el usuario
 // veía recargarse las cuentas sin haber tocado nada, y con un archivo de
@@ -9241,7 +8984,6 @@ syncAccountsSourceButton?.addEventListener('click', async () => {
     syncAccountsSourceButton.disabled = false;
   }
 });
-
 // Desvincular corta algo en silencio —el launcher deja de releer un archivo con las
 // contraseñas en claro— así que pide confirmación, como el borrado de una cuenta.
 // Cancelar no toca nada. Aceptar borra accounts-source.json en el proceso principal;
@@ -9270,7 +9012,6 @@ unlinkAccountsButton?.addEventListener('click', async () => {
     unlinkAccountsButton.disabled = false;
   }
 });
-
 // Restaurar devuelve las cuentas guardadas justo antes del último guardado. Cubre los
 // dos casos: recuperar de un accounts.enc ilegible y deshacer un guardado que salió mal
 // con cuentas que sí se leen. Pide confirmación por lo mismo que el borrado de una
@@ -9318,16 +9059,13 @@ restoreAccountsButton?.addEventListener('click', async () => {
     restoreAccountsButton.disabled = false;
   }
 });
-
 function closeAccountsModal() {
   modalBackdrop.hidden = true;
 }
-
 function fillAccountForm(rows) {
   accountRows.replaceChildren();
   normalizeAccounts(rows).forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
 }
-
 downloadAccountsTemplateButton.addEventListener('click', async () => {
   downloadAccountsTemplateButton.disabled = true;
   setModalMessage('Preparando la plantilla…');
@@ -9345,7 +9083,6 @@ downloadAccountsTemplateButton.addEventListener('click', async () => {
     downloadAccountsTemplateButton.disabled = false;
   }
 });
-
 importAccountsButton.addEventListener('click', async () => {
   importAccountsButton.disabled = true;
   setModalMessage(`Leyendo y validando ${accountCountText()}…`);
@@ -9377,11 +9114,9 @@ importAccountsButton.addEventListener('click', async () => {
     importAccountsButton.disabled = false;
   }
 });
-
 // syncLinkedAccounts() desapareció con el sondeo de 15 s: ya no hay ningún
 // llamador, y dejarlo sería código muerto justo en el sitio donde antes vivía el
 // problema. La sincronización a petición la hace el botón "Sincronizar ahora".
-
 accountsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const rowElements = Array.from(accountRows.querySelectorAll('.account-row'));
@@ -9416,7 +9151,6 @@ accountsForm.addEventListener('submit', async (event) => {
     p.enabled = Boolean(p.protocol && p.host && Number(p.port) >= 1);
     return account;
   });
-
   // Las cuentas de antes del guardado, para poder distinguir "no ha cambiado nada"
   // de "ha cambiado el proxy". Se guardan por id porque es la clave estable de una
   // cuenta, y se desechan al terminar el guardado: no viven más de lo que dura esta
@@ -9427,7 +9161,6 @@ accountsForm.addEventListener('submit', async (event) => {
     setModalMessage(result.error || 'No fue posible guardar las cuentas.');
     return;
   }
-
   accounts = normalizeAccounts(result.accounts || nextAccounts);
   // El guardado es el momento en que aparece la copia anterior, así que es también el
   // momento de publicarlo: sin esto el botón de restaurar seguiría escondido hasta el
@@ -9463,7 +9196,6 @@ accountsForm.addEventListener('submit', async (event) => {
   // El resultado de aplicar el proxy se reparte por panel, no por fila del modal: el
   // modal se cierra enseguida y una fila que desaparece no informa a nadie.
   applyProxyOutcomeToPanels(result.proxyResults);
-
   // El texto va entero a setModalMessage: el += de antes leía de modalMessage y
   // hacía que este bloque dependiera de que nadie hubiera escrito entre medias.
   const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
@@ -9484,7 +9216,6 @@ accountsForm.addEventListener('submit', async (event) => {
   setModalMessage(cierre + avisoFallos + avisoCopia, !avisoCopia);
   window.setTimeout(closeAccountsModal, structureChanged ? 900 : 500);
 });
-
 document.querySelector('#accountsButton').addEventListener('click', openAccountsModal);
 document.querySelector('#pokepediaButton').addEventListener('click', async () => {
   const button = document.querySelector('#pokepediaButton');
@@ -9597,12 +9328,10 @@ function openGoalBuilder(goal = null) {
   if (goalKindSelect.value === 'drop') loadGoalDropCatalog().then(renderGoalCatalog).catch(() => {});
   requestAnimationFrame(() => goalCatalogSearch.focus());
 }
-
 function closeGoalBuilder() {
   goalBuilderBackdrop.hidden = true;
   editingGoalId = null;
 }
-
 openGoalBuilderButton.addEventListener('click', () => openGoalBuilder());
 openGoalManagerButton.addEventListener('click', openGoalManager);
 closeGoalManagerButton.addEventListener('click', closeGoalManager);
@@ -9855,7 +9584,6 @@ function releaseLauncherMemoryCaches() {
   }
   return cachedEntries;
 }
-
 cleanupMemoryButton.addEventListener('click', async () => {
   cleanupMemoryButton.disabled = true;
   cleanupMemoryButton.classList.add('is-cleaning');
@@ -9911,13 +9639,11 @@ updateLauncherButton.addEventListener('click', async () => {
     // de un botón que cierra la aplicación.
     const peek = await pokeGridUpdateChannels.peek();
     if (!peek || !peek.ok) throw new Error(peek?.error || 'No se pudo buscar la actualización.');
-
     if (peek.status === 'development') {
       setUpdateLauncherState('⌘', 'Modo desarrollo');
       updateLauncherButton.title = 'La instalación automática se comprueba desde el paquete portátil.';
       return;
     }
-
     if (!peek.hayActualizacion) {
       setUpdateLauncherState('✓', 'Está actualizado');
       updateLauncherButton.title = `Versión actual ${peek.actual}`;
@@ -9925,13 +9651,11 @@ updateLauncherButton.addEventListener('click', async () => {
       window.pokeGridNotifications.set('updater', 0);
       return;
     }
-
     // La versión nueva es pendiente aunque el usuario cancele, así que se registra y se
     // avisa antes de preguntar y no solo si se acepta. Si se dejara para después,
     // cancelar dejaría el aviso apagado cuando la actualización sigue ahí.
     window.pokeGridUpdatePoll.recordar(peek.masReciente);
     window.pokeGridNotifications.set('updater', 1);
-
     const aceptado = window.confirm(
       'Hay una versión nueva del launcher.\n\n'
       + `Versión actual: ${peek.actual}\n`
@@ -9945,7 +9669,6 @@ updateLauncherButton.addEventListener('click', async () => {
       setUpdateLauncherState('⇩', 'Actualización pendiente');
       return;
     }
-
     const result = await pokeGridUpdateChannels.instalar();
     if (!result.ok) throw new Error(result.error || 'No se pudo completar la actualización.');
     currentLauncherVersion = String(result.currentVersion || currentLauncherVersion || '').trim();
@@ -9985,15 +9708,12 @@ document.querySelector('#loginAllButton').addEventListener('click', () => {
     }, index * 700);
   });
 });
-
 modalBackdrop.addEventListener('click', (event) => {
   if (event.target === modalBackdrop) closeAccountsModal();
 });
-
 browserInstanceBackdrop.addEventListener('click', (event) => {
   if (event.target === browserInstanceBackdrop) closeBrowserInstanceModal();
 });
-
 window.addEventListener('offline', () => {
   allConnectionPanels().forEach((panel) => {
     window.clearTimeout(panel.recoveryTimer);
@@ -10001,27 +9721,22 @@ window.addEventListener('offline', () => {
     setConnectionVisual(panel, 'error', 'Sin conexión · reconexión automática');
   });
 });
-
 window.addEventListener('online', () => {
   allConnectionPanels().forEach((panel, index) => {
     window.setTimeout(() => schedulePanelRecovery(panel, 'La red volvió a estar disponible', { immediate: true }), index * 350);
   });
 });
-
 farmBackdrop.addEventListener('click', (event) => {
   if (event.target === farmBackdrop) closeFarmModal();
 });
-
 farmPickerLayer.addEventListener('click', (event) => {
   if (event.target === farmPickerLayer) closeFarmPicker();
 });
-
 document.addEventListener('pointerdown', (event) => {
   if (!notificationPanel.hidden && !notificationPanel.contains(event.target) && !notificationButton.contains(event.target)) {
     closeNotificationPanel();
   }
 });
-
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     const openHuntPanel = panels.find((panel) => panel.huntOpen);
@@ -10038,7 +9753,6 @@ document.addEventListener('keydown', (event) => {
     toggleExpanded(panels[Number(event.key) - 1]);
   }
 });
-
 window.__pokeGridOpenFarm = openFarmModal;
 window.__pokeGridPreviewFarmRecommendations = () => {
   farmContexts[0] = {
@@ -10251,7 +9965,6 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   schedulePanelRecovery(panel, 'Prueba controlada de reconexión');
   return Boolean(panel.recoveryTimer) || window.pokeGrid.previewMode;
 };
-
 (async function initialize() {
   applySidebarState(localStorage.getItem('launcherSidebarOpen') === '1', { persist: false });
   applyTopbarCollapsedState(localStorage.getItem('launcherTopbarCollapsed') === '1', { persist: false });
@@ -10309,4 +10022,4 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
     openAccountsModal();
     setModalMessage(result.error || 'No se pudieron leer las cuentas guardadas.');
   }
-})();
+})();
