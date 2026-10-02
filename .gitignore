@@ -7,6 +7,9 @@ smoke.png
 accounts.enc
 accounts-source.json
 
+# Sesiones locales del acompañante visual de brainstorming; nunca subir.
+.superpowers/
+
 # Estado local del script de VPN por cuenta (core, configs y PIDs): nunca subir.
 .vpn/
 
