@@ -11,7 +11,14 @@
   --success: #4be08a;
   --warning: #ffc857;
   --danger: #ff6678;
-  font-family: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  /* Dos familias y ni un fichero más. "Segoe UI Variable" viene con Windows 11
+     y tiene tamaño óptico real: Display para títulos y cifras, Text para el resto.
+     En Windows 10 cae a Segoe UI, que es lo que ya se ve hoy.
+     Lo que se sustituye es la pila condensada que usaban los tres paneles, dos
+     de cuyos miembros no existen en Windows 11. */
+  --tipo-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --tipo-texto: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--tipo-texto);
 }
 
 * { box-sizing: border-box; }
@@ -1123,14 +1130,20 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .account-info-progress span,
 .account-info-membership > span { color: #a9bec3; font-size: 7px; font-weight: 800; text-transform: uppercase; }
 .account-info-metric span { color: #63d5df; }
-.account-info-metric b { overflow: hidden; color: #f5fafa; font-size: 11px; text-overflow: ellipsis; }
+.account-info-metric b { overflow: hidden; color: #f5fafa; font-size: 11px; text-overflow: ellipsis; 
+  font-family: var(--tipo-display);
+}
 .account-info-progress { padding: 6px 7px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 7px; border: 1px solid #467d86; border-radius: 7px; background: #30353a; }
 .account-info-progress > div { min-width: 0; display: grid; gap: 2px; }
 .account-info-progress > div + div { padding-left: 7px; border-left: 1px solid #58c3cd; }
-.account-info-progress b { overflow: hidden; color: #f5fafa; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.account-info-progress b { overflow: hidden; color: #f5fafa; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; 
+  font-family: var(--tipo-display);
+}
 .account-info-membership { padding: 6px 7px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; align-items: end; border: 1px solid #467d86; border-radius: 7px; background: #30353a; }
 .account-info-membership > span { grid-column: 1 / -1; }
-.account-info-membership b { font-size: 11px; }
+.account-info-membership b { font-size: 11px; 
+  font-family: var(--tipo-display);
+}
 .account-info-membership small { color: #a9b7ba; font-size: 7px; text-transform: uppercase; }
 .account-info-vip.is-vip b { color: #42e6d0; }
 .account-info-vip.is-basic b { color: #8b9aa5; }
@@ -1175,7 +1188,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .is-geometry-locked .hunt-float-head { cursor: default; }
 .hunt-float-head > div:first-child { min-width: 0; }
 .hunt-float-kicker { display: block; color: #5e8ba9; font-size: 7px; font-weight: 900; letter-spacing: .12em; }
-.hunt-float-head strong { display: block; margin-top: 2px; color: #eef7fc; font-size: 15px; text-transform: uppercase; }
+.hunt-float-head strong { display: block; margin-top: 2px; color: #eef7fc; font-size: 15px; text-transform: uppercase; 
+  font-family: var(--tipo-display);
+}
 .hunt-float-actions { display: flex; align-items: center; gap: 5px; }
 .float-geometry-action {
   width: 27px;
@@ -1261,7 +1276,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   background: #101c28;
 }
 .hunt-flat-balance span { color: #7893a7; font-size: 8px; font-weight: 800; text-transform: uppercase; }
-.hunt-flat-balance b { color: #55e69a; font-size: 15px; }
+.hunt-flat-balance b { color: #55e69a; font-size: 15px; 
+  font-family: var(--tipo-display);
+}
 .hunt-flat-balance.is-negative b { color: #ff7684; }
 .hunt-flat-market { margin: 7px 1px 0; color: #ddbd59; font-size: 8px; }
 .hunt-flat-drops { margin-top: 8px; }
@@ -1281,7 +1298,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .hunt-flat-drop:first-of-type { border-top: 0; }
 .hunt-flat-drop-name { min-width: 0; overflow: hidden; color: #c9d8e3; text-overflow: ellipsis; white-space: nowrap; }
 .hunt-flat-drop-quantity { color: #7490a3; font-variant-numeric: tabular-nums; }
-.hunt-flat-drop-total { color: #52df92; font-weight: 900; font-variant-numeric: tabular-nums; }
+.hunt-flat-drop-total { color: #52df92; font-weight: 900; font-variant-numeric: tabular-nums; 
+  font-family: var(--tipo-display);
+}
 .hunt-flat-note { margin: 8px 2px 1px; color: #526d80; font-size: 7px; line-height: 1.35; text-align: center; }
 
 .capture-float-panel {
@@ -1367,7 +1386,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   border-bottom: 1px solid #16342f;
   background: #091a20;
 }
-.capture-float-count { color: #65dba4; font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.capture-float-count { color: #65dba4; font-size: 9px; font-weight: 900; text-transform: uppercase; 
+  font-family: var(--tipo-display);
+}
 .capture-float-tools label { display: flex; align-items: center; gap: 6px; color: #658b8c; font-size: 8px; font-weight: 800; text-transform: uppercase; }
 .capture-float-sort {
   height: 27px;
@@ -1562,7 +1583,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 @container (max-width: 350px) {
   .capture-float-kicker, .hunt-float-kicker { display: none; }
-  .capture-float-head strong, .hunt-float-head strong { font-size: 12px; }
+  .capture-float-head strong, .hunt-float-head strong { font-size: 12px; 
+  font-family: var(--tipo-display);
+}
   .capture-filter-grid { grid-template-columns: 1fr; }
   .capture-filter-names-label { grid-column: auto; }
   .capture-flat-row { grid-template-columns: 34px minmax(0, 1fr); }
@@ -1571,7 +1594,9 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 .capture-flat-sprite-fallback { display: grid; place-items: center; color: #47746a; font-size: 22px; }
 .capture-flat-main { min-width: 0; }
-.capture-flat-name { display: block; overflow: hidden; color: #eff8f5; font-size: 12px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.capture-flat-name { display: block; overflow: hidden; color: #eff8f5; font-size: 12px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; 
+  font-family: var(--tipo-display);
+}
 .capture-flat-tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 3px; }
 .capture-flat-tag {
   padding: 2px 4px;
@@ -3591,7 +3616,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
     linear-gradient(150deg, #101c27, #08121b 78%);
   box-shadow: 0 20px 48px rgba(0, 0, 0, .66), inset 0 0 0 1px rgba(197, 222, 237, .04);
   color: #f4f7fa;
-  font-family: "Arial Narrow", "Bahnschrift Condensed", "Roboto Condensed", "Segoe UI", sans-serif;
+  font-family: var(--tipo-texto);
 }
 .hunt-float-head {
   min-height: 76px;
@@ -3612,6 +3637,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   letter-spacing: .01em;
   line-height: .95;
   text-shadow: 0 2px 0 rgba(0, 0, 0, .45);
+
+  font-family: var(--tipo-display);
 }
 .hunt-float-actions { gap: 7px; }
 .float-geometry-action,
@@ -3737,6 +3764,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   font-weight: 950;
   line-height: 1;
   text-shadow: 0 2px rgba(0, 0, 0, .4);
+
+  font-family: var(--tipo-display);
 }
 .hunt-flat-metric[data-metric-card="defeated"] b,
 .hunt-flat-metric[data-metric-card="time"] b { color: #f4f6f8 !important; }
@@ -3764,7 +3793,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 .hunt-flat-balance-icon .launcher-ui-icon { width: 27px; height: 27px; }
 .hunt-flat-balance > span { color: #e4e8ec; font-size: 13px; letter-spacing: .04em; }
-.hunt-flat-balance > b { color: #56e87f; font-size: clamp(22px, 4.5cqw, 31px); }
+.hunt-flat-balance > b { color: #56e87f; font-size: clamp(22px, 4.5cqw, 31px); 
+  font-family: var(--tipo-display);
+}
 .hunt-flat-market {
   margin: 10px 2px;
   color: #ffd22b;
@@ -3803,7 +3834,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .hunt-flat-drop-icon { width: 32px; height: 32px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .48)); }
 .hunt-flat-drop-name { color: #f1f4f7; font-weight: 850; }
 .hunt-flat-drop-quantity { color: #bbc5cf; }
-.hunt-flat-drop-total { color: #55ec7f; font-size: 12px; }
+.hunt-flat-drop-total { color: #55ec7f; font-size: 12px; 
+  font-family: var(--tipo-display);
+}
 
 /* Datos en tiempo real */
 .account-info-card {
@@ -3817,7 +3850,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
     radial-gradient(circle at 20% 0, rgba(38, 122, 158, .13), transparent 25rem),
     linear-gradient(145deg, #0d1b27, #07121c 76%);
   box-shadow: 0 22px 48px rgba(0, 0, 0, .67), inset 0 0 0 1px rgba(97, 220, 255, .035);
-  font-family: "Arial Narrow", "Bahnschrift Condensed", "Roboto Condensed", "Segoe UI", sans-serif;
+  font-family: var(--tipo-texto);
 }
 .account-info-card > header {
   min-height: 70px;
@@ -4021,7 +4054,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 @container (max-width: 470px) {
   .hunt-float-head { min-height: 64px; padding: 10px; }
   .hunt-float-kicker { display: block; font-size: 8px; }
-  .hunt-float-head strong { font-size: 22px; }
+  .hunt-float-head strong { font-size: 22px; 
+  font-family: var(--tipo-display);
+}
   .float-geometry-action, .hunt-float-action, .hunt-float-close { height: 39px; }
   .float-geometry-action, .hunt-float-close { width: 39px; }
   .hunt-float-action { width: 39px; padding: 0; justify-content: center; }
@@ -4030,7 +4065,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   .hunt-flat-metric-icon { width: 43px; height: 43px; }
   .hunt-flat-metric-icon .launcher-ui-icon { width: 27px; height: 27px; }
   .hunt-flat-metric-copy > span { font-size: 9px; }
-  .hunt-flat-metric-copy > b { font-size: 18px; }
+  .hunt-flat-metric-copy > b { font-size: 18px; 
+  font-family: var(--tipo-display);
+}
 }
 
 @container (min-width: 471px) and (max-width: 620px) {
@@ -4074,7 +4111,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 .hunt-float-head { min-height: 49px; padding: 8px 9px 7px 12px; }
 .hunt-float-kicker { font-size: 7px; letter-spacing: .08em; }
-.hunt-float-head strong { margin-top: 2px; font-size: 15px; line-height: 1; }
+.hunt-float-head strong { margin-top: 2px; font-size: 15px; line-height: 1; 
+  font-family: var(--tipo-display);
+}
 .hunt-float-actions { gap: 5px; }
 .float-geometry-action,
 .hunt-float-action,
@@ -4108,7 +4147,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .hunt-flat-metric-icon { width: 32px; height: 32px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0, 0, 0, .35); }
 .hunt-flat-metric-icon .launcher-ui-icon { width: 19px; height: 19px; }
 .hunt-flat-metric-copy > span { font-size: 7px; letter-spacing: .04em; }
-.hunt-flat-metric-copy > b { margin-top: 3px; font-size: 13px; }
+.hunt-flat-metric-copy > b { margin-top: 3px; font-size: 13px; 
+  font-family: var(--tipo-display);
+}
 .hunt-flat-metric-copy > small { margin-top: 2px; font-size: 7px; }
 .hunt-flat-balance {
   min-height: 46px;
@@ -4121,7 +4162,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .hunt-flat-balance-icon { width: 29px; height: 29px; border-radius: 7px; }
 .hunt-flat-balance-icon .launcher-ui-icon { width: 17px; height: 17px; }
 .hunt-flat-balance > span { font-size: 8px; }
-.hunt-flat-balance > b { font-size: 15px; }
+.hunt-flat-balance > b { font-size: 15px; 
+  font-family: var(--tipo-display);
+}
 .hunt-flat-market { margin: 7px 1px; font-size: 8px; }
 .hunt-flat-drops { margin-top: 6px; padding: 6px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, .22); }
 .hunt-flat-section-title { margin-bottom: 5px; gap: 5px; font-size: 7px; }
@@ -4136,7 +4179,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   font-size: 8px;
 }
 .hunt-flat-drop-icon { width: 18px; height: 18px; }
-.hunt-flat-drop-total { font-size: 9px; }
+.hunt-flat-drop-total { font-size: 9px; 
+  font-family: var(--tipo-display);
+}
 
 .account-info-card {
   top: 47px;
