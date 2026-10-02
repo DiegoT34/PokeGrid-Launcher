@@ -181,7 +181,7 @@ El detalle se inserta como **hermano inmediato de su fila**, dentro del bloque d
 
 **Solo el cuándo y el cuánto. No se toca qué se lee.** Ni `captureLogPanelSnapshotScript`, ni `huntAnalyzerSnapshotScript`, ni la llamada a la API, ni la lectura de tokens, ni una línea de lo que se lee del DOM del juego.
 
-El coste medido: `pollHuntAnalyzers` corre **cada 1.500 ms** (`renderer.js:10165`), y por cada cuenta con el panel abierto inyecta `huntAnalyzerSnapshotScript` (`renderer.js:4239-4443`, 205 líneas) con **26 apariciones de `querySelector`**, una de ellas un `querySelectorAll('*')` sobre el diálogo y otra un `.sort()` que llama a `querySelectorAll('*').length` sobre cada candidato. Con 8 cuentas son 8 scripts de ese tamaño cada 1,5 segundos, más `hydrateHuntDropIcons` con 4.000 ms de espera **por icono**, en serie.
+El coste medido: `pollHuntAnalyzers` corre **cada 1.500 ms** (`renderer.js:10165`), y por cada cuenta con el panel abierto inyecta `huntAnalyzerSnapshotScript` (`renderer.js:4239-4443`, 205 líneas) con **26 apariciones de `querySelector`**, una de ellas un `querySelectorAll('*')` sobre el diálogo y otra un `.sort()` que llama a `querySelectorAll('*').length` sobre cada candidato. Con 8 cuentas son 8 scripts de ese tamaño cada 1,5 segundos. Y a eso se le suma la espera de los iconos de los drops, que es el punto donde hay un fallo real y no solo coste (ver la medida 3, más abajo).
 
 **Una precisión para que nadie lo lea como un olvido:** Hunt Analyzer **no habla con la API del juego**. El único `fetch` que inyecta es a `/game/items.json` (`renderer.js:4379`), un catálogo estático de objetos, y va memoizado con `||=` para que salga **una sola vez** por webview. Todo lo demás lo lee del DOM del juego. Por eso no se puede centralizar en un módulo de API como sí se hace con Capture Log: no hay API que centralizar.
 
@@ -189,7 +189,17 @@ Tres medidas:
 
 1. **`pollHuntAnalyzers` de 1.500 ms a 3.000 ms.** Es el único sondeo por debajo de 3.000; los otros cinco (`pollCaptureNotifications` 3.500, `pollCaptureLogs` 4.000, `pollAccountProfiles` 4.000, `updatePanelLiveClocks` 1.000) están fuera de ese rango. En un panel que se lee mirando, nadie nota 300 ms.
 2. **Caché del diálogo de Hunt por cuenta.** Si ya se encontró el diálogo, se reutiliza la referencia y **solo se vuelve a buscar si ha desaparecido**. Eso elimina la parte más cara del bucle, que es el `querySelectorAll` sobre todos los candidatos y su `.sort()`.
-3. **Techo global a `hydrateHuntDropIcons`.** Hoy espera hasta 4.000 ms **por icono**, en serie. Pasa a un techo global para todos los iconos. Si no llegan, se pintan sin icono y el panel **no se queda colgado**.
+3. **Un icono lento ya no puede tumbar el panel entero.** Esta medida cambió al medirla, y el fallo real es peor de lo que parecía.
+
+   Lo que se creía: «`hydrateHuntDropIcons` espera 4.000 ms **por icono**, en serie».
+
+   Lo que hay: `hydrateHuntDropIcons` (`renderer.js:4462-4474`) recorre los drops con **`Promise.all`**, o sea **en paralelo**, y el 4.000 ms es un único `withTimeout` que envuelve a la llamada entera (`renderer.js:4651`). **No hay espera por icono.**
+
+   El fallo real está en lo que pasa cuando ese techo se agota. `withTimeout` rechaza, el `catch` de `refreshPanelHuntAnalyzer` (`renderer.js:4653`) pinta `{ ok: false, error }`, y **`renderHuntAnalyzer` nunca llega a ejecutarse** (`renderer.js:4652` está después del `await`). Consecuencia: **si un solo icono tarda más de 4 segundos, Hunt Analyzer deja de mostrar los datos enteros** y se queda con un mensaje de error. Un icono lento borra las nueve métricas.
+
+   El arreglo: **renderizar primero, hidratar después.** `renderHuntAnalyzer` se llama con el snapshot ya leído; la hidratación de iconos se dispara después, sin `await`, y cuando un icono llega se parchea su celda. Si un icono no llega nunca, se queda sin icono y **el resto del panel sigue vivo**. El techo de 4.000 ms se conserva, pero deja de ser una puerta de salida y pasa a ser el límite de una mejora cosmetic.
+
+   Y por qué esto importa más de lo que parece: los iconos vienen de URLs externas de objetos del juego. **Una sola URL lenta tumba el panel entero.** Con el arreglo, solo se pierde ese icono.
 
 ### Lo que esto NO arregla, y va escrito para que nadie lo confunda
 
@@ -232,9 +242,15 @@ Las seis tienen que fallar contra el `renderer.js` de hoy, menos la última, que
 
 Un perfil que cuenta cuántas veces se llama al script de Hunt con 1, 4 y 8 cuentas, y comprueba que a 3.000 ms la carga por segundo es la mitad, y que con 8 cuentas la vuelta **ya no crece linealmente** por el diálogo cacheado.
 
-### El techo de los iconos
+### Un icono lento no puede tumbar el panel
 
-Una vuelta con un icono que nunca resuelve tiene que **terminar**. Hoy se cuelga 4.000 ms por icono.
+El RED más valioso de este proyecto, porque **describe un fallo real y no un riesgo futuro**.
+
+Una vuelta de Hunt Analyzer con **un icono que no resuelve nunca**, y las nueve métricas presentes en el snapshot. Hoy el resultado es que el panel **no muestra ninguna métrica**: se queda en el mensaje de error del `catch`. Lo que hay que comprobar es que **las nueve métricas se pintan igualmente**, y que solo ese icono se queda vacío.
+
+Y un segundo caso: **una URL que tarda 10 segundos** pero acaba resuelviendo. Hoy, a los 4 segundos el panel ya está en error y se queda ahí. Después, el panel enseña los datos y, cuando el icono llega, su celda se actualiza sola.
+
+Los dos casos tienen que **fallar contra el `renderer.js` de hoy**.
 
 ### Regresión
 
