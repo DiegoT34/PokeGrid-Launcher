@@ -16,6 +16,11 @@ const BROWSER_INSTANCES_KEY = 'pokegrid:browser-instances:v1';
 const ACTIVE_BROWSER_INSTANCE_KEY = 'pokegrid:active-browser-instance:v1';
 const PRIMARY_BROWSER_INSTANCE_ID = 'poke-idle-world';
 const NOTIFICATION_COUNTER_KEY = 'pokegrid:notification-counters:v1';
+// Antes 1500. Es el único sondeo que estaba por debajo de 3000, y con ocho cuentas
+// abiertas son ocho scripts de más de 200 líneas cada 1500 ms. En un panel que se lee
+// mirando, nadie nota 300 ms.
+const HUNT_SONDEO_MS = 3000;
+
 const PANEL_READ_TIMEOUT_MS = 9000;
 const CAPTURE_ARCHIVE_DB = 'pokegrid-capture-archive-v1';
 const GAME_ORIGIN = 'https://poke.idleworld.online';
@@ -4301,7 +4306,18 @@ function huntAnalyzerSnapshotScript() {
         })
         .sort((left, right) => left.querySelectorAll('*').length - right.querySelectorAll('*').length)[0] || null;
     };
-    let dialog = findDialog();
+    // El diálogo se busca una vez y se guarda en la propia webview. Volver a buscarlo
+    // en cada vuelta era lo más caro de este script: un querySelectorAll sobre todos los
+    // candidatos y un sort() que llama a querySelectorAll('*').length sobre cada uno.
+    // Si el juego reemplaza el diálogo, isConnected lo detecta y se busca otra vez, que
+    // es lo que evita leer un elemento que ya no está en el DOM.
+    let dialogo = window.__pokeGridHuntDialogo;
+    if (dialogo && !dialogo.isConnected) dialogo = null;
+    if (!dialogo) {
+      dialogo = findDialog();
+      if (dialogo) window.__pokeGridHuntDialogo = dialogo;
+    }
+    let dialog = dialogo;
     if (!dialog) {
       const descriptor = (button) => normalized([
         button.dataset?.pgLabel, button.getAttribute('aria-label'), button.getAttribute('title'),
@@ -10274,7 +10290,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   syncUserScriptPanels();
   window.setInterval(pollCaptureNotifications, 3500);
   window.setInterval(pollCaptureLogs, 4000);
-  window.setInterval(pollHuntAnalyzers, 1500);
+  window.setInterval(pollHuntAnalyzers, HUNT_SONDEO_MS);
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
   // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a
