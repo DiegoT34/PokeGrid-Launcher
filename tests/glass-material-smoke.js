@@ -14,8 +14,12 @@ for (const token of [
 }
 
 // --- Una sola regla compartida por los tres -----------------------------------
-// Si el cristal se define en tres sitios, los tres Ends son tres cristales
-// parecidos que divergen en seis meses. Lo que se busca es UNA regla agrupada.
+// Si el cristal se define en tres sitios, los tres son tres cristales parecidos que
+// divergen en seis meses. Lo que se busca es UNA regla agrupada.
+//
+// Las reglas van toleradas a CRLF porque el .gitattributes de este repo deja LF en el
+// árbol y CRLF en la copia de trabajo: buscar el grupo con \n fijo solo funcionaba
+// cuando el fichero estaba en LF, y de pronto no lo estaba.
 const agrupada = /\.hunt-float-panel,\s*\r?\n\.capture-float-panel,\s*\r?\n\.account-info-card\s*\{[^}]*var\(--glass-bg\)[^}]*var\(--glass-edge\)[^}]*var\(--glass-sombra\)[^}]*var\(--glass-filtro\)/;
 assert.ok(agrupada.test(styles),
   'Los tres paneles tienen que compartir una sola regla con el material, no tres.');
@@ -29,7 +33,7 @@ assert.ok(reflejo.test(styles),
 // Los tres paneles tenían su color propio con la misma especificidad, así que la
 // regla compartida solo gana por orden de fuente. Si alguien la mueve arriba, el
 // cristal deja de verse y nada falla.
-const inicioCompartida = styles.indexOf('.hunt-float-panel,\n.capture-float-panel,\n.account-info-card {');
+const inicioCompartida = styles.search(/\.hunt-float-panel,\s*\r?\n\.capture-float-panel,\s*\r?\n\.account-info-card\s*\{/);
 assert.ok(inicioCompartida > 0, 'No encuentro la regla compartida.');
 
 for (const selector of ['.hunt-float-panel', '.capture-float-panel', '.account-info-card']) {

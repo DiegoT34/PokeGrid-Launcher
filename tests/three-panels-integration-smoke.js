@@ -11,7 +11,7 @@ const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'
 const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
 
 // --- 1. Los tres paneles comparten el material -------------------------------
-const ancla = styles.indexOf('.hunt-float-panel,\n.capture-float-panel,\n.account-info-card {');
+const ancla = styles.search(/\.hunt-float-panel,\s*\r?\n\.capture-float-panel,\s*\r?\n\.account-info-card\s*\{/);
 assert.ok(ancla > 0, 'No encuentro la regla agrupada del material.');
 const grupo = styles.slice(ancla, styles.indexOf('}', ancla));
 for (const token of ['--glass-bg', '--glass-edge', '--glass-sombra', '--glass-filtro']) {
