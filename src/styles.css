@@ -4547,6 +4547,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   box-shadow: 0 20px 46px rgba(0,0,0,.60), inset 0 1.5px 0 rgba(255,255,255,.22);
   backdrop-filter: var(--glass-pop-filtro);
   -webkit-backdrop-filter: var(--glass-pop-filtro);
+  padding: 8px 10px 10px;
+  gap: 7px;
 }
 .capture-detail-head {
   grid-template-columns: 60px minmax(0, 1fr);
@@ -4595,35 +4597,46 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .capture-detail-summary .is-gender b { color: #ff91cf; }
 .capture-detail-summary .is-nature b { color: #9fe47c; }
 
+/* ============================================================================
+   El detalle desplegado.
+
+   Antes cada bloque era una tarjeta con fondo propio y mucho aire: la fila se
+   comía media pantalla y había que desplazarse para ver el final. Ahora las
+   piezas son pequeñas y van en rejilla, con el aire justo para leerlas.
+   ============================================================================ */
+
 .capture-detail-stats-title {
-  margin-top: 0;
-  font-size: 9px;
+  margin-top: 2px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: .1em;
-  color: #b79ae0;
+  text-transform: uppercase;
+  color: #9d86c9;
 }
 
-/* Las seis casillas: con holgura, separadas y con el nombre encima del número.
-   Antes iban pegadas al borde, sin padding, que era lo que señalaba la captura. */
+/* Las seis casillas, en una sola fila de seis. Padding corto y hueco corto: cabe
+   entero sin que el detalle crezca hacia abajo. */
 .capture-detail-stats {
   margin-top: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
 }
 .capture-detail-stat {
   display: grid;
-  gap: 5px;
-  padding: 9px 10px;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, .09);
-  border: 1px solid rgba(255, 255, 255, .08);
-  font-size: 9px;
+  gap: 1px;
+  padding: 4px 5px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .055);
+  border: 1px solid rgba(255, 255, 255, .06);
+  font-size: 7px;
   font-weight: 800;
-  letter-spacing: .06em;
-  color: #8ea3b4;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #7f95a6;
+  text-align: center;
 }
-.capture-detail-stat b { margin-top: 0; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.capture-detail-stat b { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: -.01em; }
 .capture-detail-stat.is-hp b { color: #65e59a; }
 .capture-detail-stat.is-atk b { color: #ff9a62; }
 .capture-detail-stat.is-def b { color: #6ebcff; }
@@ -4631,46 +4644,35 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .capture-detail-stat.is-spd b { color: #62e0d1; }
 .capture-detail-stat.is-speed b { color: #f1d45f; }
 
-/* Fuerza: era una fila suelta pegada a una esquina, con el emoji dentro. Ahora es
-   una fila con su icono y su valor, con el mismo aire que el resto. */
-.capture-detail-power {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 0;
-  padding: 10px 12px;
-  border-radius: 11px;
-  background: rgba(94, 230, 168, .12);
-  border: 1px solid rgba(94, 230, 168, .22);
-  font-size: 13px;
-  font-weight: 700;
-  color: #6fe8b0;
-}
-.capture-detail-power .launcher-ui-icon { width: 17px; height: 17px; flex: none; }
-.capture-detail-power span { display: block; font-size: 9px; font-weight: 800; letter-spacing: .08em; color: #8fb0a0; margin-bottom: 2px; }
-
-/* Las baldosas del detalle: etiqueta pequeña encima, valor debajo. Es lo que pedía
-   el arreglo; antes los datos iban en una línea corrida sin separación. */
+/* El resumen: las baldosas. Antes iban todos los datos en una línea corrida y no
+   se distinguía dónde acababa uno y empezaba el siguiente. */
 .capture-detail-field {
   display: grid;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, .09);
-  border: 1px solid rgba(255, 255, 255, .08);
+  gap: 1px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .055);
+  border: 1px solid rgba(255, 255, 255, .06);
+  min-width: 0;
 }
 .capture-detail-field-label {
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 800;
-  letter-spacing: .1em;
+  letter-spacing: .07em;
   text-transform: uppercase;
-  color: #8ea3b4;
+  color: #7f95a6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .capture-detail-field b {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: -.01em;
-  line-height: 1.15;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .capture-detail-field.is-level b { color: #7fd4ff; }
 .capture-detail-field.is-quality b { color: #d8b4ff; }
@@ -4681,181 +4683,553 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .capture-detail-field.is-gender b { color: #ff91cf; }
 .capture-detail-field.is-nature b { color: #9fe47c; }
 
-/* Fuerza: una baldosa más, con su icono y sin el emoji. */
-.capture-detail-power .capture-detail-field-label { color: #8fb0a0; }
-.capture-detail-power b { font-size: 14px; }
+/* Fuerza: una baldosa del mismo tamaño que las otras, con su icono. Antes era una
+   fila suelta pegada a una esquina con un emoji dentro. */
+.capture-detail-power {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 5px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: rgba(94, 230, 168, .10);
+  border: 1px solid rgba(94, 230, 168, .18);
+  min-width: 0;
+}
+.capture-detail-power .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: #6fe8b0;
+}
+.capture-detail-power span {
+  grid-column: 2;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #8fb0a0;
+}
+.capture-detail-power b {
+  grid-column: 2;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6fe8b0;
+}
 
-/* ---- Los filtros de Capture Log, que seguían con el aspecto plano ----------- */
+/* ============================================================================
+   Los filtros de Capture Log.
+
+   El fallo era doble: el desplegable era una tarjeta con su propio fondo y su
+   propio desenfoque, y por eso parecía otra pantalla pegada dentro del panel; y
+   encima los campos eran tan grandes que no cabían y empujaban el resto hacia
+   abajo sin barra de scroll.
+
+   Ahora no hay tarjeta: es una zona del panel, separada por una línea. Los campos
+   van en tres columnas y el selector de Pokémon es una tira con su propio scroll,
+   de altura fija.
+   ============================================================================ */
+
 .capture-advanced-filters {
-  margin: 0 12px 10px;
-  border: 1px solid rgba(255, 255, 255, .12);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, .07);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  overflow: hidden;
+  margin: 0;
+  padding: 0 10px 8px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
 }
 .capture-advanced-filters > summary {
-  padding: 11px 13px;
-  font-size: 10px;
+  padding: 7px 2px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #c3d4e2;
+  color: #7f95a6;
   cursor: pointer;
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .capture-advanced-filters > summary::-webkit-details-marker { display: none; }
 .capture-advanced-filters > summary::before {
   content: '';
   width: 0;
   height: 0;
-  border: 4px solid transparent;
-  border-left-color: #8ea3b4;
+  border: 3px solid transparent;
+  border-left-color: #6d8090;
   transition: transform 140ms ease;
 }
 .capture-advanced-filters[open] > summary::before { transform: rotate(90deg); }
-.capture-advanced-filters > summary:hover { background: rgba(255, 255, 255, .08); }
+.capture-advanced-filters > summary:hover { color: #b8cad8; }
+.capture-advanced-filters > summary:focus-visible {
+  outline: 2px solid rgba(127, 212, 255, .5);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
 
 .capture-filter-badge {
   margin-left: auto;
-  padding: 3px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
-  font-size: 8px;
-  letter-spacing: .08em;
-  background: rgba(94, 230, 168, .18);
-  border: 1px solid rgba(94, 230, 168, .3);
+  font-size: 7px;
+  letter-spacing: .06em;
+  background: rgba(94, 230, 168, .16);
   color: #6fe8b0;
 }
 
+/* Tres columnas. La primera celda —el selector de Pokémon— ocupa las tres, pero
+   como tira con scroll propio, no como desplegable gigante. */
 .capture-filter-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 10px;
-  padding: 12px 13px 13px;
-  border-top: 1px solid rgba(255, 255, 255, .1);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 6px;
+  padding: 0;
+  border-top: 0;
 }
 .capture-filter-grid > label {
   display: grid;
-  gap: 5px;
-  font-size: 8px;
+  gap: 2px;
+  font-size: 7px;
   font-weight: 800;
-  letter-spacing: .1em;
+  letter-spacing: .07em;
   text-transform: uppercase;
-  color: #8ea3b4;
+  color: #7f95a6;
   min-width: 0;
 }
-.capture-filter-grid > label:first-child { grid-column: 1 / -1; }
+.capture-filter-names-label {
+  grid-column: 1 / -1;
+}
 
 .capture-filter-grid select,
 .capture-filter-grid input {
   width: 100%;
-  padding: 9px 11px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, .14);
-  background: rgba(255, 255, 255, .09);
-  color: #eaf2f8;
-  font-size: 12px;
+  padding: 4px 7px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, .10);
+  background: rgba(255, 255, 255, .055);
+  color: #dfe9f1;
+  font-size: 10px;
   font-weight: 600;
   font-family: inherit;
+  line-height: 1.3;
   min-width: 0;
 }
 .capture-filter-grid select:hover,
-.capture-filter-grid input:hover { border-color: rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .13); }
+.capture-filter-grid input:hover {
+  border-color: rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .08);
+}
 .capture-filter-grid select:focus-visible,
 .capture-filter-grid input:focus-visible {
-  outline: 2px solid rgba(127, 212, 255, .55);
+  outline: 2px solid rgba(127, 212, 255, .5);
   outline-offset: 1px;
 }
 .capture-filter-grid input::placeholder { color: #6d8090; }
 
-/* El selector múltiple de Pokémon: con scroll fino y glass, no la lista nativa. */
+/* El selector múltiple de Pokémon: altura fija y scroll propio. Es el campo que
+   más alto era, y por él el bloque entero no cabía. */
 .capture-filter-names {
-  min-height: 104px;
-  padding: 6px !important;
+  height: 58px;
+  min-height: 0;
+  padding: 3px !important;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, .22) transparent;
+  scrollbar-color: rgba(255, 255, 255, .2) transparent;
 }
 .capture-filter-names option {
-  padding: 6px 9px;
-  border-radius: 7px;
+  padding: 3px 6px;
+  border-radius: 5px;
   background: transparent;
-  color: #dbe7f0;
-  font-size: 12px;
+  color: #cfdce8;
+  font-size: 10px;
   font-weight: 600;
 }
 .capture-filter-names option:checked {
-  background: rgba(127, 212, 255, .22);
+  background: rgba(127, 212, 255, .2);
   color: #fff;
 }
 
+/* Restablecer: texto plano, a la derecha, sin caja. */
 .capture-filter-reset {
-  padding: 10px 13px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, .16);
-  background: rgba(255, 255, 255, .08);
-  color: #cfdce8;
-  font-size: 10px;
+  grid-column: 1 / -1;
+  justify-self: end;
+  margin-top: 1px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: #7f95a6;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: .07em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 130ms ease, border-color 130ms ease;
+  transition: color 130ms ease, background 130ms ease;
 }
-.capture-filter-reset:hover { background: rgba(255, 255, 255, .15); border-color: rgba(255, 255, 255, .28); color: #fff; }
+.capture-filter-reset:hover { color: #cfe0ee; background: rgba(255, 255, 255, .07); }
+.capture-filter-reset:focus-visible { outline: 2px solid rgba(127, 212, 255, .5); outline-offset: 1px; }
 
-/* El botón de los precios del mercado. Antes era un <p> con un ☑ o ☐ pegado
-   dentro, que no se podía pulsar. Ahora es un botón con su icono, y el estado lo
-   lee del propio juego. */
+/* ============================================================================
+   El botón de los precios del mercado.
+
+   Lo único que hacía falta era que se pudiera pulsar y que se entendiera qué hace.
+   Se le había puesto un marco de color y una barra propia, que era más de lo que
+   pedía. Ahora es una fila de texto con su icono, como el resto de opciones del
+   panel.
+   ============================================================================ */
+
 .hunt-flat-market {
   display: flex;
   align-items: center;
-  gap: 9px;
-  width: calc(100% - 24px);
-  margin: 10px 12px 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 200, 90, .22);
-  border-radius: 12px;
-  background: rgba(255, 200, 90, .10);
-  color: #f0c777;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 7px;
+  width: calc(100% - 20px);
+  margin: 6px 10px 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .035);
+  color: #b8cad8;
+  font-size: 10px;
+  font-weight: 600;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 130ms ease, border-color 130ms ease;
+  transition: background 130ms ease, color 130ms ease, border-color 130ms ease;
 }
-.hunt-flat-market:hover { background: rgba(255, 200, 90, .17); border-color: rgba(255, 200, 90, .38); color: #ffe0a0; }
-.hunt-flat-market:active { background: rgba(255, 200, 90, .22); }
+.hunt-flat-market:hover { background: rgba(255, 255, 255, .075); color: #e6f0f7; }
+.hunt-flat-market:active { background: rgba(255, 255, 255, .1); }
 .hunt-flat-market:disabled { opacity: .55; cursor: wait; }
-.hunt-flat-market:focus-visible { outline: 2px solid rgba(255, 200, 90, .6); outline-offset: 1px; }
-.hunt-flat-market .launcher-ui-icon { width: 17px; height: 17px; flex: none; }
-.hunt-flat-market > span { min-width: 0; }
+.hunt-flat-market:focus-visible { outline: 2px solid rgba(127, 212, 255, .5); outline-offset: 1px; }
+.hunt-flat-market .launcher-ui-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: #7f95a6;
+}
+.hunt-flat-market > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-/* Cuando está activado, el color pasa a verde: es el estado, y tiene que verse de
-   un vistazo sin leer el texto. */
+/* Activado: el icono y el texto se ponen verdes. Es el estado, y tiene que verse
+   sin leer. */
 .hunt-flat-market[aria-pressed='true'] {
-  border-color: rgba(94, 230, 168, .28);
-  background: rgba(94, 230, 168, .12);
+  border-color: rgba(94, 230, 168, .2);
+  background: rgba(94, 230, 168, .08);
   color: #6fe8b0;
 }
-.hunt-flat-market[aria-pressed='true']:hover { background: rgba(94, 230, 168, .19); border-color: rgba(94, 230, 168, .42); color: #8df0c4; }
+.hunt-flat-market[aria-pressed='true'] .launcher-ui-icon { color: #6fe8b0; }
+.hunt-flat-market[aria-pressed='true']:hover { background: rgba(94, 230, 168, .13); }
 
-/* El icono de shiny delante del nombre, en vez del emoji. */
-.capture-flat-name .launcher-ui-icon,
-.capture-detail-name .launcher-ui-icon {
-  width: 13px;
-  height: 13px;
-  color: #ffd76a;
-  vertical-align: -2px;
-  margin-right: 4px;
-  filter: drop-shadow(0 0 4px rgba(255, 215, 106, .55));
+/* ============================================================================
+   Las barras de arriba de Capture Log y Hunt Analyzer.
+
+   Estas eran la prueba de que el rediseño no había llegado a todas partes: la
+   cabecera, la fila de herramientas y la de estado seguían con sus fondos planos
+   oscuros de siempre —`#0a201f`, `#091a20`, `#222528`— encima del cristal. Por eso
+   el panel parecía medio nuevo y medio viejo. Ahora las tres zonas son parte del
+   cristal: sin fondo propio, solo una línea de pelo para separar.
+   ============================================================================ */
+
+.capture-float-head,
+.hunt-float-head {
+  min-height: 40px;
+  padding: 6px 7px 6px 10px;
+  gap: 8px;
+  background: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
 
-/* Los botones de la barra del navegador embebido, que llevaban glifos sueltos. */
-.browser-instance-actions .launcher-ui-icon { width: 15px; height: 15px; color: currentColor; }
-.browser-instance-actions button { display: grid; place-items: center; }
+.capture-float-kicker {
+  display: block;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: rgba(255, 255, 255, .34);
+}
+.capture-float-head strong {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: #e9f0f6;
+}
+
+/* La fila de «N capturas» y «Ordenar». */
+.capture-float-tools,
+.hunt-float-tools {
+  min-height: 0;
+  padding: 5px 10px;
+  gap: 8px;
+  background: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.capture-float-tools > label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .38);
+}
+.capture-float-sort {
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .05);
+  color: #cfdce8;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.capture-float-count {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .42);
+}
+
+/* La línea de estado: «En vivo · 14:32:07». Información, no un bloque. */
+.capture-float-state,
+.hunt-flat-state {
+  padding: 4px 10px;
+  background: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .34);
+}
+
+/* Los botones de la cabecera: were 29 px con su fondo plano. */
+.float-geometry-action,
+.hunt-float-action,
+.hunt-float-close,
+.capture-float-close,
+.capture-float-delete {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .045);
+  box-shadow: none;
+  color: rgba(255, 255, 255, .6);
+  font-size: 11px;
+  transition: background 130ms ease, border-color 130ms ease, color 130ms ease;
+}
+.float-geometry-action:hover,
+.hunt-float-action:hover,
+.hunt-float-close:hover,
+.capture-float-close:hover,
+.capture-float-delete:hover {
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .2);
+  color: #e9f0f6;
+}
+.float-geometry-action.is-active {
+  background: rgba(127, 212, 255, .16);
+  border-color: rgba(127, 212, 255, .34);
+  color: #9fdcff;
+}
+
+/* El icono dentro del botón se dimensiona aquí. El general pone 1em, y 1em sin
+   tamaño declarado sale del tamaño de letra heredado, que en estos botones era
+   desproporcionado y por eso no se veían centrados. */
+.float-geometry-action .launcher-ui-icon,
+.hunt-float-action .launcher-ui-icon,
+.hunt-float-close .launcher-ui-icon,
+.capture-float-close .launcher-ui-icon,
+.capture-float-delete .launcher-ui-icon {
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+
+/* «Eliminar» no es un icono: es una palabra. Que no se recorte. */
+.capture-float-delete { width: auto; padding: 0 8px; }
+.capture-float-delete-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+/* ============================================================================
+   Los iconos de los recuadros de Hunt Analyzer.
+
+   El recuadro mide 32 px y el SVG no tenía tamaño propio, así que tomaba el
+   `1em` del general y se salía del recuadro. Se le da un tamaño de letra al
+   recuadro para que `1em` valga lo que tiene que valer.
+   ============================================================================ */
+
+.hunt-flat-metric-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.hunt-flat-metric-icon .launcher-ui-icon {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+}
+
+/* El icono de shiny delante del nombre. */
+.capture-flat-name .launcher-ui-icon,
+.capture-detail-name .launcher-ui-icon {
+  width: 12px;
+  height: 12px;
+  color: #ffd76a;
+  vertical-align: -2px;
+  margin-right: 3px;
+}
+
+/* Los iconos de los botones Capturas y Hunt de la barra de la cuenta. */
+.capture-toggle-svg,
+.hunt-toggle-svg {
+  width: 15px;
+  height: 15px;
+  color: currentColor;
+}
+
+/* Los iconos de los botones pequeños de la barra del navegador embebido. */
+.mini-button .launcher-ui-icon {
+  width: 14px;
+  height: 14px;
+  color: currentColor;
+}
+
+/* ============================================================================
+   El detalle, todavía más compacto.
+
+   Con ocho baldosas en tres columnas el bloque sale de tres filas y el detalle
+   ocupa casi media pantalla. En cuatro columnas son dos filas, y con el hueco
+   corto cabe sin desplazamiento. La cabecera baja de 60 a 42 px de retrato.
+   ============================================================================ */
+
+
+.capture-detail-head {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+.capture-detail-head img,
+.capture-detail-head .capture-detail-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.capture-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 0;
+  padding: 7px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, .09);
+  font-size: 9px;
+  line-height: 1.2;
+  color: #9db2c4;
+}
+
+/* ============================================================================
+   Dos retoques que se ven mirando el panel de verdad, no el CSS.
+
+   Los filtros cabían peroOccupaban tres filas: con cuatro columnas son dos, y el
+   bloque baja de unos 300 px a unos 200. Y el nombre del Pokémon quedaba pegado
+   a su nivel, porque no había separación entre los dos.
+   ============================================================================ */
+
+.capture-filter-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* El botón de restablecer ocupa la última celda, no una fila entera. Así el
+   bloque no crece por debajo solo para dejar hueco a un enlace. */
+.capture-filter-reset {
+  grid-column: auto;
+  justify-self: end;
+  align-self: end;
+  margin-top: 0;
+}
+
+/* El nombre y el nivel, separados. */
+.capture-detail-head strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.15;
+}
+.capture-detail-head > div > span {
+  display: block;
+  margin-top: 1px;
+  font-size: 9px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, .45);
+}
+
+/* El botón de restablecer queda en la celda que sobra a la derecha de la tira de
+   Pokémon, en vez de en una fila propia. Con `grid-column: auto` caía en la primera
+   columna y parecía alineado a la izquierda, que no es donde se busca un
+   "restablecer". */
+.capture-filter-names-label {
+  grid-column: 1 / span 3;
+}
+.capture-filter-reset {
+  grid-column: auto;
+  justify-self: end;
+  align-self: end;
+  margin-top: 0;
+}
+
+/* ============================================================================
+   Los botones con etiqueta de la barra de Hunt.
+
+   «Reset» y «Eliminar» llevan icono y palabra. Una regla anterior los dejaba en
+   29 px de ancho y con el texto oculto, así que la palabra se estremaba dentro de
+   un cuadrado. Aquí vuelven a ser botones: el ancho lo marca el texto, y el icono
+   acompaña en vez de sustituir.
+   ============================================================================ */
+
+.hunt-float-action {
+  width: auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .6);
+}
+.hunt-float-action > span {
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+.hunt-float-action .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+  opacity: .75;
+}
+
+/* El separador de la barra, para que no se lean los tres botones como un bloque. */
+.hunt-float-actions,
+.capture-float-actions {
+  gap: 4px;
+  flex: none;
+}
