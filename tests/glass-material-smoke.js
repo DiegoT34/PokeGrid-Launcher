@@ -63,14 +63,43 @@ assert.ok(backdrop.some((una) => /var\(--glass-filtro\)/.test(una)),
 // --- El detalle es más denso que el panel -------------------------------------
 // Para leerse por encima del panel sin necesitar un borde grueso que rompa el
 // material. Y tiene que ser su propio material, no el del panel.
-const popover = styles.slice(styles.indexOf('.capture-detail-popover {'));
-const bloquePopover = popover.slice(0, popover.indexOf('}'));
-assert.ok(/background:\s*linear-gradient/.test(bloquePopover) || /background:\s*var\(--glass-/.test(bloquePopover),
-  'El detalle tiene que tener su propio fondo, más denso que el del panel.');
-assert.ok(/backdrop-filter/.test(bloquePopover),
-  'El detalle necesita su propio backdrop-filter, más fuerte que el del panel.');
-assert.equal(/position:\s*absolute/.test(bloquePopover), false,
-  'El popover sigue en absolute. La Tarea 6 lo pone como hermano de su fila, y eso necesita position static.');
+//
+// OJO: se comprueba CADA bloque, no solo el primero. .capture-detail-popover
+// aparece dos veces en el CSS, y cuando solo se arregló el primero el segundo se
+// quedó con position: absolute — el detalle seguía flotando y nada fallaba. Es
+// la comprobación floja de este repo: mirar una parte y dar por bueno el todo.
+let bloquesPopover = 0;
+let conMaterial = 0;
+{
+  let i = 0;
+  while (true) {
+    const at = styles.indexOf('.capture-detail-popover', i);
+    if (at < 0) break;
+    const linea = styles.slice(at, styles.indexOf('\n', at));
+    const abre = styles.indexOf('{', at);
+    const cierra = styles.indexOf('}', abre);
+    i = cierra > at ? cierra + 1 : at + 1;
+    if (linea.includes('[hidden]')) continue;
+    bloquesPopover++;
+    const bloque = styles.slice(abre, cierra);
+    const bien = /position:\s*static/.test(bloque)
+      && /var\(--glass-pop-bg\)/.test(bloque)
+      && /backdrop-filter/.test(bloque)
+      && !/position:\s*absolute/.test(bloque);
+    if (bien) conMaterial++;
+    else {
+      assert.fail(
+        `Un bloque de .capture-detail-popover (L${styles.slice(0, at).split('\n').length}) no lleva el material del detalle: `
+        + `static=${/position:\s*static/.test(bloque)} pop-bg=${/var\(--glass-pop-bg\)/.test(bloque)} `
+        + `backdrop=${/backdrop-filter/.test(bloque)} absolute=${/position:\s*absolute/.test(bloque)}`
+      );
+    }
+  }
+}
+assert.ok(bloquesPopover >= 2,
+  `Se esperaban al menos 2 bloques de .capture-detail-popover y hay ${bloquesPopover}. Si el CSS se ha reorganizado, esta prueba ya no vigila lo que cree vigilar.`);
+assert.equal(conMaterial, bloquesPopover,
+  `Solo ${conMaterial} de ${bloquesPopover} bloques del detalle llevan el material.`);
 
 // --- El techo técnico, escrito en el CSS para que nadie lo "arregle" ----------
 assert.ok(/backdrop-filter/.test(styles) && !/backdrop-filter:[^;]*poke\.idleworld/.test(styles),

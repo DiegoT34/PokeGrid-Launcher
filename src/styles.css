@@ -1518,7 +1518,13 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   outline: none;
   transform: translateY(-1px);
 }
-.capture-flat-row.is-detail-open { border-color: var(--capture-tier-color); box-shadow: inset 3px 0 0 var(--capture-tier-color); }
+.capture-flat-row.is-detail-open {
+  /* La fila desplegada, marcada, para que se vea cuál es. El filete del color del
+     tier se conserva: dice a qué rareza pertenece la captura. */
+  border-color: var(--capture-tier-color);
+  box-shadow: inset 3px 0 0 var(--capture-tier-color);
+  background: rgba(255,255,255,.17);
+}
 .capture-flat-row.is-shiny { border-color: #806c2f; background: linear-gradient(90deg, rgba(111, 83, 15, .16), #0a1c22 42%); }
 [data-tier="weak"] { --capture-tier-color: #9aa6b3; }
 [data-tier="common"] { --capture-tier-color: #63d873; }
@@ -1680,17 +1686,26 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .capture-flat-time strong { display: block; color: #80aca5; font-size: 9px; }
 .capture-flat-time span { color: #75bfff; }
 .capture-detail-popover {
-  position: absolute;
-  z-index: 5;
-  width: min(300px, calc(100% - 18px));
-  padding: 10px;
-  border: 1px solid var(--capture-tier-color, #527b72);
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--capture-tier-color, #527b72) 15%, rgba(6, 17, 25, .98)), rgba(6, 17, 25, .985) 55%);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, .62), inset 3px 0 0 color-mix(in srgb, var(--capture-tier-color, #527b72) 78%, transparent);
-  pointer-events: none;
+  /* Material del detalle: un punto mÃ¡s denso que el del panel. */
+  position: static;
+  background: var(--glass-pop-bg);
+  border: 1px solid var(--glass-pop-edge);
+  border-radius: 14px;
+  box-shadow: 0 20px 46px rgba(0,0,0,.60), inset 0 1.5px 0 rgba(255,255,255,.22);
+  backdrop-filter: var(--glass-pop-filtro);
+  -webkit-backdrop-filter: var(--glass-pop-filtro);
 }
+
+  position: static;
+  z-index: 5;
+  width: auto; max-width: 300px; margin: 2px 0 6px 8px;
+  padding: 10px;
+  
+  border-radius: 8px;
+  
+  
+  pointer-events: none;
+
 .capture-detail-popover[hidden] { display: none; }
 .capture-detail-head { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 9px; align-items: center; }
 .capture-detail-sprite { width: 58px; height: 58px; object-fit: contain; image-rendering: pixelated; }

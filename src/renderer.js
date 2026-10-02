@@ -3682,6 +3682,13 @@ function showCaptureDetail(panel, capture, row) {
     summary.appendChild(item);
   });
 
+  // Seis casillas con guiones ocupan un tercio del detalle para no decir nada.
+  // Si el juego no las da, no se pintan; si algún día las da, aparecen solas.
+  const hayEstadisticas = [
+    capture.stats?.hp, capture.stats?.attack, capture.stats?.defense,
+    capture.stats?.specialAttack, capture.stats?.specialDefense, capture.stats?.speed
+  ].some((value) => value !== null && value !== undefined && value !== '');
+
   const stats = document.createElement('div');
   stats.className = 'capture-detail-stats';
   const statsTitle = document.createElement('div');
@@ -3705,23 +3712,39 @@ function showCaptureDetail(panel, capture, row) {
     stat.append(label, number);
     stats.appendChild(stat);
   });
-  tooltip.append(head, summary, statsTitle, stats);
+  tooltip.append(head, summary);
+  if (hayEstadisticas) {
+    tooltip.append(statsTitle, stats);
+  }
   if (capture.power) {
     const power = document.createElement('div');
     power.className = 'capture-detail-power';
-    power.textContent = `💪 Fuerza ${capture.power}`;
+    power.innerHTML = `${launcherUiIcon('trend')}<span>Fuerza ${escapeHtml(String(capture.power))}</span>`;
     tooltip.appendChild(power);
   }
   tooltip.hidden = false;
-  const panelRect = panel.captureLogPanel.getBoundingClientRect();
-  const rowRect = row.getBoundingClientRect();
-  const tooltipRect = tooltip.getBoundingClientRect();
-  const preferredTop = rowRect.bottom - panelRect.top + 4;
-  const top = preferredTop + tooltipRect.height <= panelRect.height - 8
-    ? preferredTop
-    : Math.max(8, rowRect.top - panelRect.top - tooltipRect.height - 4);
-  tooltip.style.top = `${Math.round(top)}px`;
-  tooltip.style.left = '9px';
+  // El detalle es hermano de su fila, no una caja flotante: el CSS lo coloca y
+  // la lista se abre como una fila más. Antes se medían rectángulos y se decidía
+  // si iba debajo o arriba, así que en una fila a media lista saltaba hacia
+  // arriba y tapaba las de antes, y encima cubría la fila que acababas de pulsar.
+  row.after(tooltip);
+}
+
+function captureDetailKeyOf(capture) {
+  return String(capture?.key || capture?.id || capture?.captureNumber || '');
+}
+
+// Cuando llega una captura nueva, renderCaptureLog tira la lista entera. Antes
+// eso关闭aba también el detalle que estabas leyendo, sin avisar. Aquí se guarda
+// la clave antes de tirar, y al final se vuelve a abrir si esa captura sigue
+// estando en la lista.
+function reabrirCaptureDetail(panel, key) {
+  if (!key) return;
+  const fila = panel.captureLogList.querySelector(`[data-capture-key="${CSS.escape(key)}"]`);
+  if (!fila) return;
+  const captura = (panel.captureLogSnapshot?.rows || []).find((una) => captureDetailKeyOf(una) === key);
+  if (!captura) return;
+  showCaptureDetail(panel, captura, fila);
 }
 
 function renderCaptureLog(panel, snapshot) {
@@ -3759,6 +3782,10 @@ function renderCaptureLog(panel, snapshot) {
     Object.values(capture.stats || {}).join(',')
   ].join(':')).join('|')}`;
   if (signature === panel.captureLogSignature) return;
+  // Antes de tirar la lista, acordarse de qué detalle estaba abierto. Cuando llega
+  // una captura nueva la lista se reconstruye entera, y sin esto se cerraría
+  // mientras estás leyendo sus estadísticas.
+  const detalleAbierto = panel.captureDetailKey;
   panel.captureLogSignature = signature;
   hideCaptureDetail(panel);
   panel.captureLogList.replaceChildren();
@@ -3775,6 +3802,11 @@ function renderCaptureLog(panel, snapshot) {
     const row = document.createElement('article');
     row.className = `capture-flat-row${capture.isShiny ? ' is-shiny' : ''}`;
     row.dataset.tier = capture.tier || 'unknown';
+    // La clave con la que showCaptureDetail identifica esta fila, y con la que
+    // reabrirCaptureDetail la vuelve a encontrar después de reconstruir la lista.
+    // Sin esto la reapertura se llama, no encuentra nada y no pasa nada: el peor
+    // tipo de fallo, el que no se ve.
+    row.dataset.captureKey = captureDetailKeyOf(capture);
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
     row.setAttribute('aria-expanded', 'false');
@@ -3839,6 +3871,10 @@ function renderCaptureLog(panel, snapshot) {
     note.textContent = `Mostrando 500 de ${rows.length} capturas guardadas. Usa los filtros para localizar las demás.`;
     panel.captureLogList.appendChild(note);
   }
+  // Y ahora que la lista ya está, devolver el detalle que estaba abierto. Va
+  // después del forEach porque hasta que no existen las filas nuevas no hay a
+  // qué volver a apuntar.
+  reabrirCaptureDetail(panel, detalleAbierto);
 }
 
 async function refreshPanelCaptureLogLegacy(panel) {
