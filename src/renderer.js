@@ -7261,7 +7261,16 @@ function setupFloatGeometry(panel, kind) {
     const startRect = floatPanel.getBoundingClientRect();
     const startX = event.clientX;
     const startY = event.clientY;
-    Object.assign(floatPanel.style, { left: `${startRect.left - panelRect.left}px`, top: `${startRect.top - panelRect.top}px`, right: 'auto', bottom: 'auto', width: `${startRect.width}px`, height: `${startRect.height}px` });
+    // El tamaño se fija con las propiedades personalizadas, no con width y height.
+    // Si aquí se escribieran en estilo inline, quedarían ahí para siempre: el inline
+    // gana al CSS, así que después de arrastrar el panel una vez se quedaría clavado
+    // en ese tamaño y maximizar la ventana ya no lo crecería.
+    floatPanel.style.left = `${startRect.left - panelRect.left}px`;
+    floatPanel.style.top = `${startRect.top - panelRect.top}px`;
+    floatPanel.style.right = 'auto';
+    floatPanel.style.bottom = 'auto';
+    floatPanel.style.setProperty('--float-w', `${Math.round(startRect.width)}px`);
+    floatPanel.style.setProperty('--float-h', `${Math.round(startRect.height)}px`);
     const move = (moveEvent) => {
       const width = floatPanel.offsetWidth;
       const height = floatPanel.offsetHeight;
