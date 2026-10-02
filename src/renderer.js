@@ -1294,9 +1294,6 @@ function aplicarIconosMenu() {
     hueco.innerHTML = launcherUiIcon(icono);
   }
 }
-// Se llama aquí y no antes: `ICONOS_MENU` es una `const` y una llamada anterior a su
-// declaración caería en zona muerta temporal.
-aplicarIconosMenu();
 function initializeGoalTierButtons() {
   const tiers = ['weak', 'common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'ancient', 'divine'];
   tiers.forEach((tier) => {
@@ -7529,6 +7526,13 @@ function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
   return `<svg class="launcher-ui-icon ${escapeHtml(className)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
+
+// Los iconos del menú se pintan aquí y no antes por dos razones. La tabla
+// `LAUNCHER_ICON_PATHS` y su tabla `ICONOS_MENU` son `const` declaradas más
+// abajo: llamar antes cae en zona muerta temporal y deja el panel en blanco sin
+// más rastro que un «se agotó el tiempo esperando» en las pruebas. Y los botones
+// tienen que existir ya en el DOM.
+aplicarIconosMenu();
 function renderAccountProfile(panel, profile) {
   const previous = panel.accountProfileLastGood || null;
   if (!profile?.ok && !previous) {

@@ -73,6 +73,9 @@ app.whenReady().then(async () => {
       launchText: document.querySelector('#loginAllButton')?.textContent.trim(),
       launchLabel: document.querySelector('#loginAllButton')?.getAttribute('aria-label'),
       playIcons: document.querySelectorAll('#loginAllButton .play-icon').length,
+      playSvgs: document.querySelectorAll('#loginAllButton svg.launcher-ui-icon').length,
+      menuSvgs: document.querySelectorAll('.global-actions .menu-svg-icon svg').length,
+      menuGlyphs: [...document.querySelectorAll('.global-actions .top-action-icon')].filter((c) => !c.querySelector('svg') && c.textContent.trim()).length,
       hamburgerLines: document.querySelectorAll('#topbarToggle .hamburger-icon i').length,
       sidebarExpanded: document.querySelector('#topbarToggle')?.getAttribute('aria-expanded'),
       sidebarHidden: document.querySelector('#globalActions')?.getAttribute('aria-hidden'),
@@ -84,7 +87,14 @@ app.whenReady().then(async () => {
         !toolbarState.pokepediaClass.includes('button-pokepedia') ||
         toolbarState.launchText !== 'Iniciar todas' ||
         toolbarState.launchLabel !== 'Iniciar todas: 4 cuentas' ||
-        toolbarState.playIcons !== 1 || toolbarState.hamburgerLines !== 3 ||
+        // El indicador de «iniciar» pasó de ser un triángulo de CSS a un icono del
+        // mismo pack que el resto. Se acepta cualquiera de los dos: lo que no vale
+        // es que no haya ninguna señal de que ese botón arranca algo.
+        (toolbarState.playIcons + toolbarState.playSvgs !== 1) ||
+        // Los once botones del menú tienen que llevar SVG, y ninguno puede quedarse
+        // con el emoji o el glifo que traían.
+        toolbarState.menuSvgs !== 10 || toolbarState.menuGlyphs !== 0 ||
+        toolbarState.hamburgerLines !== 3 ||
         toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
         !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.7') ||
         toolbarState.updateVersion !== 'v0.22.7') {

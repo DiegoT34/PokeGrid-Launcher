@@ -99,4 +99,67 @@ assert.equal(lineaExpand, undefined,
 assert.ok(/item\.expandButton\.innerHTML = launcherUiIcon\(item === expandedPanel \? 'collapse' : 'expand'\)/.test(renderer),
   'El botón de agrandar tiene que alternar entre los iconos collapse y expand.');
 
-console.log('Launcher icons smoke passed: cinco iconos nuevos y los nueve botones con SVG.');
+// --- El menú del launcher, con iconos nuevos ----------------------------------
+// Los once botones tenían un emoji o un glifo suelto dentro —una diana, un rombo,
+// un </>, una campana, un ↻— que son de otro sistema visual que el panel entero.
+for (const [selector, icono] of [
+  ['#farmButton', 'timer'],
+  ['#pokepediaButton', 'book'],
+  ['#scriptsButton', 'code'],
+  ['#statisticsButton', 'chartColumn'],
+  ['#notificationButton', 'bell'],
+  ['#accountsButton', 'users'],
+  ['#cleanupMemoryButton', 'trash'],
+  ['#loginAllButton', 'play'],
+  ['#reloadAllButton', 'refresh'],
+  ['#updateLauncherButton', 'download'],
+  ['#viewModeButton', 'layout']
+]) {
+  assert.ok(renderer.includes(`'${selector}': '${icono}'`),
+    `${selector} no tiene icono propio en ICONOS_MENU.`);
+}
+console.log('ok  los once botones del menú tienen icono propio.');
+
+// --- Y que el botón de farmeo, que se rehace entero, también lo lleva ---------
+// setFarmButtonRunning reconstruye el innerHTML del botón en cada cambio de
+// estado. Arreglar solo el HTML del template no basta: el emoji vuelve en cuanto
+// se pulsa, y fue justo lo que pasó.
+assert.ok(/\$\{launcherUiIcon\('play'\)\}<span>Farmeando<\/span>/.test(renderer),
+  'El estado «Farmeando» tiene que llevar SVG: ese botón se rehace entero en cada cambio.');
+assert.ok(/\$\{launcherUiIcon\('timer'\)\}<span>Modo farmeo<\/span>/.test(renderer),
+  'El estado «Modo farmeo» tiene que llevar SVG, por lo mismo.');
+assert.ok(/icon\.innerHTML = launcherUiIcon\(updateLauncherState\.icono \|\| 'download'\)/.test(renderer),
+  'El botón de actualizar se repinta entero: con textContent volvería el glifo.');
+console.log('ok  los tres botones que se rehacen enteros también llevan SVG.');
+
+// --- El orden de la llamada, que es donde esto se rompió -----------------------
+// Las tablas de iconos son `const`. Una función que las lee, llamada antes de su
+// declaración, cae en zona muerta temporal: `launcherUiIcon` está izada pero al
+// leer `LAUNCHER_ICON_PATHS` revienta. El síntoma es el panel entero en blanco, y
+// las pruebas solo dicen «se agotó el tiempo esperando» sin decir por qué. Pasó,
+// y Were 15 de 27 suites.
+//
+// Aquí no se puede ejecutar el renderer, así que se comprueba el orden en el
+// fuente: la llamada tiene que ir después de las dos declaraciones.
+const lineaDe = (texto) => renderer.slice(0, renderer.indexOf(texto)).split('\n').length;
+const LLAMADA = '\naplicarIconosMenu();';
+assert.ok(renderer.includes(LLAMADA), 'No encuentro la llamada a aplicarIconosMenu().');
+const iLlamada = lineaDe(LLAMADA);
+const iMenu = lineaDe('const ICONOS_MENU');
+const iIconos = lineaDe('const LAUNCHER_ICON_PATHS');
+const iFabrica = lineaDe('function launcherUiIcon(');
+assert.ok(iMenu < iLlamada,
+  `aplicarIconosMenu() se llama en la línea ${iLlamada} y ICONOS_MENU se declara en la ${iMenu}: antes de su declaración.`);
+assert.ok(iIconos < iLlamada,
+  `aplicarIconosMenu() se llama en la línea ${iLlamada} y LAUNCHER_ICON_PATHS se declara en la ${iIconos}: antes de su declaración.`);
+assert.ok(iFabrica < iLlamada,
+  `aplicarIconosMenu() se llama en la línea ${iLlamada}, antes de definir launcherUiIcon en la ${iFabrica}.`);
+console.log(`ok  la llamada (L${iLlamada}) va después de ICONOS_MENU (L${iMenu}), LAUNCHER_ICON_PATHS (L${iIconos}) y launcherUiIcon (L${iFabrica}).`);
+
+// --- Y que el grosor de trazo sea uno solo para todos --------------------------
+const grosores = new Set([...renderer.matchAll(/stroke-width="([\d.]+)"/g)].map((m) => m[1]));
+assert.equal(grosores.size, 1,
+  `Hay ${grosores.size} grosores de trazo distintos (${[...grosores].join(', ')}). Un juego de iconos con grosores mezclados no parece un pack.`);
+console.log(`ok  un solo grosor de trazo: ${[...grosores][0]}.`);
+
+console.log('Launcher icons smoke passed: los iconos de los paneles y los once del menú, todos del mismo pack, con la llamada en su sitio.');
