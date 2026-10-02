@@ -4508,7 +4508,7 @@ function renderHuntAnalyzer(panel, snapshot) {
   balance.append(balanceIcon, balanceLabel, balanceValue);
   panel.huntContent.append(metricGrid, balance);
   if (snapshot.market) {
-    // Un botón de verdad, no un párrafo con un ☑ pegado dentro. El estado lo lee
+  // Un botón de verdad, no un párrafo de texto que no se puede pulsar. El
     // del propio juego, así que lo que se pinta es el suyo.
     const market = document.createElement('button');
     market.type = 'button';
