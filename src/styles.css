@@ -1141,7 +1141,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   top: 49px;
   right: 7px;
   bottom: 7px;
-  width: min(430px, calc(100% - 14px));
+  width: min(var(--float-w, 430px), calc(100% - 14px));
+  height: var(--float-h, auto);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1150,8 +1151,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   background: #08121c;
   box-shadow: 0 14px 34px rgba(0, 0, 0, .48);
   color: #dbe8f2;
-  min-width: 280px;
-  min-height: 230px;
+  min-width: min(280px, calc(100% - 14px));
+  min-height: min(230px, calc(100% - 56px));
   max-width: calc(100% - 14px);
   max-height: calc(100% - 56px);
   resize: both;
@@ -1289,7 +1290,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   top: 49px;
   right: 7px;
   bottom: 7px;
-  width: min(520px, calc(100% - 14px));
+  width: min(var(--float-w, 520px), calc(100% - 14px));
+  height: var(--float-h, auto);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1298,8 +1300,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   background: #07131a;
   box-shadow: 0 14px 34px rgba(0, 0, 0, .5);
   color: #dbe8f2;
-  min-width: 300px;
-  min-height: 250px;
+  min-width: min(300px, calc(100% - 14px));
+  min-height: min(250px, calc(100% - 56px));
   max-width: calc(100% - 14px);
   max-height: calc(100% - 56px);
   resize: both;

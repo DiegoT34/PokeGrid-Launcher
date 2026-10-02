@@ -7082,43 +7082,85 @@ function floatGeometryKey(panel, kind) {
 function readFloatGeometry(panel, kind) {
   try {
     const geometry = JSON.parse(localStorage.getItem(floatGeometryKey(panel, kind)) || 'null');
-    return geometry && typeof geometry === 'object' ? geometry : null;
+    if (!geometry || typeof geometry !== 'object') return null;
+    // Una geometría guardada por una versión anterior no tiene referencias. Se
+    // rellenan con lo que ya había y el padre de ahora, y con eso se escala
+    // 1:1 hasta que el usuario ajuste el panel a mano. Que no se mueva al
+    // actualizar es lo correcto: está donde él lo puso.
+    const referencia = window.pokeGridFloatGeometry.referenciaDeGuardado(
+      geometry,
+      panel.element.getBoundingClientRect(),
+      kind
+    );
+    return {
+      ...geometry,
+      baseWidth: referencia.baseWidth,
+      baseHeight: referencia.baseHeight,
+      baseParent: referencia.baseParent
+    };
   } catch {
     return null;
   }
 }
 
-function applyFloatGeometry(panel, kind, geometry = readFloatGeometry(panel, kind)) {
+function applyFloatGeometry(panel, kind) {
   const floatPanel = kind === 'hunt' ? panel.huntPanel : panel.captureLogPanel;
   const pinButton = floatPanel.querySelector(`.${kind}-float-pin`);
+  const geometry = readFloatGeometry(panel, kind);
   const locked = geometry?.locked === true;
   floatPanel.classList.toggle('is-geometry-locked', locked);
   pinButton.classList.toggle('is-active', locked);
   pinButton.setAttribute('aria-pressed', String(locked));
   pinButton.title = locked ? 'Desbloquear tamaño y posición' : 'Fijar tamaño y posición';
-  if (!geometry || !Number.isFinite(Number(geometry.left))) return;
   const parentRect = panel.element.getBoundingClientRect();
-  const minWidth = kind === 'hunt' ? 280 : 300;
-  const minHeight = kind === 'hunt' ? 230 : 250;
-  const width = Math.min(Math.max(minWidth, Number(geometry.width) || minWidth), Math.max(minWidth, parentRect.width - 14));
-  const height = Math.min(Math.max(minHeight, Number(geometry.height) || minHeight), Math.max(minHeight, parentRect.height - 56));
-  const left = Math.min(Math.max(7, Number(geometry.left) || 7), Math.max(7, parentRect.width - width - 7));
-  const top = Math.min(Math.max(49, Number(geometry.top) || 49), Math.max(49, parentRect.height - height - 7));
-  Object.assign(floatPanel.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto', width: `${width}px`, height: `${height}px` });
+
+  if (!geometry || !Number.isFinite(Number(geometry.left))) {
+    // Sin geometría guardada manda el CSS, y sus valores por defecto ya llevan
+    // el suelo y el margen. No hay nada que escribir.
+    floatPanel.style.removeProperty('--float-w');
+    floatPanel.style.removeProperty('--float-h');
+    return;
+  }
+
+  const medida = window.pokeGridFloatGeometry.calcularFloatGeometry(geometry, parentRect, kind);
+
+  // El tamaño NO va en estilo inline a propósito. Mientras el JS escriba width y
+  // height, el CSS no puede reaccionar y su `min(280px, calc(100% - 14px))` no
+  // sirve de nada, porque el inline gana a cualquier regla. Aquí solo se
+  // calculan y se pasan como propiedades personalizadas; el CSS las envuelve en su
+  // propio min(), que es quien recorta si el padre encoge más de lo previsto.
+  floatPanel.style.setProperty('--float-w', `${Math.round(medida.width)}px`);
+  floatPanel.style.setProperty('--float-h', `${Math.round(medida.height)}px`);
+  floatPanel.style.left = `${Math.round(medida.left)}px`;
+  floatPanel.style.top = `${Math.round(medida.top)}px`;
+  floatPanel.style.right = 'auto';
+  floatPanel.style.bottom = 'auto';
+}
+
+function clearFloatGeometryStyle(floatPanel) {
+  floatPanel.style.removeProperty('--float-w');
+  floatPanel.style.removeProperty('--float-h');
+  floatPanel.style.removeProperty('left');
+  floatPanel.style.removeProperty('top');
 }
 
 function saveFloatGeometry(panel, kind) {
   const floatPanel = kind === 'hunt' ? panel.huntPanel : panel.captureLogPanel;
   if (floatPanel.hidden) return;
-  const panelRect = panel.element.getBoundingClientRect();
+  const parentRect = panel.element.getBoundingClientRect();
   const rect = floatPanel.getBoundingClientRect();
   if (rect.width < 1 || rect.height < 1) return;
+  const previa = readFloatGeometry(panel, kind) || {};
+  const referencia = window.pokeGridFloatGeometry.referenciaDeGuardado(previa, parentRect, kind);
   const geometry = {
-    left: Math.round(rect.left - panelRect.left),
-    top: Math.round(rect.top - panelRect.top),
+    left: Math.round(rect.left - parentRect.left),
+    top: Math.round(rect.top - parentRect.top),
     width: Math.round(rect.width),
     height: Math.round(rect.height),
-    locked: floatPanel.classList.contains('is-geometry-locked')
+    locked: floatPanel.classList.contains('is-geometry-locked'),
+    baseWidth: referencia.baseWidth,
+    baseHeight: referencia.baseHeight,
+    baseParent: referencia.baseParent
   };
   localStorage.setItem(floatGeometryKey(panel, kind), JSON.stringify(geometry));
 }
@@ -7138,8 +7180,8 @@ function setupFloatGeometry(panel, kind) {
   resetButton.addEventListener('click', () => {
     localStorage.removeItem(floatGeometryKey(panel, kind));
     floatPanel.classList.remove('is-geometry-locked');
-    floatPanel.removeAttribute('style');
-    applyFloatGeometry(panel, kind, null);
+    clearFloatGeometryStyle(floatPanel);
+    applyFloatGeometry(panel, kind);
   });
   head.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || event.target.closest('button') || floatPanel.classList.contains('is-geometry-locked')) return;
