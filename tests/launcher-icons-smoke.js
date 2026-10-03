@@ -162,4 +162,50 @@ assert.equal(grosores.size, 1,
   `Hay ${grosores.size} grosores de trazo distintos (${[...grosores].join(', ')}). Un juego de iconos con grosores mezclados no parece un pack.`);
 console.log(`ok  un solo grosor de trazo: ${[...grosores][0]}.`);
 
-console.log('Launcher icons smoke passed: los iconos de los paneles y los once del menú, todos del mismo pack, con la llamada en su sitio.');
+// --- Ni un emoji ni un glifo suelto en el código ------------------------------
+// Los emojis se colaban de dos maneras distintas: escritos a mano en el launcher, y
+// copiados del texto del juego. Los dos se quitaron, y se quitan de aquí para que no
+// vuelvan por descuido.
+//
+// Hay tres excepciones, y todas son necesarias:
+//
+//   · `♀♂` dentro de un `replace`: el género se LEE del nombre que trae el juego con
+//     esos dos símbolos. Si desaparecen de ahí, el género deja de leerse.
+//   · La línea que define `DECORATIVOS`: es la lista de lo que hay que quitar.
+//   · Los comentarios: no se ven, y explicar por qué se quitó un emoji lleva el
+//     emoji en la explicación.
+const DECORATIVOS = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}\u{2B50}\u{2640}\u{2642}]/u;
+const esNecesario = (linea) => (
+  /^\s*(\/\/|\*|\/\*)/.test(linea)          // comentario
+  || /const DECORATIVOS =/.test(linea)     // la propia lista de lo que se quita
+  || /\.replace\(/.test(linea)             // parsing: se usa el símbolo para quitarlo
+);
+const enCodigo = [];
+renderer.split('\n').forEach((una, indice) => {
+  if (esNecesario(una)) return;
+  if (DECORATIVOS.test(una)) enCodigo.push(`L${indice + 1}: ${una.trim().slice(0, 90)}`);
+});
+assert.equal(enCodigo.length, 0,
+  `Quedan glifos sueltos en el código:\n    ${enCodigo.join('\n    ')}`);
+console.log('ok  ni un emoji ni un glifo suelto en el código del renderer.');
+
+// --- Y que el script de Hunt losquite de lo que lee del juego -----------------
+// El juego decora sus valores con un 📦 antes del botín por hora, un ⭐ antes de la
+// XP y un ⏰ antes de las muertes. Al copiar su texto, el emoji pasaba a nuestra
+// tarjeta. Lo que se lee pasa por una expresión que los quita.
+assert.match(renderer, /const DECORATIVOS = \//,
+  'El script de Hunt necesita quitar los símbolos decorativos de los valores.');
+assert.match(renderer, /\.replace\(DECORATIVOS, ' '\)/,
+  'El script de Hunt tiene que aplicar esa expresión al leer los valores.');
+// Y tiene que quita los tres de verdad, sin comerse lo que sí significa.
+const patron = renderer.match(/const DECORATIVOS = (\/[^;]+\/[a-z]*);/);
+const re = new RegExp(patron[1].slice(1, patron[1].lastIndexOf('/')), 'gu');
+const limpiar = (texto) => texto.replace(re, ' ').replace(/\s+/g, ' ').trim();
+assert.equal(limpiar('\u{1F4E6} $26.477/h'), '$26.477/h', 'El 📦 del botín por hora tiene que irse.');
+assert.equal(limpiar('\u{2B50} 6.797.213 XP/h'), '6.797.213 XP/h', 'El ⭐ de la XP por hora tiene que irse.');
+assert.equal(limpiar('\u{23F0} 340/h'), '340/h', 'El ⏰ de los muertes por hora tiene que irse.');
+assert.equal(limpiar('131 balls \u00b7 20 potions'), '131 balls \u00b7 20 potions', 'El punto medio separa datos: no es decorativo y no se puede quitar.');
+assert.equal(limpiar('$1.886 objetos'), '$1.886 objetos', 'Un valor normal no se toca.');
+console.log('ok  los tres emojis del juego se quitan y lo que significa se queda.');
+
+console.log('Launcher icons smoke passed: los iconos de los paneles y los once del menú, todos del mismo pack, con la llamada en su sitio y sin un solo emoji.');

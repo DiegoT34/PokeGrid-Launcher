@@ -389,7 +389,9 @@ function applyTopbarCollapsedState(collapsed, { persist = true } = {}) {
   const isCollapsed = Boolean(collapsed);
   appbar.classList.toggle('is-topbar-collapsed', isCollapsed);
   document.body.classList.toggle('is-topbar-collapsed', isCollapsed);
-  topbarCollapseButton.textContent = isCollapsed ? '⌄' : '⌃';
+  // Antes era un glifo suelto: era el único texto con un símbolo raro que quedaba
+  // visible en toda la interfaz.
+  topbarCollapseButton.innerHTML = launcherUiIcon(isCollapsed ? 'chevronUp' : 'chevronDown');
   topbarCollapseButton.setAttribute('aria-expanded', String(!isCollapsed));
   topbarCollapseButton.setAttribute('aria-label', isCollapsed ? 'Mostrar barra superior' : 'Ocultar barra superior');
   topbarCollapseButton.title = isCollapsed ? 'Mostrar barra superior' : 'Ocultar barra superior';
@@ -1404,17 +1406,17 @@ function closeGoalManager() {
 }
 function notificationTitle(notification) {
   if (notification.eventKind === 'drop') {
-    return `📦 Meta de drop: ${notification.capture.name} × ${notification.capture.quantity}`;
+    return `Meta de drop: ${notification.capture.name} × ${notification.capture.quantity}`;
   }
   if (notification.eventKind === 'defeat') {
-    return `✨ Shiny derrotado: ${notification.capture.name}`;
+    return `Shiny derrotado: ${notification.capture.name}`;
   }
   const labels = [];
   if (notification.types.includes('legendary')) {
     labels.push(notification.capture.isLegendarySpecies ? 'Legendario capturado' : 'Captura legendaria');
   }
   if (notification.types.includes('goal')) labels.push('Meta cumplida');
-  return `${notification.types.includes('legendary') ? '🏆' : '🎯'} ${labels.join(' + ')}: ${notification.capture.name}`;
+  return `${labels.join(' + ')}: ${notification.capture.name}`;
 }
 function showLauncherEventAlert(notification) {
   if (!notificationToastLayer || !notification) return;
@@ -1423,7 +1425,12 @@ function showLauncherEventAlert(notification) {
   const toast = document.createElement('article');
   toast.className = `notification-toast is-${alertType}`;
   const icon = document.createElement('span');
-  icon.textContent = { drop: '📦', shiny: '✨', legendary: '🏆', goal: '🎯' }[alertType];
+    icon.innerHTML = launcherUiIcon({
+      drop: 'box',
+      shiny: 'shiny',
+      legendary: 'trophy',
+      goal: 'target'
+    }[alertType] || 'star');
   const copy = document.createElement('div');
   const title = document.createElement('strong');
   title.textContent = notificationTitle(notification);
@@ -1519,7 +1526,15 @@ function renderNotifications() {
         pokemonSprite.classList.add('notification-pokemon-sprite');
         sprite.appendChild(pokemonSprite);
       } else {
-        sprite.textContent = notification.eventKind === 'drop' ? '📦' : notification.types.includes('shiny') ? '✨' : notification.types.includes('legendary') ? '◆' : '🎯';
+        sprite.innerHTML = launcherUiIcon(
+          notification.eventKind === 'drop'
+            ? 'box'
+            : notification.types.includes('shiny')
+              ? 'shiny'
+              : notification.types.includes('legendary')
+                ? 'trophy'
+                : 'target'
+        );
       }
     }
     const body = document.createElement('div');
@@ -4154,7 +4169,15 @@ function createFarmSprite(target, size = 48) {
 }
 function huntAnalyzerSnapshotScript() {
   const readHuntAnalyzer = async () => {
-    const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    // El juego decora sus valores con emojis: un 📦 antes del botín por hora, un ⭐
+    // antes de la XP, un ⏰ antes de las muertes. Al copiar su texto, el emoji
+    // pasaba también a nuestra tarjeta, con el mismo票价 que en la suya. Aquí se
+    // quita. La información no se pierde: la tarjeta ya lleva su icono.
+    const DECORATIVOS = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B50}]|[←-⇿⬀-⯿️]/gu;
+    const clean = (value) => String(value || '')
+      .replace(DECORATIVOS, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     const normalized = (value) => clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const ownText = (element) => clean([...element?.childNodes || []]
       .filter((node) => node.nodeType === Node.TEXT_NODE)
@@ -5930,7 +5953,7 @@ function setPanelFarmChip(panel, config, visible) {
   if (!panel?.farmChip) return;
   panel.farmChip.hidden = !visible;
   panel.farmChip.textContent = visible && config?.target
-    ? `🎯 ${config.target.name}`
+    ? config.target.name
     : '';
 }
 function renderFarmAccounts() {
@@ -6258,7 +6281,8 @@ function renderFarmPickerLegacy() {
     if (locked) {
       const lock = document.createElement('small');
       lock.className = 'farm-lock';
-      lock.textContent = `🔒 Requiere nivel ${target.level}`;
+      // El candado es un icono, no un emoji pegado al texto.
+  lock.innerHTML = `${launcherUiIcon('lock')}<span>Requiere nivel ${target.level}</span>`;
       copy.appendChild(lock);
     }
     button.appendChild(copy);
@@ -6376,7 +6400,7 @@ function renderFarmPicker() {
     const nameRow = document.createElement('span');
     nameRow.className = 'farm-smart-name-row';
     const name = document.createElement('strong');
-    name.textContent = `${target.isShiny ? '✨ ' : ''}${target.name}`;
+    name.innerHTML = `${target.isShiny ? launcherUiIcon('shiny') : ''}<span>${escapeHtml(String(target.name))}</span>`;
     const rank = document.createElement('span');
     rank.className = 'farm-smart-rank';
     rank.textContent = `#${index + 1}`;
@@ -6399,7 +6423,7 @@ function renderFarmPicker() {
     const verdict = document.createElement('span');
     verdict.className = 'farm-matchup-verdict';
     const verdictScore = document.createElement('b');
-    verdictScore.textContent = locked ? '🔒' : `${matchup.score}%`;
+    verdictScore.innerHTML = locked ? launcherUiIcon('lock') : `${matchup.score}%`;
     const verdictLabel = document.createElement('small');
     verdictLabel.textContent = locked ? `Nv.${target.level}` : matchup.label;
     verdict.append(verdictScore, verdictLabel);
@@ -7520,7 +7544,12 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
   play: '<path d="M6 4.5v15l13-7.5z"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
-  layout: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>'
+  layout: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronUp: '<path d="m18 15-6-6-6 6"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>'
 });
 function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
@@ -7550,7 +7579,7 @@ function renderAccountProfile(panel, profile) {
   }
   panel.accountProfileLastGood = merged;
   const sprite = merged.sprite && /^(?:data:|https:\/\/poke\.idleworld\.online\/)/i.test(merged.sprite) && !/logo|pokeball|brand|icon/i.test(merged.sprite)
-    ? `<img src="${String(merged.sprite).replace(/["<>]/g, '')}" alt="Sprite del entrenador">` : '<span aria-hidden="true">👤</span>';
+    ? `<img src="${String(merged.sprite).replace(/["<>]/g, '')}" alt="Sprite del entrenador">` : `<span aria-hidden="true">${launcherUiIcon('user')}</span>`;
   const vipClass = merged.vip === true ? 'is-vip' : 'is-basic';
   const vipText = merged.vip === true ? '◆ VIP' : merged.vip === false ? '◇ No VIP' : '◇ Sin datos';
   panel.accountInfoContent.innerHTML = `<div class="account-info-avatar">${sprite}</div><div class="account-info-player">
@@ -7905,7 +7934,7 @@ function renderStatistics(rows) {
     const dropsMarkup = drops.length
       ? drops.map(statisticsDropMarkup).join('')
       : '<p class="statistics-drops-empty">Sin drops detectados en la sesión actual.</p>';
-    card.innerHTML = `<header class="statistics-account-head"><div class="statistics-account-identity"><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(accounts[row.index]?.label || `Cuenta ${row.index + 1}`)} · Nivel ${escapeHtml(formatAccountAmount(row.profile?.level))} · ${escapeHtml(row.profile?.rank || 'rango no disponible')}</small></div></div><span class="statistics-account-state">${row.online ? (huntAvailable ? 'EN VIVO' : 'CONECTADA') : 'SIN CONEXIÓN'}</span></header><div class="statistics-hunt-context"><span>⌖ ${escapeHtml(zone)}</span>${target ? `<span>⚔ ${escapeHtml(target)}</span>` : ''}${leader ? `<span>◆ Líder: ${escapeHtml(leader)}</span>` : ''}</div><nav class="statistics-account-tabs" aria-label="Datos de ${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}"><button type="button" data-account-view="summary" class="${accountView === 'summary' ? 'is-active' : ''}">Resumen</button><button type="button" data-account-view="drops" class="${accountView === 'drops' ? 'is-active' : ''}">Drops <b>${drops.length}</b></button></nav><section class="statistics-account-pane" data-account-pane="summary"${accountView === 'summary' ? '' : ' hidden'}><div class="statistics-account-grid">${metrics.map(([label, value, kind]) => statisticsMetricMarkup(label, value, kind)).join('')}</div></section><section class="statistics-account-pane statistics-drops-pane" data-account-pane="drops"${accountView === 'drops' ? '' : ' hidden'}><div class="statistics-drops-list">${dropsMarkup}</div></section>`;
+    card.innerHTML = `<header class="statistics-account-head"><div class="statistics-account-identity"><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(accounts[row.index]?.label || `Cuenta ${row.index + 1}`)} · Nivel ${escapeHtml(formatAccountAmount(row.profile?.level))} · ${escapeHtml(row.profile?.rank || 'rango no disponible')}</small></div></div><span class="statistics-account-state">${row.online ? (huntAvailable ? 'EN VIVO' : 'CONECTADA') : 'SIN CONEXIÓN'}</span></header><div class="statistics-hunt-context"><span>${launcherUiIcon('target')} ${escapeHtml(zone)}</span>${target ? `<span>${launcherUiIcon('swords')} ${escapeHtml(target)}</span>` : ''}${leader ? `<span>◆ Líder: ${escapeHtml(leader)}</span>` : ''}</div><nav class="statistics-account-tabs" aria-label="Datos de ${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}"><button type="button" data-account-view="summary" class="${accountView === 'summary' ? 'is-active' : ''}">Resumen</button><button type="button" data-account-view="drops" class="${accountView === 'drops' ? 'is-active' : ''}">Drops <b>${drops.length}</b></button></nav><section class="statistics-account-pane" data-account-pane="summary"${accountView === 'summary' ? '' : ' hidden'}><div class="statistics-account-grid">${metrics.map(([label, value, kind]) => statisticsMetricMarkup(label, value, kind)).join('')}</div></section><section class="statistics-account-pane statistics-drops-pane" data-account-pane="drops"${accountView === 'drops' ? '' : ' hidden'}><div class="statistics-drops-list">${dropsMarkup}</div></section>`;
     statisticsAccounts.appendChild(card);
   });
   renderStatisticsComparison(rows);
@@ -9645,7 +9674,7 @@ cleanupMemoryButton.addEventListener('click', async () => {
     const result = await window.pokeGrid.cleanupMemory();
     if (!result.ok) throw new Error(result.error || 'No se pudo liberar la memoria temporal.');
     const released = Number(result.releasedMb) || 0;
-    cleanupMemoryButton.innerHTML = `<span aria-hidden="true">✓</span><span>${released ? `−${released} MB` : 'RAM lista'}</span>`;
+    cleanupMemoryButton.innerHTML = `${launcherUiIcon('check')}<span>${released ? `−${released} MB` : 'RAM lista'}</span>`;
     cleanupMemoryButton.title = [
       `${Number(result.preservedProcesses) || 0} procesos gráficos preservados`,
       `${Number(result.cachedEntries || 0) + rendererCachedEntries} cachés visuales liberadas`,
@@ -9671,7 +9700,7 @@ if (window.pokeGrid.onUpdateProgress) {
     if (progress.phase === 'download') {
       setUpdateLauncherState('⇩', `Descargando ${Number(progress.percent) || 0}%`);
     } else if (progress.phase === 'verify') {
-      setUpdateLauncherState('✓', 'Verificando');
+      setUpdateLauncherState('clock', 'Verificando');
     }
   });
 }
@@ -9690,12 +9719,12 @@ updateLauncherButton.addEventListener('click', async () => {
     const peek = await pokeGridUpdateChannels.peek();
     if (!peek || !peek.ok) throw new Error(peek?.error || 'No se pudo buscar la actualización.');
     if (peek.status === 'development') {
-      setUpdateLauncherState('⌘', 'Modo desarrollo');
+      setUpdateLauncherState('download', 'Modo desarrollo');
       updateLauncherButton.title = 'La instalación automática se comprueba desde el paquete portátil.';
       return;
     }
     if (!peek.hayActualizacion) {
-      setUpdateLauncherState('✓', 'Está actualizado');
+      setUpdateLauncherState('check', 'Está actualizado');
       updateLauncherButton.title = `Versión actual ${peek.actual}`;
       window.pokeGridUpdatePoll.olvidar();
       window.pokeGridNotifications.set('updater', 0);
@@ -9729,7 +9758,7 @@ updateLauncherButton.addEventListener('click', async () => {
       setUpdateLauncherState('◌', `Instalando ${result.latestVersion}`, true);
       updateLauncherButton.title = `Instalando la versión ${result.latestVersion}`;
     } else {
-      setUpdateLauncherState('✓', 'Está actualizado');
+      setUpdateLauncherState('check', 'Está actualizado');
       updateLauncherButton.title = `Versión actual ${currentLauncherVersion}`;
     }
   } catch (error) {
@@ -9946,7 +9975,7 @@ window.__pokeGridPreviewNotifications = () => {
   }
   addCaptureNotification({ name: 'Jigglypuff', level: 'Lv.40', meta: 'Raro · IV 168/192', iv: 168, ivMax: 192, ball: 'Ultra Ball', isShiny: false }, 0);
   addDefeatNotification({ name: 'Charizard', level: 68, speciesId: 6, looktype: 67, types: ['fire', 'flying'], xpGained: 3848, isShiny: true }, 1);
-  addCaptureNotification({ name: 'Ancient Mewtwo ♂ 1ª', level: 'Lv.100', meta: 'Legendario · IV 190/192', iv: 190, ivMax: 192, ball: 'Master Ball', isShiny: false }, 2);
+  addCaptureNotification({ name: 'Ancient Mewtwo 1ª', level: 'Lv.100', meta: 'Legendario · IV 190/192', iv: 190, ivMax: 192, ball: 'Master Ball', isShiny: false }, 2);
   addCaptureNotification({ name: 'Magnemite', level: 'Lv.10', meta: 'Legendario · IV 183/192', iv: 183, ivMax: 192, ball: 'Ultra Ball', speciesId: 81, looktype: 217, types: ['electric', 'steel'] }, 3);
   openNotificationPanel();
 };

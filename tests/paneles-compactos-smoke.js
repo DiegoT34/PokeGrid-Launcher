@@ -80,6 +80,29 @@ assert.match(iconoMetrica.cuerpo, /font-size:\s*\d+px/,
   'El recuadro de los iconos de Hunt necesita font-size: el SVG mide 1em y sin eso hereda el tamaño de letra de la tarjeta y no cabe centrado.');
 console.log(`ok  los iconos de Hunt tienen tamaño propio (L${iconoMetrica.linea})`);
 
+// El descentrado de dentro del recuadro venía de otra cosa, y no de que faltara el
+// `place-items`: `.hunt-flat-metric-icon` es un `<span>`, y una regla antigua
+// `.hunt-flat-metric span` le pone `display: block` y `font-size: 7px`. Esa tiene
+// especificidad (0,1,1) y la del recuadro solo (0,1,0), así que ganaba ella: el
+// recuadro se quedaba en flujo normal y el SVG pegado arriba, con 14 px de desfase
+// en las nueve tarjetas.
+//
+// Se comprueba que exista una regla que gane: con el padre delante y `display: grid`.
+const iconoAnidado = bloque('.hunt-flat-metric > .hunt-flat-metric-icon');
+assert.match(iconoAnidado.cuerpo, /display:\s*grid/,
+  'El recuadro del icono tiene que salir como grid: una regla antigua le deja display:block, que es lo que descuadraba el SVG hacia arriba.');
+assert.match(iconoAnidado.cuerpo, /place-items:\s*center/,
+  'El recuadro del icono tiene que centrar su contenido.');
+assert.match(iconoAnidado.cuerpo, /font-size:\s*\d+px/,
+  'El recuadro del icono tiene que fijar su tamaño de letra en la misma regla que le pone el display: si no, la regla antigua se lo come.');
+console.log(`ok  el recuadro gana a la regla antigua y centra el icono (L${iconoAnidado.linea})`);
+
+// Y que el SVG dentro tenga tamaño propio, que es lo que se mide en el navegador.
+const svgDentro = bloque('.hunt-flat-metric > .hunt-flat-metric-icon .launcher-ui-icon');
+assert.match(svgDentro.cuerpo, /width:\s*\d+px[\s\S]*height:\s*\d+px/,
+  'El icono dentro del recuadro necesita width y height propios.');
+console.log(`ok  el SVG del recuadro tiene tamaño propio (L${svgDentro.linea})`);
+
 // --- 4. Los botones con etiqueta de Hunt --------------------------------------
 const accion = styles.slice(styles.lastIndexOf('.hunt-float-action {'));
 assert.match(accion.slice(0, accion.indexOf('}')), /width:\s*auto/,

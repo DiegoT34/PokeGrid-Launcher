@@ -1,7 +1,7 @@
 {
   "name": "pokegrid-launcher",
-  "version": "0.24.2",
-  "description": "PokeGrid Launcher portÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡til multicuenta y multijuego para Windows",
+  "version": "0.24.3",
+  "description": "PokeGrid Launcher portÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡til multicuenta y multijuego para Windows",
   "main": "src/main.js",
   "author": "DiegoT34",
   "license": "MIT",

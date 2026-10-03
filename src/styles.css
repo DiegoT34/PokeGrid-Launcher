@@ -5399,3 +5399,114 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 /* La insignia de notificaciones conserva su color: es una alerta, y ahí el color
    es información, no decoración. */
 .notification-button[aria-expanded="true"] { background: rgba(255, 255, 255, .07); }
+
+/* ============================================================================
+   Por qué el icono no estaba centrado dentro de su recuadro.
+
+   `.hunt-flat-metric-icon` es un `<span>`, y hay una regla antigua
+   `.hunt-flat-metric span` que le pone `display: block` y `font-size: 7px`. Esa
+   regla tiene especificidad (0,1,1) —una clase y un tipo— y la que pone el display
+   y el tamaño del recuadro tiene (0,1,0): una clase. Gana la antigua. El resultado
+   era un recuadro en flujo normal, sin `place-items` que hacer nada, con el SVG
+   pegado arriba: medido, 14 px de desfase en las nueve tarjetas.
+
+   Se sube la especificidad añadiendo el padre, y se reaffirman las cuatro
+   propiedades que la regla antigua se come.
+   ============================================================================ */
+
+.hunt-flat-metric > .hunt-flat-metric-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  overflow: visible;
+
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .05);
+  border-radius: 12px;
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, .55),
+    inset -2px -2px 5px rgba(255, 255, 255, .045);
+  color: var(--metric-accent);
+
+  /* El SVG mide 1em, así que esta caja tiene que decir de qué. */
+  font-size: 16px;
+  line-height: 1;
+}
+
+.hunt-flat-metric > .hunt-flat-metric-icon .launcher-ui-icon {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  filter: none;
+}
+
+/* ============================================================================
+   Los iconos que han pasado de glifo a SVG.
+
+   Cada uno estaba dentro de un elemento que ahora lleva dos cosas: el icono y el
+   texto. Sin tamaño propio, el SVG mide `1em` y hereda el tamaño de letra del
+   texto, que en un botón pequeño es diminuto y en una cifra es enorme.
+   ============================================================================ */
+
+/* El botón de plegar la barra superior: solo lleva el icono. */
+.topbar-collapse-button .launcher-ui-icon {
+  width: 15px;
+  height: 15px;
+  color: currentColor;
+}
+
+/* El icono grande de una notificación: el que estaba pegado con un 📦 o un ✨. */
+.notification-sprite .launcher-ui-icon {
+  width: 18px;
+  height: 18px;
+  color: currentColor;
+}
+
+/* El icono del tipo de aviso, junto al mensaje. */
+.notification-alert-icon .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+/* «Requiere nivel 30»: candado y texto, uno al lado del otro. */
+.lock-line,
+.farm-target-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lock-line .launcher-ui-icon,
+.farm-target-lock .launcher-ui-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: currentColor;
+}
+
+/* La puntuación de un enfrentamiento: el candado o la cifra, nunca los dos. */
+.verdict-score .launcher-ui-icon {
+  width: 15px;
+  height: 15px;
+  color: currentColor;
+}
+
+/* Los dos iconos sueltos que había dentro de una línea de texto en Estadísticas:
+   la zona con un ⌖ y el objetivo con un ⚔. */
+.statistics-hunt-context .launcher-ui-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 3px;
+  vertical-align: -2px;
+  color: currentColor;
+}
+
+/* El entrenador sin sprite. */
+.statistics-account-avatar .launcher-ui-icon {
+  width: 20px;
+  height: 20px;
+  color: currentColor;
+}
