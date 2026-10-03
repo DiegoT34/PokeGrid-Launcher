@@ -160,7 +160,7 @@ function renderUpdateLauncherButton() {
 }
 function setUpdateLauncherState(icon, label, spinning = false) {
   updateLauncherState = { icon, label, spinning };
-  renderUpdateLauncherButton();aplicarIconosMenu();
+  renderUpdateLauncherButton();
 }
 // Los dos canales del botón de actualizar, en un objeto sustituible. ContextBridge
 // congela lo que expone en el mundo principal, así que window.pokeGrid no se puede
@@ -6006,7 +6006,7 @@ function renderFarmAccounts() {
     const rereadButton = document.createElement('button');
     rereadButton.type = 'button';
     rereadButton.className = 'farm-leader-refresh';
-    rereadButton.textContent = '↻';
+    rereadButton.innerHTML = launcherUiIcon('refresh');
     rereadButton.title = 'Releer Pokémon principal de esta cuenta';
     rereadButton.setAttribute('aria-label', rereadButton.title);
     rereadButton.disabled = Boolean(panel?.farmLeaderRefreshBusy);
@@ -6028,7 +6028,8 @@ function renderFarmAccounts() {
     leaderCopy.className = 'farm-leader-copy';
     const leaderEyebrow = document.createElement('span');
     leaderEyebrow.className = 'farm-leader-eyebrow';
-    leaderEyebrow.textContent = leader ? `POKÉMON LÍDER EQUIPADO${leader.id ? ` · ID ${leader.id}` : ''}` : 'LÍDER NO DETECTADO';
+        // Solo dice qué es. El ID del juego no es parte del nombre del Pokémon.
+    leaderEyebrow.textContent = leader ? 'Líder equipado' : 'Líder sin detectar';
     const leaderName = document.createElement('strong');
     leaderName.textContent = leader?.name || 'Entra al juego para leer el equipo';
     const leaderTypes = document.createElement('div');
@@ -6043,9 +6044,11 @@ function renderFarmAccounts() {
     const leaderStats = document.createElement('div');
     leaderStats.className = 'farm-leader-stats';
     const statRows = leader ? [
-      ['NIVEL', leader.level || '?'],
-      [`FUERZA${leader.strengthSource === 'Ataque' ? ' (ATQ)' : leader.strengthSource === 'Estimado' ? ' EST.' : ''}`, leader.strength || '?'],
-      ['VIDA', leader.maxHp ? `${leader.hp || 0}/${leader.maxHp}` : '?']
+        ['Nivel', leader.level || '?'],
+        // El origen del dato —Ataque o estimado— es información, no parte de la
+        // etiqueta. La fuerza es «Fuerza» y punto.
+        ['Fuerza', leader.strength || '?'],
+        ['Vida', leader.maxHp ? `${leader.hp || 0}/${leader.maxHp}` : '?']
     ] : [['ESTADO', 'Sin datos']];
     statRows.forEach(([label, value]) => {
       const stat = document.createElement('span');
@@ -6061,8 +6064,9 @@ function renderFarmAccounts() {
       const details = document.createElement('div');
       details.className = 'farm-leader-detail-stats';
       [
-        ['HP', leader.stats.hp], ['ATK', leader.stats.attack], ['DEF', leader.stats.defense],
-        ['SPA', leader.stats.specialAttack], ['SPD', leader.stats.specialDefense], ['VEL', leader.stats.speed]
+        // Los nombres en inglés no significan nada para quien juega.
+        ['PS', leader.stats.hp], ['ATQ', leader.stats.attack], ['DEF', leader.stats.defense],
+        ['ATA', leader.stats.specialAttack], ['DEF ESP', leader.stats.specialDefense], ['VEL', leader.stats.speed]
       ].forEach(([label, value]) => {
         const stat = document.createElement('span');
         const statLabel = document.createElement('small');
@@ -6077,12 +6081,14 @@ function renderFarmAccounts() {
       const tmPanel = document.createElement('div');
       tmPanel.className = `farm-leader-tms${tmSummary.all.length ? '' : ' is-empty'}`;
       const tmLabel = document.createElement('small');
-      tmLabel.textContent = 'MT EQUIPADAS';
+      tmLabel.textContent = 'MT equipadas';
       tmPanel.appendChild(tmLabel);
       if (!tmSummary.all.length) {
         const emptyTm = document.createElement('span');
         emptyTm.className = 'farm-leader-tm-empty';
-        emptyTm.textContent = 'AoE o de tipo no detectadas';
+                // Que un líder no lleve MT es lo normal. Antes salía como una casilla
+        // punteada de aviso, y era lo que más llamaba la atención del panel.
+        emptyTm.textContent = 'Sin MT detectadas';
         tmPanel.appendChild(emptyTm);
       } else {
         tmSummary.all.forEach((tm) => {
@@ -6115,7 +6121,7 @@ function renderFarmAccounts() {
     targetCopy.append(targetName, targetMeta);
     const targetArrow = document.createElement('span');
     targetArrow.className = 'farm-target-arrow';
-    targetArrow.textContent = '›';
+    targetArrow.innerHTML = launcherUiIcon('chevron');
     targetButton.append(targetCopy, targetArrow);
     targetButton.addEventListener('click', () => openFarmPicker(index));
     const accountAction = document.createElement('button');
@@ -6126,6 +6132,7 @@ function renderFarmAccounts() {
     const playIcon = document.createElement('span');
     playIcon.className = 'play-icon';
     playIcon.setAttribute('aria-hidden', 'true');
+    playIcon.innerHTML = launcherUiIcon('play');
     accountAction.appendChild(playIcon);
     accountAction.disabled = panel?.farmRunState === 'busy' || !config.target || !context.ready;
     accountAction.addEventListener('click', () => startFarmAccount(index));
@@ -6441,6 +6448,9 @@ function renderFarmPicker() {
 }
 async function openFarmModal() {
   farmBackdrop.hidden = false;
+  // Los botones de la barra se conectan aquí: el panel se abre y se
+  // cierra, y conectarlos al arrancar los dejaría vacíos.
+  aplicarIconosBarraFarmeo();
   setFarmMessage('');
   renderFarmAccounts();
   await refreshFarmData();
@@ -7555,7 +7565,10 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   aoe: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>',
   empty: '<path d="m12 3 8 9-8 9-8-9z"/>',
   filled: '<path d="m12 3 8 9-8 9-8-9z" fill="currentColor" stroke="none"/>',
-  spinner: '<path d="M12 3a9 9 0 1 0 9 9" />'
+  spinner: '<path d="M12 3a9 9 0 1 0 9 9" />',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+  map: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15"/><path d="M15 6v15"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2"/>'
 });
 function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
@@ -7568,6 +7581,28 @@ function launcherUiIcon(name, className = '') {
 // más rastro que un «se agotó el tiempo esperando» en las pruebas. Y los botones
 // tienen que existir ya en el DOM.
 aplicarIconosMenu();
+
+// Los tres botones de la barra de Modo Farmeo. Van aparte de los del menú porque
+// este panel se abre y se cierra, y conectarlos en el arranque los dejaría vacíos
+// si el panel todavía no existe en el DOM.
+const ICONOS_FARMA_BARRA = {
+  '#rereadFarmLeadersButton': 'refresh',
+  '#refreshFarmButton': 'map'
+};
+function aplicarIconosBarraFarmeo() {
+  for (const [selector, icono] of Object.entries(ICONOS_FARMA_BARRA)) {
+    const boton = document.querySelector(selector);
+    if (!boton) continue;
+    const hueco = boton.querySelector('.top-action-icon');
+    if (!hueco) continue;
+    hueco.classList.add('menu-svg-icon');
+    hueco.innerHTML = launcherUiIcon(icono);
+  }
+  const detener = document.querySelector('#stopFarmButton');
+  const huecoDetener = detener?.querySelector('.top-action-icon');
+  if (huecoDetener) huecoDetener.innerHTML = launcherUiIcon('stop');
+}
+
 function renderAccountProfile(panel, profile) {
   const previous = panel.accountProfileLastGood || null;
   if (!profile?.ok && !previous) {
@@ -9704,7 +9739,7 @@ if (window.pokeGrid.onUpdateProgress) {
   window.pokeGrid.onUpdateProgress((progress = {}) => {
     if (!updateLauncherButton.disabled) updateLauncherButton.disabled = true;
     if (progress.phase === 'download') {
-      setUpdateLauncherState('⇩', `Descargando ${Number(progress.percent) || 0}%`);
+      setUpdateLauncherState('download', `Descargando ${Number(progress.percent) || 0}%`);
     } else if (progress.phase === 'verify') {
       setUpdateLauncherState('clock', 'Verificando');
     }
@@ -9751,7 +9786,7 @@ updateLauncherButton.addEventListener('click', async () => {
     if (!aceptado) {
       // Cancelar no apaga el aviso: sigue pendiente hasta que se instale de verdad. Es
       // lo único que le queda al usuario para volver a intentarlo más tarde.
-      setUpdateLauncherState('⇩', 'Actualización pendiente');
+      setUpdateLauncherState('download', 'Actualización pendiente');
       return;
     }
     const result = await pokeGridUpdateChannels.instalar();
@@ -9773,7 +9808,7 @@ updateLauncherButton.addEventListener('click', async () => {
     // El aviso tampoco se apaga aquí: un fallo al instalar no dice que ya estés al
     // día, solo que esta vez no se pudo.
     window.setTimeout(() => {
-      if (!updateLauncherButton.disabled && !instalando) setUpdateLauncherState('⇩', 'Actualización pendiente');
+      if (!updateLauncherButton.disabled && !instalando) setUpdateLauncherState('download', 'Actualización pendiente');
     }, 4000);
   } finally {
     if (!instalando) {
