@@ -5510,3 +5510,306 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   height: 20px;
   color: currentColor;
 }
+
+/* ============================================================================
+   La tarjeta de datos de la cuenta, en neomorfismo.
+
+   Antes era una pila de rectángulos: bordes duros de un tono turquesa, cuatro
+   cajas con fondo propio y unas etiquetas de siete píxeles que no se leían. Con el
+   resto del launcher ya en cristal, esta era la que más se salía.
+
+   El neomorfismo sobre fondo oscuro se hace con dos sombras: una oscura hacia
+   dentro por un lado y una clara por el contrario. Sin bordes. Lo hundido lleva
+   sombra hacia dentro —los huecos donde cae la tarjeta—, y lo que sobresale la
+   lleva hacia fuera —los puces de icono—, que es lo que da el volumen.
+
+   Y los textos suben de tamaño: siete píxeles no es una etiqueta pequeña, es un
+   texto que no se lee.
+   ============================================================================ */
+
+.account-info-card > header {
+  min-height: 34px;
+  padding: 7px 8px 7px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  background: none;
+}
+.account-info-card > header > strong {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: #9fb6c4;
+}
+
+/* El botón de cerrar: una ficha hundida, no un cuadrado con borde. */
+.account-info-close {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  box-shadow:
+    inset 1.5px 1.5px 3px rgba(0, 0, 0, .5),
+    inset -1.5px -1.5px 3px rgba(255, 255, 255, .04);
+  color: rgba(255, 255, 255, .55);
+  transition: box-shadow 130ms ease, color 130ms ease;
+}
+.account-info-close:hover {
+  color: #e6f0f7;
+  box-shadow:
+    inset 2px 2px 4px rgba(0, 0, 0, .6),
+    inset -2px -2px 4px rgba(255, 255, 255, .07);
+}
+.account-info-close .launcher-ui-icon { width: 12px; height: 12px; }
+
+/* «Actualizando 21:10:16»: un surco, con el punto dentro. */
+.account-info-state {
+  padding: 6px 11px 6px 26px;
+  color: #93aabb;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+
+.account-info-content {
+  padding: 9px 11px 12px;
+  gap: 9px;
+  align-items: start;
+}
+
+/* El retrato: un hueco cuadrado con el sprite dentro. Antes era un rectángulo con
+   un borde de un tono fuerte, que era lo más plano de toda la tarjeta. */
+.account-info-avatar {
+  width: 66px;
+  height: 66px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow:
+    inset 3px 3px 7px rgba(0, 0, 0, .6),
+    inset -3px -3px 7px rgba(255, 255, 255, .04);
+}
+.account-info-avatar img {
+  width: 78%;
+  height: 78%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .5));
+}
+.account-info-avatar .launcher-ui-icon { width: 26px; height: 26px; color: rgba(255, 255, 255, .35); }
+
+/* El nombre es lo más importante de la tarjeta: era de quince píxeles y ahora es
+   de diecisiete, con más aire y sin recortarse. */
+.account-info-player { gap: 8px; }
+.account-info-player > strong {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -.015em;
+  line-height: 1.1;
+  color: #f2f7fb;
+}
+
+/* --- Las dos carteras ------------------------------------------------------- */
+.account-info-wallets { gap: 7px; }
+
+/* Las métricas: huecos neomórficos. Sin borde, con sombra por dentro. */
+.account-info-metric {
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, .55),
+    inset -2px -2px 5px rgba(255, 255, 255, .035);
+}
+.account-info-metric > div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+/* El icono: una ficha que SOBRESALE, con sombra hacia fuera. Es lo que da el
+   volumen de verdad: un icono hundido se lee como un agujero. */
+.account-info-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow:
+    2px 2px 4px rgba(0, 0, 0, .45),
+    -2px -2px 4px rgba(255, 255, 255, .045);
+  font-size: 0;
+}
+.account-info-icon .launcher-ui-icon {
+  width: 13px;
+  height: 13px;
+  color: currentColor;
+}
+
+/* Las etiquetas. De siete a ocho píxeles, y en un tono que se lee. */
+.account-info-metric span,
+.account-info-progress span,
+.account-info-membership > span {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #8fa6b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-info-metric.is-money span { color: #8fd7a8; }
+.account-info-metric.is-diamonds span { color: #86cdf0; }
+
+.account-info-metric b {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: #e9f1f7;
+  font-variant-numeric: tabular-nums;
+}
+.account-info-metric.is-money b { color: #a9e8c2; }
+.account-info-metric.is-diamonds b { color: #b6e2f7; }
+
+/* --- Progreso y rango ------------------------------------------------------- */
+.account-info-progress {
+  padding: 7px 8px;
+  gap: 9px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, .55),
+    inset -2px -2px 5px rgba(255, 255, 255, .035);
+}
+.account-info-progress > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+/* El separador era un borde turquesa de un píxel; ahora es una muesca hundida,
+   que separa sin gritar. */
+.account-info-progress > div + div {
+  padding-left: 9px;
+  border-left: 0;
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, .5);
+}
+.account-info-progress b {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e9f1f7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Membresía -------------------------------------------------------------- */
+.account-info-membership {
+  padding: 7px 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .025);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, .55),
+    inset -2px -2px 5px rgba(255, 255, 255, .035);
+}
+.account-info-membership > div { min-width: 0; display: grid; gap: 1px; }
+.account-info-membership small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #7f95a6;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: none;
+  white-space: nowrap;
+}
+.account-info-benefit-icon { display: grid; place-items: center; }
+.account-info-benefit-icon .launcher-ui-icon { width: 12px; height: 12px; color: currentColor; }
+.account-info-membership b { font-size: 13px; font-weight: 700; }
+.account-info-vip.is-vip b { color: #6fe8b0; }
+.account-info-vip.is-basic b { color: #9fb0bd; }
+
+/* ============================================================================
+   Dos correcciones sobre el bloque anterior.
+
+   `min-width: 0` se había quedado fuera al reescribir `.account-info-progress`.
+   Sin eso, cada mitad del progreso es una rejilla de tamaño automático: no baja
+   del ancho mínimo de su contenido, así que «Progreso del entrenador» no se
+   recortaba sino que invadía a «Rango». Un texto con `text-overflow: ellipsis`
+   solo se recorta si su contenedor puede encogerse.
+
+   Y las reglas de etiqueta usaban `.account-info-metric span`, que también alcanza
+   al `<span class="account-info-icon">` de al lado. Con especificidad (0,1,1) le
+   ganaban al propio hueco del icono, que es donde vive el SVG. Ahora se apuntan
+   solo a la etiqueta.
+   ============================================================================ */
+
+.account-info-progress > div {
+  min-width: 0;
+}
+
+.account-info-metric > div > span,
+.account-info-progress > div > div > span,
+.account-info-membership > div > span {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #8fa6b8;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* El hueco del icono recupera su tamaño: el SVG mide en píxeles y no le hace
+   falta, pero el `font-size` a cero evita que herede nada raro. */
+.account-info-icon {
+  font-size: 0;
+  line-height: 0;
+}
+
+/* La membresía: la etiqueta encima del estado, y el beneficio a la derecha. Con
+   `align-items: center` los tres cosas quedaban en una línea a media altura. */
+.account-info-membership > div {
+  display: grid;
+  gap: 1px;
+  align-content: center;
+}
+.account-info-membership > span {
+  grid-column: auto;
+}
+
+/* ============================================================================
+   Dos detalles finos que solo se ven mirando.
+
+   «Progreso del entrenador» no cabe en 67 px y salía como «Progreso del Entr…».
+   En una tarjeta de este tamaño la palabra larga no aporta: el icono ya dice que
+   es el progreso y el valor dice el nivel. Se queda en «Entrenador».
+
+   El hueco del icono heredaba de `.account-info-metric span`, que tiene
+   especificidad (0,1,1) y le gana a `.account-info-icon`, que es (0,1,0). Heredaba
+   el `text-transform`, el `white-space` y el color de una etiqueta de texto. Aquí
+   se dice cuál es el suyo.
+   ============================================================================ */
+
+.account-info-metric > .account-info-icon,
+.account-info-progress .account-info-icon,
+.account-info-membership .account-info-icon {
+  font-size: 0;
+  line-height: 0;
+  overflow: visible;
+  text-transform: none;
+  white-space: normal;
+  color: inherit;
+}

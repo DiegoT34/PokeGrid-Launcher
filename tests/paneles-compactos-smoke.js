@@ -125,6 +125,79 @@ assert.doesNotMatch(mercado.cuerpo, /255,\s*200,\s*90/,
   'El botón del mercado es una fila de opciones más del panel, no un marco de color propio.');
 console.log(`ok  el botón del mercado es una fila más (L${mercado.linea})`);
 
+// Todos los bloques de un selector, no solo el último. Un selector puede tener
+// sus reglas repartidas: aquí el hueco del icono necesita una regla aparte para
+// ganarle en especificidad a la de las etiquetas, y vive en tres.
+function bloquesDe(selector) {
+  const L = styles.split(/\r?\n/);
+  const salida = [];
+  for (let k = 0; k < L.length; k++) {
+    if (L[k].trim() !== `${selector} {` && L[k].trim() !== `${selector},`) continue;
+    let f = k;
+    let nivel = 0;
+    let abierto = false;
+    for (f = k; f < L.length; f++) {
+      for (const c of L[f]) { if (c === '{') { nivel++; abierto = true; } else if (c === '}') nivel--; }
+      if (abierto && nivel === 0) break;
+    }
+    salida.push(L.slice(k, f + 1).join('\n'));
+  }
+  return salida;
+}
+
+// --- 5. La tarjeta de datos de la cuenta, en neomorfismo ----------------------
+// Se distingue del cristal del resto: aquí lo que da el volumen son sombras, no
+// desenfoque. Los huecos llevan la sombra hacia dentro y los iconos hacia fuera; si
+// un icono se hunde, se lee como un agujero.
+// Los bordes viejos siguen en el fichero —son la línea base del tema— y lo que
+// importa es cuál gana. Se mira el ÚLTIMO `border` que aparece, no si hay alguno:
+// exigir que desaparezca sería pedir que se rompa el tema claro.
+function winningBorder(selector) {
+  let valor = null;
+  for (const cuerpo of bloquesDe(selector)) {
+    const m = [...cuerpo.matchAll(/border:\s*([^;]+);/g)];
+    if (m.length) valor = m[m.length - 1][1].trim();
+  }
+  return valor;
+}
+
+const cuecos = ['.account-info-avatar', '.account-info-metric', '.account-info-progress', '.account-info-membership'];
+for (const selector of cuecos) {
+  const todos = bloquesDe(selector).join('\n');
+  assert.match(todos, /inset [^;]+,[^;]+;/s,
+    `${selector} tiene que ser un hueco neomórfico: sombra oscura hacia dentro por un lado y clara por el otro.`);
+  assert.equal(winningBorder(selector), '0',
+    `${selector} acaba con «border: ${winningBorder(selector)}»: el neomorfismo se hace con sombras, y un borde duro lo convierte en una tarjeta.`);
+}
+console.log(`ok  los cuatro huecos de la tarjeta son neomórficos y sin bordes (${cuecos.length})`);
+
+// El icono: en cualquier regla suya tiene que haber sombra hacia fuera, y en
+// ninguna sombra hacia dentro.
+const reglasIcono = bloquesDe('.account-info-icon');
+const sombraFuera = reglasIcono.some((cuerpo) => /box-shadow:\s*\n?\s*[-\d.]+px [-\d.]+px/.test(cuerpo));
+const sombraDentro = reglasIcono.some((cuerpo) => /box-shadow:[\s\S]*?inset/.test(cuerpo));
+assert.ok(sombraFuera,
+  'El hueco del icono tiene que SOBRESALER: la sombra hacia fuera es lo que da el volumen.');
+assert.equal(sombraDentro, false,
+  'El hueco del icono no puede llevar la sombra hacia dentro: hundido se lee como un agujero, no como un botón.');
+console.log(`ok  los iconos sobresalen y no se hunden (${reglasIcono.length} reglas)`);
+
+// Un `text-overflow` solo recorta si el contenedor puede encogerse. Cuando
+// `.account-info-progress > div` perdió el `min-width: 0`, «Progreso del
+// entrenador» no se recortaba: invadía a «Rango».
+const progresoHijo = bloque('.account-info-progress > div');
+assert.match(progresoHijo.cuerpo, /min-width:\s*0/,
+  'Cada mitad del progreso necesita min-width: 0; si no, la etiqueta larga invade a la de al lado en vez de recortarse.');
+console.log(`ok  las mitades del progreso pueden encogerse (L${progresoHijo.linea})`);
+
+// Y las etiquetas se leen: siete píxeles no es una etiqueta pequeña. La regla de la
+// etiqueta es un grupo de tres selectores, así que se mira el primero.
+const etiqueta = bloquesDe('.account-info-metric > div > span').join('\n')
+  || styles.slice(styles.indexOf('.account-info-metric > div > span,')).split('}')[0];
+const px = Number((etiqueta.match(/font-size:\s*(\d+)px/) || [])[1] || 0);
+assert.ok(px >= 8, `Las etiquetas de la tarjeta están en ${px} px: por debajo de ocho no se leen.`);
+console.log(`ok  las etiquetas están en ${px} px, no en 7.`);
+
 // --- Y sigue siendo un botón de verdad ---------------------------------------
 assert.ok(/const market = document\.createElement\('button'\)/.test(renderer),
   'Lo de los precios del Mercado tiene que ser un <button>, no un <p> con un carácter pegado.');

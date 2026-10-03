@@ -3169,7 +3169,7 @@ function createCaptureLogSprite(capture, size, detail = false) {
   }
   const fallback = document.createElement('span');
   fallback.className = `${detail ? 'capture-detail-sprite' : 'capture-flat-sprite'} capture-flat-sprite-fallback`;
-  fallback.textContent = '◉';
+  fallback.innerHTML = launcherUiIcon('live');
   return fallback;
 }
 function sortedCaptureLogRows(rows, sort) {
@@ -4158,7 +4158,7 @@ function createFarmSprite(target, size = 48) {
       image.remove();
       sprite.classList.remove('is-pokeapi');
       sprite.classList.add('is-empty');
-      sprite.textContent = '◌';
+      sprite.innerHTML = launcherUiIcon('ring');
       return;
     }
     image.src = dataUrl;
@@ -6090,7 +6090,7 @@ function renderFarmAccounts() {
           badge.className = `farm-leader-tm is-${tm.kind}`;
           if (tm.type) badge.dataset.type = tm.type;
           badge.title = tm.name;
-          badge.textContent = `${tm.kind === 'aoe' ? '◎ AoE' : tm.type ? pokemonTypeLabel(tm.type) : 'MT'} · ${tm.name}`;
+          badge.innerHTML = `${tm.kind === 'aoe' ? `${launcherUiIcon('aoe')}AoE` : tm.type ? pokemonTypeLabel(tm.type) : 'MT'} · ${tm.name}`;
           tmPanel.appendChild(badge);
         });
       }
@@ -7549,7 +7549,13 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   chevronUp: '<path d="m18 15-6-6-6 6"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>'
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  live: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
+  ring: '<circle cx="12" cy="12" r="7"/>',
+  aoe: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>',
+  empty: '<path d="m12 3 8 9-8 9-8-9z"/>',
+  filled: '<path d="m12 3 8 9-8 9-8-9z" fill="currentColor" stroke="none"/>',
+  spinner: '<path d="M12 3a9 9 0 1 0 9 9" />'
 });
 function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
@@ -7581,7 +7587,7 @@ function renderAccountProfile(panel, profile) {
   const sprite = merged.sprite && /^(?:data:|https:\/\/poke\.idleworld\.online\/)/i.test(merged.sprite) && !/logo|pokeball|brand|icon/i.test(merged.sprite)
     ? `<img src="${String(merged.sprite).replace(/["<>]/g, '')}" alt="Sprite del entrenador">` : `<span aria-hidden="true">${launcherUiIcon('user')}</span>`;
   const vipClass = merged.vip === true ? 'is-vip' : 'is-basic';
-  const vipText = merged.vip === true ? '◆ VIP' : merged.vip === false ? '◇ No VIP' : '◇ Sin datos';
+  const vipText = merged.vip === true ? 'VIP activo' : merged.vip === false ? 'Sin VIP' : 'Sin datos';
   panel.accountInfoContent.innerHTML = `<div class="account-info-avatar">${sprite}</div><div class="account-info-player">
     <strong>${escapeHtml(merged.name || accounts[panel.index]?.label || `Cuenta ${panel.index + 1}`)}</strong>
     <div class="account-info-wallets">
@@ -7589,7 +7595,7 @@ function renderAccountProfile(panel, profile) {
       <div class="account-info-metric is-diamonds"><span class="account-info-icon">${launcherUiIcon('diamond')}</span><div><span>Diamantes</span><b>${formatAccountAmount(merged.diamonds)}</b></div></div>
     </div>
     <div class="account-info-progress">
-      <div><span class="account-info-icon">${launcherUiIcon('chart')}</span><div><span>Progreso del entrenador</span><b>Nivel ${formatAccountAmount(merged.level)}</b></div></div>
+      <div><span class="account-info-icon">${launcherUiIcon('chart')}</span><div><span>Entrenador</span><b>Nivel ${formatAccountAmount(merged.level)}</b></div></div>
       <div><span class="account-info-icon">${launcherUiIcon('medal')}</span><div><span>Rango</span><b>${escapeHtml(merged.rank || '—')}</b></div></div>
     </div>
     <div class="account-info-membership account-info-vip ${vipClass}"><span class="account-info-icon">${launcherUiIcon('diamond')}</span><div><span>Membresía</span><b>${vipText}</b></div><small><span class="account-info-benefit-icon">${launcherUiIcon('benefit')}</span>${merged.vip === true ? 'Beneficios activos' : 'Cuenta estándar'}</small></div>
@@ -7808,7 +7814,7 @@ function statisticsDropRows(row) {
 function statisticsDropMarkup(drop) {
   const icon = drop.icon
     ? `<img class="statistics-drop-sprite" src="${escapeHtml(drop.icon)}" alt="" loading="lazy">`
-    : '<span class="statistics-drop-sprite is-empty" aria-hidden="true">◇</span>';
+    : `<span class="statistics-drop-sprite is-empty" aria-hidden="true">${launcherUiIcon('empty')}</span>`;
   const detail = [drop.price ? `Unidad ${drop.price}` : '', drop.total ? `Valor ${drop.total}` : ''].filter(Boolean).join(' · ');
   return `<article class="statistics-drop-item">${icon}<div><strong>${escapeHtml(drop.name)}</strong><small>${escapeHtml(detail || 'Drop detectado por Hunt Analyzer')}</small></div><b>×${escapeHtml(formatStatisticNumber(drop.quantity))}</b></article>`;
 }
@@ -7934,7 +7940,7 @@ function renderStatistics(rows) {
     const dropsMarkup = drops.length
       ? drops.map(statisticsDropMarkup).join('')
       : '<p class="statistics-drops-empty">Sin drops detectados en la sesión actual.</p>';
-    card.innerHTML = `<header class="statistics-account-head"><div class="statistics-account-identity"><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(accounts[row.index]?.label || `Cuenta ${row.index + 1}`)} · Nivel ${escapeHtml(formatAccountAmount(row.profile?.level))} · ${escapeHtml(row.profile?.rank || 'rango no disponible')}</small></div></div><span class="statistics-account-state">${row.online ? (huntAvailable ? 'EN VIVO' : 'CONECTADA') : 'SIN CONEXIÓN'}</span></header><div class="statistics-hunt-context"><span>${launcherUiIcon('target')} ${escapeHtml(zone)}</span>${target ? `<span>${launcherUiIcon('swords')} ${escapeHtml(target)}</span>` : ''}${leader ? `<span>◆ Líder: ${escapeHtml(leader)}</span>` : ''}</div><nav class="statistics-account-tabs" aria-label="Datos de ${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}"><button type="button" data-account-view="summary" class="${accountView === 'summary' ? 'is-active' : ''}">Resumen</button><button type="button" data-account-view="drops" class="${accountView === 'drops' ? 'is-active' : ''}">Drops <b>${drops.length}</b></button></nav><section class="statistics-account-pane" data-account-pane="summary"${accountView === 'summary' ? '' : ' hidden'}><div class="statistics-account-grid">${metrics.map(([label, value, kind]) => statisticsMetricMarkup(label, value, kind)).join('')}</div></section><section class="statistics-account-pane statistics-drops-pane" data-account-pane="drops"${accountView === 'drops' ? '' : ' hidden'}><div class="statistics-drops-list">${dropsMarkup}</div></section>`;
+    card.innerHTML = `<header class="statistics-account-head"><div class="statistics-account-identity"><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(accounts[row.index]?.label || `Cuenta ${row.index + 1}`)} · Nivel ${escapeHtml(formatAccountAmount(row.profile?.level))} · ${escapeHtml(row.profile?.rank || 'rango no disponible')}</small></div></div><span class="statistics-account-state">${row.online ? (huntAvailable ? 'EN VIVO' : 'CONECTADA') : 'SIN CONEXIÓN'}</span></header><div class="statistics-hunt-context"><span>${launcherUiIcon('target')} ${escapeHtml(zone)}</span>${target ? `<span>${launcherUiIcon('swords')} ${escapeHtml(target)}</span>` : ''}${leader ? `<span>${launcherUiIcon('filled')} Líder: ${escapeHtml(leader)}</span>` : ''}</div><nav class="statistics-account-tabs" aria-label="Datos de ${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}"><button type="button" data-account-view="summary" class="${accountView === 'summary' ? 'is-active' : ''}">Resumen</button><button type="button" data-account-view="drops" class="${accountView === 'drops' ? 'is-active' : ''}">Drops <b>${drops.length}</b></button></nav><section class="statistics-account-pane" data-account-pane="summary"${accountView === 'summary' ? '' : ' hidden'}><div class="statistics-account-grid">${metrics.map(([label, value, kind]) => statisticsMetricMarkup(label, value, kind)).join('')}</div></section><section class="statistics-account-pane statistics-drops-pane" data-account-pane="drops"${accountView === 'drops' ? '' : ' hidden'}><div class="statistics-drops-list">${dropsMarkup}</div></section>`;
     statisticsAccounts.appendChild(card);
   });
   renderStatisticsComparison(rows);
@@ -8304,7 +8310,7 @@ function renderBrowserInstanceTabs() {
     button.dataset.instanceId = instance.id;
     const icon = document.createElement('span');
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = instance.primary ? '◉' : '◎';
+    icon.innerHTML = launcherUiIcon(instance.primary ? 'live' : 'ring');
     const label = document.createElement('b');
     label.textContent = instance.name;
     const count = document.createElement('small');
@@ -9668,7 +9674,7 @@ cleanupMemoryButton.addEventListener('click', async () => {
   cleanupMemoryButton.classList.add('is-cleaning');
   cleanupMemoryButton.setAttribute('aria-busy', 'true');
   const original = cleanupMemoryButton.innerHTML;
-  cleanupMemoryButton.innerHTML = '<span class="memory-spinner" aria-hidden="true">◌</span><span>Optimizando</span>';
+  cleanupMemoryButton.innerHTML = `<span class="memory-spinner" aria-hidden="true">${launcherUiIcon('spinner')}</span><span>Optimizando</span>`;
   try {
     const rendererCachedEntries = releaseLauncherMemoryCaches();
     const result = await window.pokeGrid.cleanupMemory();
@@ -9707,7 +9713,7 @@ if (window.pokeGrid.onUpdateProgress) {
 updateLauncherButton.addEventListener('click', async () => {
   updateLauncherButton.disabled = true;
   updateLauncherButton.setAttribute('aria-busy', 'true');
-  setUpdateLauncherState('◌', 'Buscando', true);
+  setUpdateLauncherState('spinner', 'Buscando', true);
   // Mientras se reinicia el botón no se rehabilita: el proceso está a punto de morir,
   // y dejarlo pulsable invitaría a lanzar una segunda instalación en paralelo.
   let instalando = false;
@@ -9755,7 +9761,7 @@ updateLauncherButton.addEventListener('click', async () => {
       instalando = true;
       window.pokeGridUpdatePoll.olvidar();
       window.pokeGridNotifications.set('updater', 0);
-      setUpdateLauncherState('◌', `Instalando ${result.latestVersion}`, true);
+      setUpdateLauncherState('spinner', `Instalando ${result.latestVersion}`, true);
       updateLauncherButton.title = `Instalando la versión ${result.latestVersion}`;
     } else {
       setUpdateLauncherState('check', 'Está actualizado');
