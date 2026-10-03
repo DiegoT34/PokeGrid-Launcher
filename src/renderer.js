@@ -6130,8 +6130,10 @@ function renderFarmAccounts() {
     accountAction.setAttribute('aria-label', panel?.farmRunState === 'busy' ? 'Iniciando farmeo' : 'Viajar e iniciar farmeo en esta cuenta');
     accountAction.title = panel?.farmRunState === 'busy' ? 'Iniciando…' : 'Viajar / Iniciar farmeo';
     const playIcon = document.createElement('span');
-    playIcon.className = 'play-icon';
     playIcon.setAttribute('aria-hidden', 'true');
+    // Sin la clase `play-icon`: esa pinta un triángulo con `border-left` sobre un
+    // elemento de cero por cero, y al meterle dentro el SVG del pack salían los dos
+    // uno al lado del otro. Aquí va solo el icono del pack, como en el resto del panel.
     playIcon.innerHTML = launcherUiIcon('play');
     accountAction.appendChild(playIcon);
     accountAction.disabled = panel?.farmRunState === 'busy' || !config.target || !context.ready;
@@ -7587,7 +7589,10 @@ aplicarIconosMenu();
 // si el panel todavía no existe en el DOM.
 const ICONOS_FARMA_BARRA = {
   '#rereadFarmLeadersButton': 'refresh',
-  '#refreshFarmButton': 'map'
+  '#refreshFarmButton': 'map',
+  // El botón de iniciar es el único del pie que hace algo: por eso lleva play y no el
+  // cuadrado de «Desactivar».
+  '#startFarmButton': 'play'
 };
 function aplicarIconosBarraFarmeo() {
   for (const [selector, icono] of Object.entries(ICONOS_FARMA_BARRA)) {

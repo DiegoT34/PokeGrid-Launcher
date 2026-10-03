@@ -272,7 +272,7 @@ console.log('ok  la casilla de Orre es una sola, dibujada sobre el texto');
 // --- 5. Los iconos de la barra ------------------------------------------------
 // El botón se reconstruye entero en cada repintado, así que arreglar solo el HTML
 // no basta: el hueco se queda en blanco en cuanto se repinta.
-for (const id of ['rereadFarmLeadersButton', 'refreshFarmButton', 'stopFarmButton']) {
+for (const id of ['rereadFarmLeadersButton', 'refreshFarmButton', 'stopFarmButton', 'startFarmButton']) {
   assert.ok(html.includes(`id="${id}"`), `Falta el botón ${id} en el HTML.`);
   assert.ok(new RegExp(`id="${id}"[^>]*><span class="top-action-icon">`).test(html),
     `${id} necesita un hueco de icono; si no, sale en blanco.`);
@@ -282,6 +282,31 @@ assert.ok(/function aplicarIconosBarraFarmeo\(\)/.test(renderer),
 assert.ok(/openFarmModal[\s\S]*?aplicarIconosBarraFarmeo\(\);/.test(renderer),
   'La función tiene que llamarse al abrir el panel, no solo al arrancar.');
 console.log('ok  los tres botones de la barra tienen icono y se conectan al abrir el panel');
+
+// Y el botón de iniciar de cada tarjeta: UN glifo, no dos.
+//
+// Aquí se juntaron dos formas de dibujar un play. La clase `.play-icon` pinta un
+// triángulo con `border-left: 10px solid` sobre un elemento de `width: 0; height: 0`,
+// y dentro del mismo span se metió también el SVG del pack. Como el span no tiene
+// caja, el SVG no se recorta: los dos triángulos se veían uno al lado del otro.
+//
+// El que se queda es el SVG, por dos razones: el resto del panel ya usa el pack, y la
+// regla `.farm-account-action .launcher-ui-icon` que hay en la hoja está puesta a la
+// espera de un SVG que nunca llegó. Si alguien deja las dos cosas, el error vuelve a
+// salir y nadie lo ve hasta que se abre el panel.
+const accionFarmeo = renderer.slice(renderer.indexOf("accountAction.className = 'button button-farm farm-account-action'"));
+const finAccion = accionFarmeo.indexOf('accountAction.disabled');
+const trozo = accionFarmeo.slice(0, finAccion > 0 ? finAccion : 400);
+assert.ok(!/playIcon\.className\s*=\s*'play-icon'/.test(trozo),
+  'El botón de iniciar no puede llevar la clase `play-icon`: pinta un triángulo de CSS encima del SVG y salen dos.');
+assert.match(trozo, /playIcon\.innerHTML = launcherUiIcon\('play'\);/,
+  'El botón de iniciar tiene que llevar el icono del pack.');
+// Y que el SVG del botón tenga sitio: la regla que lo mide no puede quedarse sin usar.
+assert.match(winning('.farm-account-action', 'padding') || '', /^0/,
+  'El botón de iniciar es cuadrado: el padding 0 deja que el SVG se centre.');
+assert.match(styles, /\.farm-account-action \.launcher-ui-icon \{[^}]*width:\s*17px/,
+  'El SVG del botón de iniciar tiene que estar medido; si no, sale del botón.');
+console.log('ok  el botón de iniciar lleva un solo icono');
 
 // Y los iconos que usan existen en la tabla.
 const nombres = [...renderer.slice(renderer.indexOf('const LAUNCHER_ICON_PATHS')).matchAll(/^\s{2}([a-zA-Z][a-zA-Z0-9]*):\s'/gm)].map((m) => m[1]);

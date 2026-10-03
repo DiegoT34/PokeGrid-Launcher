@@ -538,7 +538,18 @@ app.whenReady().then(async () => {
         componentKeys: Object.keys(matchup.components).sort(),
         dualTypeOffensive: dualTypeMatchup.offensive,
         accountActions: document.querySelectorAll('.farm-account-action').length,
-        accountPlayIcons: document.querySelectorAll('.farm-account-action .play-icon').length,
+        // El icono del botón de iniciar es el SVG del pack, no el triángulo de CSS que
+        // llevaba antes. Se cuentan las dos cosas por separado: que haya icono, y que
+        // no haya más de uno. Con un solo contador, que se quedara sin icono y que
+        // salieran dos a la vez se veían igual.
+        accountPlayIcons: document.querySelectorAll('.farm-account-action svg').length,
+        accountGlyphs: [...document.querySelectorAll('.farm-account-action')].reduce(
+          (total, boton) => total + [...boton.querySelectorAll('*')].filter(
+            (e) => e.matches('.play-icon') || e.tagName.toLowerCase() === 'svg'
+          ).length,
+          0
+        ),
+        accountStartPlayIcon: document.querySelectorAll('.farm-account-action svg path[d="M6 4.5v15l13-7.5z"]').length,
         leaderRefreshButtons: document.querySelectorAll('.farm-leader-refresh').length,
         rereadAllButton: Boolean(document.querySelector('#rereadFarmLeadersButton')),
         orrePermission: Boolean(document.querySelector('#farmAllowOrreTravel')),
@@ -556,7 +567,12 @@ app.whenReady().then(async () => {
     })()`);
     if (!farmUpgradeState.shiny || farmUpgradeState.blockedOrre || !farmUpgradeState.readyOrre ||
         farmUpgradeState.aoeTms !== 1 || farmUpgradeState.typeTms !== 2 ||
-        farmUpgradeState.accountActions !== 4 || farmUpgradeState.accountPlayIcons !== 4 || farmUpgradeState.shinyFormCards !== 2 ||
+        farmUpgradeState.accountActions !== 4 || farmUpgradeState.accountPlayIcons !== 4 ||
+        // Ni uno más ni uno menos: cuatro botones, cuatro glifos. Cuando los botones
+        // llevaban el triángulo de CSS y el SVG a la vez, el contador de iconos seguía
+        // diciendo 4 y el fallo no se veía.
+        farmUpgradeState.accountGlyphs !== 4 || farmUpgradeState.accountStartPlayIcon !== 4 ||
+        farmUpgradeState.shinyFormCards !== 2 ||
         !farmUpgradeState.shinyFilter || farmUpgradeState.componentKeys.length !== 4 || farmUpgradeState.dualTypeOffensive !== 4 ||
         farmUpgradeState.leaderRefreshButtons !== 4 || !farmUpgradeState.rereadAllButton || !farmUpgradeState.orrePermission ||
         !farmUpgradeState.stopButton || farmUpgradeState.typedCards === 0 || farmUpgradeState.clippedCards !== farmUpgradeState.typedCards ||
