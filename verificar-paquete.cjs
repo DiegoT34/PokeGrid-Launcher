@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const RAIZ = __dirname;
-const ZIP = path.join(RAIZ, 'dist', 'IDLE-POKE-LAUNCHER-0.25.0-portatil.zip');
+const ZIP = path.join(RAIZ, 'dist', 'IDLE-POKE-LAUNCHER-0.25.1-portatil.zip');
 const UNPACKED = path.join(RAIZ, 'dist', 'win-unpacked');
 const ASAR = path.join(UNPACKED, 'resources', 'app.asar');
 
@@ -83,6 +83,9 @@ const TEXTOS = [
   ['Sin MT detectadas', /emptyTm\.textContent = 'Sin MT detectadas';/, renderer],
   ['Desactivar, sin glifo', /<span class="top-action-icon"><\/span><span>Desactivar<\/span>/, html],
   ['la barra de farmeo se conecta', /aplicarIconosBarraFarmeo\(\);/, renderer],
+  ['«Iniciar farmeo automático» tiene hueco de icono', /id="startFarmButton"[^>]*><span class="top-action-icon">/, html],
+  ['y le toca el icono de play', /'#startFarmButton':\s*'play'/, renderer],
+  ['el botón de iniciar lleva el SVG del pack', /playIcon\.innerHTML = launcherUiIcon\('play'\);/, renderer],
   ['el cristal del diálogo', /\.modal\.farm-modal \{[\s\S]*?backdrop-filter:\s*blur/, styles],
   ['el ancho del diálogo', /width:\s*min\(1320px, 100%\)/, styles],
   ['el hueco del líder', /--pf-hundido/, styles],
@@ -95,6 +98,13 @@ for (const [que, re, texto] of TEXTOS) {
   if (!ok) fallos++;
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
+
+// Y una que va al revés, y por eso va aparte: el botón de iniciar NO puede llevar la
+// clase que pinta el triángulo de CSS. Con la clase y el SVG dentro, el span queda sin
+// caja, el SVG no se recorta y salen dos triángulos uno al lado del otro.
+const conTrianguloCss = /playIcon\.className = 'play-icon'/.test(renderer);
+if (conTrianguloCss) fallos++;
+console.log(`  ${conTrianguloCss ? 'FALTA' : 'ok  '} el botón de iniciar ya NO lleva el triángulo de CSS`);
 
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
