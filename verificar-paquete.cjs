@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const RAIZ = __dirname;
-const ZIP = path.join(RAIZ, 'dist', 'IDLE-POKE-LAUNCHER-0.25.1-portatil.zip');
+const ZIP = path.join(RAIZ, 'dist', 'IDLE-POKE-LAUNCHER-0.26.0-portatil.zip');
 const UNPACKED = path.join(RAIZ, 'dist', 'win-unpacked');
 const ASAR = path.join(UNPACKED, 'resources', 'app.asar');
 
@@ -99,9 +99,46 @@ for (const [que, re, texto] of TEXTOS) {
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
 
-// Y una que va al revés, y por eso va aparte: el botón de iniciar NO puede llevar la
-// clase que pinta el triángulo de CSS. Con la clase y el SVG dentro, el span queda sin
-// caja, el SVG no se recorta y salen dos triángulos uno al lado del otro.
+// --- Lo del selector de Pokémon ------------------------------------------------
+// El sondeo que lo repintaba. El patrón mira el bloque entero del sondeo, porque lo que
+// importa es que NO aparezca un `renderFarmPicker` ahí, se pinte como se pinte.
+const bloqueSondeo = renderer.match(/if \(render && !farmBackdrop\.hidden\) \{[\s\S]*?\n    \}/);
+const sondeoPinta = bloqueSondeo ? /renderFarmPicker/.test(bloqueSondeo[0]) : null;
+if (sondeoPinta !== false) fallos++;
+console.log(`  ${sondeoPinta === false ? 'ok  ' : 'FALTA'} el sondeo ya no repinta el selector`);
+
+// Y lo que la lista virtualizada necesita para no descuadrarse.
+const VIRTUAL = [
+  ['la lista filtrada se guarda aparte', /let farmPickerFiltrados = \[\];/, renderer],
+  ['se pinta por ventana', /function pintarVentanaFarmPicker\(\)/, renderer],
+  ['el paso sale del CSS, no del JS', /getPropertyValue\('--tarjeta'\)/, renderer],
+  ['las columnas salen del estilo resuelto', /gridTemplateColumns\.split\(' '\)/, renderer],
+  ['de filas a tarjetas se multiplica', /primeraFila - FARM_PICKER_MARGEN\) \* columnas/, renderer],
+  ['la primera fila se topa en la última', /Math\.min\(filas - 1, Math\.max\(0, Math\.floor\(farmPokemonGrid\.scrollTop/, renderer],
+  ['al filtrar suelta los nodos y el conjunto', /farmPokemonGrid\.replaceChildren\(\);\s*\r?\n\s*farmPickerEnElDom\.clear\(\);/, renderer],
+  ['y vuelve al principio', /farmPokemonGrid\.scrollTop = 0;/, renderer],
+  ['--tarjeta declarada UNA vez', null, styles],
+  ['--hueco declarado UNA vez', null, styles]
+];
+for (const par of VIRTUAL) {
+  const [que, re, texto] = par;
+  let ok;
+  if (re === null) {
+    // Esto no es una expresión: es una cuenta, y tiene que ser una.
+    const nombre = que.includes('tarjeta') ? '--tarjeta' : '--hueco';
+    const veces = (texto.match(new RegExp(`${nombre}:`, 'g')) || []).length;
+    ok = veces === 1;
+    console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que} (${veces})`);
+  } else {
+    ok = re.test(texto);
+    console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+  }
+  if (!ok) fallos++;
+}
+
+// El botón de iniciar NO lleva el triángulo de CSS, y el veredicto va al revés: eso
+// necesita su propia línea porque codificar la polaridad dentro de una expresión sale
+// mal y el mensaje no lo explica.
 const conTrianguloCss = /playIcon\.className = 'play-icon'/.test(renderer);
 if (conTrianguloCss) fallos++;
 console.log(`  ${conTrianguloCss ? 'FALTA' : 'ok  '} el botón de iniciar ya NO lleva el triángulo de CSS`);
