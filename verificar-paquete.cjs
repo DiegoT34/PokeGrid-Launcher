@@ -9,9 +9,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const RAIZ = __dirname;
-const ZIP = path.join(RAIZ, 'dist', 'IDLE-POKE-LAUNCHER-0.26.0-portatil.zip');
+// El nombre del ZIP sale de la versión, no escrito a mano. Cada vez que se sube la versión
+// había que acordarse de tocar esta línea, y acordarse es justo el tipo de cosa que hace
+// que una comprobación deje de comprobar sin que se note.
+const VERSION = JSON.parse(fs.readFileSync(path.join(RAIZ, 'package.json'), 'utf8')).version;
+const ZIP = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil.zip`);
 const UNPACKED = path.join(RAIZ, 'dist', 'win-unpacked');
 const ASAR = path.join(UNPACKED, 'resources', 'app.asar');
+
+if (!fs.existsSync(ZIP)) {
+  throw new Error(`No está el ZIP ${path.basename(ZIP)}. Hay:\n  ${fs.readdirSync(path.join(RAIZ, 'dist')).filter((n) => n.endsWith('.zip')).join('\n  ')}`);
+}
 
 // --- 1. El ZIP y su huella -----------------------------------------------------
 const zip = fs.statSync(ZIP);
@@ -58,7 +66,7 @@ for (const r of resultado) console.log(`  ${r.igual ? 'ok  ' : 'FALLA'} ${r.nomb
 
 // --- 4. Lo que tiene que estar DENTRO del paquete, y no estar --------------------
 const dentro = (p) => fs.existsSync(path.join(TEMP, p));
-const ausentes = ['tests', 'propuesta.html', 'propuesta.css', '.git'].filter((p) => dentro(p));
+const ausentes = ['tests', 'propuesta.html', 'propuesta.css', 'propuesta-selector.html', 'propuesta-selector.css', '.git'].filter((p) => dentro(p));
 console.log(`\nlo que NO debe estar dentro: ${ausentes.length ? ausentes.join(', ') : 'nada, como debe'}`);
 
 const presentes = ['package.json', 'src/renderer.js', 'src/styles.css', 'src/index.html'].filter((p) => !dentro(p));
@@ -142,6 +150,74 @@ for (const par of VIRTUAL) {
 const conTrianguloCss = /playIcon\.className = 'play-icon'/.test(renderer);
 if (conTrianguloCss) fallos++;
 console.log(`  ${conTrianguloCss ? 'FALTA' : 'ok  '} el botón de iniciar ya NO lleva el triángulo de CSS`);
+
+// --- 6 bis. Que no quede nada de la maqueta en el CSS del paquete -----------------
+// Esto es lo que se comió el selector entero: al volcar la maqueta al launcher hay que
+// quitarle el prefijo `.propuesta` a cada selector, y si se queda uno pasa a ser una regla
+// real sin que nadie se entere. El que se coló —`.farm-picker-layer { position: static }`—
+// dejó el diálogo debajo de la pantalla, con el panel de Farmeo asomando por detrás.
+//
+// Se lee el CSS con el lector de reglas y no con expresiones. Con expresiones no se
+// distinguía una regla de una línea de otra de varias, que era justo el caso que había que
+// ver, y los comentarios contaban como reglas: la explicación de por qué se quita la franja
+// del tipo menciona `inset 4px 0 0`, y salía como si la franja siguiera puesta.
+const css = require(path.join(RAIZ, 'scripts', 'css-reglas.cjs'));
+console.log('');
+
+const reglasCapa = css.reglas(styles)
+  .filter((r) => css.partes(r.selector).some((p) => /\.farm-picker-layer(\[|:|\s|$|\.)/.test(p)));
+const capaFuera = reglasCapa.filter((r) => {
+  const p = css.posicion(r.cuerpo);
+  return p && p !== 'fixed';
+});
+console.log(`  la capa del selector aparece en ${reglasCapa.length} regla(s)`);
+for (const r of reglasCapa) console.log(`       ${JSON.stringify(r.selector)}  →  position: ${css.posicion(r.cuerpo) || '—'}`);
+
+if (capaFuera.length) {
+  fallos++;
+  console.log(`  FALTA la capa del selector está fuera de «position: fixed»:`);
+  for (const r of capaFuera) console.log(`         ${r.selector} { ${r.cuerpo.trim()} }`);
+} else {
+  console.log(`  ok   la capa del selector sigue en «position: fixed»`);
+}
+
+// El prefijo de la maqueta, en cualquier selector y a cualquier profundidad. Solo en
+// selectores: un comentario que lo mencione es justamente lo que explica por qué se quitó.
+// Se busca el token `.propuesta` entero —con `\b` detrás para que no case con
+// `.propuestas`—, valga lo que valga delante: `body.propuesta` también es maqueta.
+const conPrefijoMaqueta = css.reglas(styles)
+  .filter((r) => css.partes(r.selector).some((p) => /\.propuesta\b/.test(p)));
+if (conPrefijoMaqueta.length) {
+  fallos++;
+  console.log(`  FALTA el CSS del paquete lleva el prefijo «.propuesta» de la maqueta:`);
+  for (const r of conPrefijoMaqueta) console.log(`         ${r.selector}`);
+} else {
+  console.log(`  ok   el CSS del paquete no lleva el prefijo «.propuesta» de la maqueta`);
+}
+
+// Y la franja de color del tipo. Aquí NO se comprueba que ninguna regla la lleve: la base
+// sí la lleva, y está bien que siga ahí. Se comprueba que la ÚLTIMA regla que gana para cada
+// estado de la tarjeta la quita, porque la base la pone en `.is-recommended`,
+// `.is-dangerous` y `:hover`, los tres con dos clases, que le ganan a la tarjeta del bloque,
+// que lleva una sola. Si algún día el bloque deja de declarar la suya en esos tres, la
+// franja vuelve sin que se note en el CSS.
+const FRANJA = /inset\s+4px\s+0\s+0/;
+const ESTADOS = [
+  ['.farm-pokemon-smart-option.is-recommended', 'la recomendada'],
+  ['.farm-pokemon-smart-option.is-dangerous', 'la peligrosa'],
+  ['.farm-pokemon-smart-option:hover', 'el ratón por encima']
+];
+for (const [parte, nombre] of ESTADOS) {
+  const r = css.ultimaRegla(styles, parte);
+  if (!r) {
+    fallos++;
+    console.log(`  FALTA no hay ninguna regla para «${nombre}»`);
+    continue;
+  }
+  const lleva = FRANJA.test(r.cuerpo);
+  if (lleva) fallos++;
+  console.log(`  ${lleva ? 'FALTA' : 'ok  '} la tarjeta, ${nombre}: ${lleva ? 'vuelve a llevar' : 'no lleva'} franja de color`);
+}
 
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
