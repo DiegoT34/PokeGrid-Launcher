@@ -508,7 +508,7 @@
           <header class="farm-picker-head">
             <div>
               <span class="eyebrow">MAPAS DEL JUEGO</span>
-              <h2 id="farmPickerTitle">Seleccionar Pokémon</h2>
+              <h2 id="farmPickerTitle">Elige el Pokémon objetivo</h2>
               <p id="farmPickerAccount"></p>
             </div>
             <button id="closeFarmPickerButton" class="icon-button" type="button" aria-label="Cerrar selector">×</button>
@@ -516,18 +516,18 @@
           <div class="farm-picker-tools">
             <label class="farm-search">
               <span aria-hidden="true">⌕</span>
-              <input id="farmSearchInput" type="search" autocomplete="off" placeholder="Buscar Pokémon, tipo, mapa o nivel…">
+              <input id="farmSearchInput" type="search" autocomplete="off" placeholder="Busca por nombre, tipo, mapa o nivel">
             </label>
             <div id="farmAreaFilters" class="farm-area-filters" role="group" aria-label="Filtrar por región"></div>
             <div class="farm-advanced-filters" aria-label="Filtros avanzados">
               <label>
                 <span>TIPO</span>
-                <select id="farmTypeFilter"><option value="all">Todos los tipos</option></select>
+                <select id="farmTypeFilter"><option value="all">Cualquier tipo</option></select>
               </label>
               <label>
                 <span>NIVEL</span>
                 <select id="farmLevelFilter">
-                  <option value="all">Todos los niveles</option>
+                  <option value="all">Cualquier nivel</option>
                   <option value="accessible">Solo accesibles</option>
                   <option value="1-30">Nivel 1–30</option>
                   <option value="31-60">Nivel 31–60</option>
@@ -539,7 +539,7 @@
               <label>
                 <span>COMBATE</span>
                 <select id="farmMatchupFilter">
-                  <option value="all">Todos los combates</option>
+                  <option value="all">Cualquier combate</option>
                   <option value="recommended">Recomendados</option>
                   <option value="advantage">Ventaja de tipo</option>
                   <option value="safe">Nivel seguro</option>
@@ -548,22 +548,22 @@
               <label>
                 <span>ORDEN</span>
                 <select id="farmSortSelect">
-                  <option value="recommended">Mejor compatibilidad</option>
-                  <option value="level-asc">Nivel menor primero</option>
-                  <option value="level-desc">Nivel mayor primero</option>
+                  <option value="recommended">Mejor ajuste</option>
+                  <option value="level-asc">Nivel menor</option>
+                  <option value="level-desc">Nivel mayor</option>
                   <option value="name">Nombre A–Z</option>
                 </select>
               </label>
               <label class="farm-shiny-filter">
                 <span>VARIANTE</span>
-                <span class="farm-filter-check"><input id="farmShinyFilter" type="checkbox"> <b>Con forma Shiny</b></span>
+                <span class="farm-filter-check"><input id="farmShinyFilter" type="checkbox"> <b>Solo formas shiny</b></span>
               </label>
-              <button id="resetFarmFiltersButton" class="farm-reset-filters" type="button">Restablecer</button>
+              <button id="resetFarmFiltersButton" class="farm-reset-filters" type="button">Limpiar</button>
             </div>
           </div>
           <section id="farmRecommendedRoute" class="farm-recommended-route" aria-live="polite"></section>
           <div id="farmPokemonGrid" class="farm-pokemon-grid"></div>
-          <p id="farmPickerEmpty" class="farm-picker-empty" hidden>No hay Pokémon que coincidan con esta búsqueda.</p>
+          <p id="farmPickerEmpty" class="farm-picker-empty" hidden>Ningún Pokémon coincide con la búsqueda.</p>
         </section>
       </div>
     </div>

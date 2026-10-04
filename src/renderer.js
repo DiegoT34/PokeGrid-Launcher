@@ -871,8 +871,8 @@ function evaluateFarmTarget(target, context) {
     else if (incoming >= 2) reasons.push(`${pokemonTypeLabel(incomingType)} amenaza a ${leader.name}`);
   }
   if (leaderLevel) {
-    if (levelDifference >= 0) reasons.push(`${Math.abs(levelDifference)} niveles de margen`);
-    else reasons.push(`supera a tu líder por ${Math.abs(levelDifference)} niveles`);
+    if (levelDifference >= 0) reasons.push(`${Math.abs(levelDifference)} de margen`);
+    else reasons.push(`${Math.abs(levelDifference)} por encima de tu líder`);
   }
   if (!targetTypes.length) reasons.push('compatibilidad de tipo no disponible');
   if (!trainerAccessible) reasons.unshift(`requiere nivel de entrenador ${target.level}`);
@@ -5926,8 +5926,16 @@ async function refreshFarmContexts({ render = true, forcePokes = false, accountI
       leader: normalizeFarmLeader(context?.leader)
     }));
     if (render && !farmBackdrop.hidden) {
-      renderFarmAccounts();
-      if (!farmPickerLayer.hidden) renderFarmPicker();
+    // Solo las cuentas. El selector de Pokémon NO se repinta aquí a propósito:
+    // esta función la llama el sondeo de cada cinco segundos, y repintarse
+    // reconstruía los 451 objetivos y una tarjeta por cada uno sin que hubiera
+    // pasado nada. Se repinta cuando el usuario hace algo —buscar, cambiar de zona,
+    // tocar un filtro, restablecer, releer los líderes o recargar el catálogo—, que
+    // es donde ya están todos los manejadores.
+    //
+    // Lo que sí queda fuera es `rereadFarmLeaders`, que cambia el nivel y el líder y
+    // con eso todos los porcentajes del selector.
+    renderFarmAccounts();
     }
     return farmContexts;
   } finally {
@@ -6176,6 +6184,11 @@ async function openFarmPicker(index) {
 function closeFarmPicker() {
   farmPickerLayer.hidden = true;
   farmPickerIndex = -1;
+  // El contador se queda en el DOM a propósito —es un nodo fijo de la cabecera— pero su
+  // estado no: si no, al volver a abrir sale con los números de la última vez hasta
+  // que se repinte la lista. Esto también suelta las tarjetas que quedaran pintadas.
+  farmPickerEnElDom.clear();
+  farmPickerFiltrados = [];
 }
 function farmLevelFilterMatches(target, context) {
   if (farmPickerLevel === 'all') return true;
@@ -6201,7 +6214,7 @@ function renderFarmRoute(scoredTargets, context) {
   title.textContent = leader ? `Ruta optimizada para ${leader.name}` : 'Ruta optimizada';
   const subtitle = document.createElement('span');
   subtitle.textContent = leader
-    ? `Pondera tipos, nivel, poder real, movimientos y requisitos de Orre.`
+    ? `Pondera tipo, nivel, poder real y movimientos.`
     : 'Equipa un Pokémon líder para calcular compatibilidad de tipos.';
   copy.append(title, subtitle);
   const leaderScore = document.createElement('span');
@@ -6305,6 +6318,224 @@ function renderFarmPickerLegacy() {
   });
   farmPickerEmpty.hidden = filtered.length > 0;
 }
+// -----------------------------------------------------------------------------
+// La lista del selector, virtualizada.
+
+// Cuántas filas se pintan de más por arriba y por debajo de la vista. Una o dos van
+// bien: si un desplazamiento rápido llega antes de que se repinte, lo que está a
+// punto de entrar ya está en el DOM.
+const FARM_PICKER_MARGEN = 2;
+let farmPickerFiltrados = [];
+let farmPickerEnElDom = new Set();
+let farmPickerRepintarPendiente = false;
+
+// El contador de la cabecera. Se crea una vez y se reutiliza: si se creara en cada
+// repintado habría que volver a colocarlo delante del botón de cerrar, y es un nodo
+// que no depende de ningún dato de la cuenta.
+let farmPickerContador = null;
+
+function contadorFarmPicker() {
+  if (farmPickerContador?.isConnected) return farmPickerContador;
+  const nodo = document.createElement('span');
+  nodo.className = 'farm-picker-cuenta';
+  nodo.title = 'Cuántos Pokémon hay y cuántos están dibujados ahora mismo';
+  const enPantalla = document.createElement('b');
+  enPantalla.textContent = '0';
+  const de = document.createTextNode(' de ');
+  const total = document.createElement('span');
+  total.textContent = '0';
+  const enPantal = document.createTextNode(' en pantalla');
+  nodo.append(enPantalla, de, total, enPantal);
+  // Se coloca antes del botón de cerrar: se lee «cuenta, contador, salir».
+  document.getElementById('closeFarmPickerButton')?.before(nodo);
+  farmPickerContador = nodo;
+  return nodo;
+}
+
+// Los dos nodos se localizan por su etiqueta y no por su posición. Con las posiciones
+// funcionaba, pero en cuanto alguien meta un nodo más en el contador sale «no hay nodo
+// en la posición 3» en lugar de un texto mal puesto.
+function actualizarContadorFarmPicker(total, enPantalla) {
+  const nodo = contadorFarmPicker();
+  nodo.querySelector('b').textContent = String(enPantalla);
+  nodo.querySelector('span').textContent = String(total);
+}
+
+// Geometría de la rejilla, leída del CSS y no escrita aquí.
+//
+// `--tarjeta` y `--hueco` son las dos únicas medidas que hay que mantener. Si algún
+// día faltan, se miden las tarjetas de verdad: es más lento, pero no miente. Un
+// número inventado que no cuadre con la hoja sí miente.
+function farmPickerGeometria() {
+  const cs = getComputedStyle(farmPokemonGrid);
+  const hueco = parseFloat(cs.getPropertyValue('--hueco')) || 8;
+  let tarjeta = parseFloat(cs.getPropertyValue('--tarjeta')) || 0;
+  if (!tarjeta) {
+    const pintado = farmPokemonGrid.querySelector('[data-i]');
+    tarjeta = pintado ? pintado.getBoundingClientRect().height : 104;
+  }
+  // Las columnas se leen del estilo ya resuelto: así los tres de la pantalla ancha y
+  // el uno de la estrecha salen solos, sin una regla aparte en el JS.
+  const columnas = cs.gridTemplateColumns.split(' ').filter(Boolean).length || 1;
+  return { paso: tarjeta + hueco, columnas };
+}
+
+// La tarjeta por separado, para poder crearla y tirarla sin repintar la lista
+// entera. `index` es la posición DENTRO de la lista filtrada: es lo que lleva el
+// «#N» y lo que decide en qué fila va la tarjeta.
+function crearTarjetaFarmPicker({ target, matchup }, index, context) {
+  const config = farmConfigs[farmPickerIndex];
+  const locked = context.ready && context.level !== null && target.level > context.level;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'farm-pokemon-option farm-pokemon-smart-option';
+  button.dataset.i = String(index);
+  button.classList.toggle('is-selected', config.target?.slug === target.slug);
+  button.classList.toggle('is-recommended', matchup.recommended && !locked);
+  button.classList.toggle('is-dangerous', !locked && matchup.score < 40);
+  button.dataset.primaryType = target.types?.[0] || 'unknown';
+  button.dataset.matchup = locked ? 'locked' : matchup.score >= 75 ? 'excellent' : matchup.score >= 58 ? 'good' : matchup.score >= 40 ? 'possible' : 'dangerous';
+  button.disabled = locked;
+  button.appendChild(createFarmSprite(target));
+  const copy = document.createElement('span');
+  copy.className = 'farm-smart-copy';
+  const nameRow = document.createElement('span');
+  nameRow.className = 'farm-smart-name-row';
+  const name = document.createElement('strong');
+  name.innerHTML = `${target.isShiny ? launcherUiIcon('shiny') : ''}<span>${escapeHtml(String(target.name))}</span>`;
+  const rank = document.createElement('span');
+  rank.className = 'farm-smart-rank';
+  rank.textContent = `#${index + 1}`;
+  nameRow.append(name, rank);
+  const typeRow = document.createElement('span');
+  typeRow.className = 'farm-smart-types';
+  (target.types || []).forEach((type) => typeRow.appendChild(createFarmTypeBadge(type)));
+  if (!target.types?.length) {
+    const unknown = document.createElement('span');
+    unknown.className = 'farm-type-unknown';
+    unknown.textContent = 'Tipo no disponible';
+    typeRow.appendChild(unknown);
+  }
+  const meta = document.createElement('small');
+  meta.textContent = `${farmTargetLocationLabel(target)} · Nivel ${target.level}${target.tier ? ` · Tier ${target.tier}` : ''}`;
+  const reason = document.createElement('small');
+  reason.className = 'farm-smart-reason';
+  reason.textContent = matchup.reasons.join(' · ') || 'Comparación por nivel disponible';
+  copy.append(nameRow, typeRow, meta, reason);
+  const verdict = document.createElement('span');
+  verdict.className = 'farm-matchup-verdict';
+  const verdictScore = document.createElement('b');
+  verdictScore.innerHTML = locked ? launcherUiIcon('lock') : `${matchup.score}%`;
+  const verdictLabel = document.createElement('small');
+  verdictLabel.textContent = locked ? `Nv. ${target.level}` : farmPickerVerdictLabel(matchup);
+  verdict.append(verdictScore, verdictLabel);
+  button.append(copy, verdict);
+  button.title = `${matchup.label}: ${matchup.reasons.join(' · ')}`;
+  button.addEventListener('click', () => {
+    config.target = { ...target };
+    saveFarmConfigs();
+    closeFarmPicker();
+    renderFarmAccounts();
+  });
+  return button;
+}
+
+// La palabra corta del veredicto. La larga —«Muy recomendado»— sigue viva en la
+// tarjeta de la cuenta del Modo Farmeo, donde sí cabe; aquí el hueco son 46 píxeles
+// y en dos líneas no se lee.
+function farmPickerVerdictLabel(matchup) {
+  if (!matchup.trainerAccessible) return 'bloqueado';
+  if (matchup.score >= 75) return 'muy recomendado';
+  if (matchup.score >= 58) return 'recomendado';
+  if (matchup.score >= 40) return 'viable';
+  return 'riesgoso';
+}
+
+// Pinta las tarjetas de la ventana visible y borra el resto.
+function pintarVentanaFarmPicker() {
+  const total = farmPickerFiltrados.length;
+  farmPickerEmpty.hidden = total > 0;
+  const { paso, columnas } = farmPickerGeometria();
+  const filas = Math.ceil(total / columnas);
+
+  // Las filas se fijan en la plantilla y cada tarjeta se coloca en la suya con
+  // `grid-row`. Así la altura es la de la lista entera sin un solo nodo de relleno, y
+  // el salto al final no da un tirón.
+  farmPokemonGrid.style.gridTemplateRows = filas ? `repeat(${filas}, var(--tarjeta))` : '';
+
+  // OJO con las unidades: esto son FILAS, no tarjetas.
+  //
+  // Y `primeraFila` no puede pasar de la última. Al llegar al final el
+  // desplazamiento máximo es mayor que la última fila completa, la cuenta se va de
+  // rango, se piden tarjetas que no existen, se borra todo lo que había y la lista
+  // se queda en blanco. Por eso se topa en ambas.
+  const primeraFila = filas ? Math.min(filas - 1, Math.max(0, Math.floor(farmPokemonGrid.scrollTop / paso))) : 0;
+  const ultimaFila = filas ? Math.min(filas - 1, Math.max(0, Math.ceil((farmPokemonGrid.scrollTop + farmPokemonGrid.clientHeight) / paso))) : 0;
+
+  // Y se pasa de filas a tarjetas, que es multiplicar por las columnas. Sin esto, la
+  // fila 81 se pinta como si fuera la tarjeta 81 —que está muy por encima— y se
+  // quedan tres en el DOM.
+  const inicio = filas ? Math.max(0, primeraFila - FARM_PICKER_MARGEN) * columnas : 0;
+  const fin = filas ? Math.min(total, (ultimaFila + 1 + FARM_PICKER_MARGEN) * columnas) : 0;
+
+  // Se borra lo que se ha salido de la ventana.
+  const fuera = [];
+  farmPickerEnElDom.forEach((i) => { if (i < inicio || i >= fin) fuera.push(i); });
+  if (fuera.length) {
+    const ids = new Set(fuera);
+    farmPokemonGrid.querySelectorAll('[data-i]').forEach((nodo) => {
+      if (ids.has(Number(nodo.dataset.i))) nodo.remove();
+    });
+    fuera.forEach((i) => farmPickerEnElDom.delete(i));
+  }
+
+  // Y se crea lo que ha entrado.
+  actualizarContadorFarmPicker(total, farmPokemonGrid.querySelectorAll('[data-i]').length);
+
+  if (fin > inicio) {
+    const trozo = document.createDocumentFragment();
+    const contexto = farmContexts[farmPickerIndex] || { level: null, leader: null };
+    for (let i = inicio; i < fin; i++) {
+      if (farmPickerEnElDom.has(i)) continue;
+      const fila = farmPickerFiltrados[i];
+      if (!fila) continue;
+      const nodo = crearTarjetaFarmPicker(fila, i, contexto);
+      nodo.style.gridRow = String(Math.floor(i / columnas) + 1);
+      trozo.appendChild(nodo);
+      farmPickerEnElDom.add(i);
+    }
+    farmPokemonGrid.appendChild(trozo);
+  }
+}
+
+// El desplazamiento dispara decenas de eventos. Sin esta puerta se pinta una vez
+// por evento, que es lo mismo que no virtualizar nada.
+farmPokemonGrid.addEventListener('scroll', () => {
+  if (farmPickerRepintarPendiente) return;
+  farmPickerRepintarPendiente = true;
+  window.requestAnimationFrame(() => {
+    // La bandera se limpia en un `finally` y no antes de pintar. Si el marco se pierde
+    // —ventana en segundo plano— o si el pintado lanza, la bandera se queda a `true`
+    // para siempre y la lista deja de responder al desplazamiento sin decir nada.
+    try {
+      pintarVentanaFarmPicker();
+    } finally {
+      farmPickerRepintarPendiente = false;
+    }
+  });
+}, { passive: true });
+
+// El ancho decide cuántas columnas hay, y eso decide cuántas tarjetas se pintan. Sin
+// esto, al redimensionar se queda medio pintada. También avisa cuando el panel se
+// destapa: con el selector cerrado su alto es cero y no hay forma de saber qué se ve.
+if (typeof ResizeObserver === 'function') {
+  new ResizeObserver(() => {
+    if (farmPickerLayer.hidden || !farmPickerFiltrados.length) return;
+    pintarVentanaFarmPicker();
+  }).observe(farmPokemonGrid);
+}
+
+
 function renderFarmPicker() {
   if (farmPickerIndex < 0) return;
   const context = farmContexts[farmPickerIndex] || { level: null, leader: null };
@@ -6314,7 +6545,7 @@ function renderFarmPicker() {
     ? context.leader
       ? `${accountName} · ${context.leader.name} Nv.${context.leader.level || '?'} · Fuerza ${context.leader.strength || '?'}${context.leader.strengthSource === 'Estimado' ? ' estimada' : ''}`
       : `${accountName} · Nivel ${context.level ?? '?'} · Líder no detectado`
-    : `${accountName} · Sesión aún no detectada · Puedes preparar la selección`;
+    : `${accountName} · Sin sesión · puedes elegir el objetivo y se aplica al entrar`;
   const areas = ['all', ...new Set(farmCatalog.map((target) => target.area))];
   farmAreaFilters.replaceChildren();
   areas.forEach((area) => {
@@ -6335,7 +6566,7 @@ function renderFarmPicker() {
   farmTypeFilter.replaceChildren();
   const allTypesOption = document.createElement('option');
   allTypesOption.value = 'all';
-  allTypesOption.textContent = 'Todos los tipos';
+  allTypesOption.textContent = 'Cualquier tipo';
   farmTypeFilter.appendChild(allTypesOption);
   availableTypes.forEach((type) => {
     const option = document.createElement('option');
@@ -6391,62 +6622,21 @@ function renderFarmPicker() {
   else if (farmPickerSort === 'level-desc') filtered.sort((left, right) => right.target.level - left.target.level || right.matchup.score - left.matchup.score);
   else if (farmPickerSort === 'name') filtered.sort((left, right) => left.target.name.localeCompare(right.target.name));
   else filtered.sort(compareRecommended);
+  // La lista ha cambiado ENTERA: otro filtro, otra búsqueda, otro mapa. Los índices
+  // que había dibujados ya no significan el mismo Pokémon, así que se sueltan los dos
+  // —los nodos y el conjunto— antes de repintar.
+  //
+  // Sin esto, buscar «wiggly» dejaba en pantalla la tarjeta que ya estaba en el índice 0,
+  // que era la de otra búsqueda. El pintado veía el 0 en el conjunto, lo daba por bueno
+  // y se lo saltaba. El reciclado solo sirve entre pintados de la misma lista, que es
+  // lo que pasa al desplazarse.
   farmPokemonGrid.replaceChildren();
-  filtered.forEach(({ target, matchup }, index) => {
-    const locked = context.ready && context.level !== null && target.level > context.level;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'farm-pokemon-option farm-pokemon-smart-option';
-    button.classList.toggle('is-selected', config.target?.slug === target.slug);
-    button.classList.toggle('is-recommended', matchup.recommended && !locked);
-    button.classList.toggle('is-dangerous', !locked && matchup.score < 40);
-    button.dataset.primaryType = target.types?.[0] || 'unknown';
-    button.dataset.matchup = locked ? 'locked' : matchup.score >= 75 ? 'excellent' : matchup.score >= 58 ? 'good' : matchup.score >= 40 ? 'possible' : 'dangerous';
-    button.disabled = locked;
-    button.appendChild(createFarmSprite(target));
-    const copy = document.createElement('span');
-    copy.className = 'farm-smart-copy';
-    const nameRow = document.createElement('span');
-    nameRow.className = 'farm-smart-name-row';
-    const name = document.createElement('strong');
-    name.innerHTML = `${target.isShiny ? launcherUiIcon('shiny') : ''}<span>${escapeHtml(String(target.name))}</span>`;
-    const rank = document.createElement('span');
-    rank.className = 'farm-smart-rank';
-    rank.textContent = `#${index + 1}`;
-    nameRow.append(name, rank);
-    const typeRow = document.createElement('span');
-    typeRow.className = 'farm-smart-types';
-    (target.types || []).forEach((type) => typeRow.appendChild(createFarmTypeBadge(type)));
-    if (!target.types?.length) {
-      const unknown = document.createElement('span');
-      unknown.className = 'farm-type-unknown';
-      unknown.textContent = 'Tipo no disponible';
-      typeRow.appendChild(unknown);
-    }
-    const meta = document.createElement('small');
-    meta.textContent = `${farmTargetLocationLabel(target)} · Nivel ${target.level}${target.tier ? ` · Tier ${target.tier}` : ''}`;
-    const reason = document.createElement('small');
-    reason.className = 'farm-smart-reason';
-    reason.textContent = matchup.reasons.join(' · ') || 'Comparación basada en nivel disponible';
-    copy.append(nameRow, typeRow, meta, reason);
-    const verdict = document.createElement('span');
-    verdict.className = 'farm-matchup-verdict';
-    const verdictScore = document.createElement('b');
-    verdictScore.innerHTML = locked ? launcherUiIcon('lock') : `${matchup.score}%`;
-    const verdictLabel = document.createElement('small');
-    verdictLabel.textContent = locked ? `Nv.${target.level}` : matchup.label;
-    verdict.append(verdictScore, verdictLabel);
-    button.append(copy, verdict);
-    button.title = `${matchup.label}: ${matchup.reasons.join(' · ')}`;
-    button.addEventListener('click', () => {
-      config.target = { ...target };
-      saveFarmConfigs();
-      closeFarmPicker();
-      renderFarmAccounts();
-    });
-    farmPokemonGrid.appendChild(button);
-  });
-  farmPickerEmpty.hidden = filtered.length > 0;
+  farmPickerEnElDom.clear();
+  // Y al principio de la lista: al filtrar, si no, te quedarías a media altura viendo
+  // huecos.
+  farmPokemonGrid.scrollTop = 0;
+  farmPickerFiltrados = filtered;
+  pintarVentanaFarmPicker();
 }
 async function openFarmModal() {
   farmBackdrop.hidden = false;
@@ -9879,7 +10069,10 @@ document.addEventListener('keydown', (event) => {
   }
 });
 window.__pokeGridOpenFarm = openFarmModal;
-window.__pokeGridPreviewFarmRecommendations = () => {
+// Acepta cuántos Pokémon montar. Por defecto nueve, que es lo que usan las pruebas
+// que ya lo llamaban; para medir la lista virtualizada hace falta muchos más, porque
+// con nueve todo cabe en la vista y no se ve nada que virtualizar.
+window.__pokeGridPreviewFarmRecommendations = (cuantos = 9) => {
   farmContexts[0] = {
     ready: true,
     level: 100,
@@ -9897,6 +10090,20 @@ window.__pokeGridPreviewFarmRecommendations = () => {
     normalizeFarmTarget({ slug: 'psy-jynx', name: 'Psy Jynx', area: 'outland', level: 150, speciesId: 124, spriteSpeciesId: 124, types: ['ice', 'psychic'], tier: 'COMMON' }),
     normalizeFarmTarget({ slug: 'gyarados', name: 'Gyarados', area: 'kanto', level: 100, speciesId: 130, spriteSpeciesId: 130, types: ['water', 'flying'], tier: 'A', hasShinyForm: true })
   ];
+  // Se completa el cupo cyclingando lo que ya hay. No es un catálogo de verdad: es
+  // para que haya suficientes filas, que es lo único que mide esta prueba.
+  if (cuantos > farmCatalog.length) {
+    const base = [...farmCatalog];
+    for (let i = 0; farmCatalog.length < cuantos; i++) {
+      const original = base[i % base.length];
+      farmCatalog.push(normalizeFarmTarget({
+        ...original,
+        slug: `${original.slug}-copia-${Math.floor(i / base.length)}`,
+        name: `${original.name} ${Math.floor(i / base.length) + 1}`,
+        level: 20 + ((i * 37) % 180)
+      }));
+    }
+  }
   farmBackdrop.hidden = false;
   renderFarmAccounts();
   openFarmPicker(0);
