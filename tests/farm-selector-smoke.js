@@ -220,31 +220,122 @@ app.whenReady().then(async () => {
 
     // --- 3. La lista se queda quieta con el sondeo funcionando ---------------------
     // Esto es lo que pediste: el panel no debe actualizarse solo.
-    const cuentaAntes = await ventana.webContents.executeJavaScript(`document.querySelectorAll('#farmPokemonGrid [data-i]').length`);
-    const marcaAntes = await ventana.webContents.executeJavaScript(`(() => {
-      const n = document.querySelector('#farmPokemonGrid [data-i]');
-      return n ? n.dataset.i + '|' + n.querySelector('.farm-smart-name-row strong').textContent : '';
+    //
+    // No se comparan fotos del antes y el después. Se cuenta, con un `MutationObserver`,
+    // cuántas veces se toca la lista durante los doce segundos del sondeo. La diferencia
+    // importa, y viene de que la foto mide dos cosas que no son la misma: qué hay escrito y
+    // en qué orden. Las tarjetas se anexan al final, así que el primer nodo del DOM no es
+    // el índice más bajo, y con la misma geometría pintada en otro orden la foto cambia
+    // aunque no se haya repintado nada. Con la máquina cargada además llega un `resize`
+    // tarde, el `ResizeObserver` repinta con otra geometría, y eso tampoco es el sondeo.
+    //
+    // Lo que sí es la invariante, y es lo que se comprueba: con el sondeo corriendo, nadie
+    // repinta la lista. Si volviera a llamar a `renderFarmPicker`, las tarjetas se
+    // sustituirían y aquí saldrían mutaciones.
+    const antesDelSondeo = await ventana.webContents.executeJavaScript(`(() => {
+      const g = document.getElementById('farmPokemonGrid');
+      window.__farmSondeo = { mutaciones: 0, cambios: [] };
+      window.__farmSondeoObservador = new MutationObserver((registros) => {
+        window.__farmSondeo.mutaciones += registros.length;
+        for (const r of registros.slice(0, 6)) {
+          window.__farmSondeo.cambios.push(
+            (r.addedNodes ? r.addedNodes.length : 0) + '+' + (r.removedNodes ? r.removedNodes.length : 0) + '-' + r.type
+          );
+        }
+      });
+      window.__farmSondeoObservador.observe(g, { childList: true, subtree: true, characterData: true });
+      return {
+        top: Math.round(g.scrollTop),
+        tarjetas: g.querySelectorAll('[data-i]').length,
+        altura: g.clientHeight
+      };
     })()`);
 
     console.log('\n--- doce segundos con el sondeo de por medio ---');
     console.log('  el sondeo del panel grande va cada cinco segundos; aquí van tres vueltas.');
-    const nada = null;
+    console.log(`  antes:  ${antesDelSondeo.tarjetas} tarjetas, desplazamiento ${antesDelSondeo.top}, alto ${antesDelSondeo.altura}`);
     await dormir(12_000);
 
-    const cuentaDespues = await ventana.webContents.executeJavaScript(`document.querySelectorAll('#farmPokemonGrid [data-i]').length`);
-    const marcaDespues = await ventana.webContents.executeJavaScript(`(() => {
-      const n = document.querySelector('#farmPokemonGrid [data-i]');
-      return n ? n.dataset.i + '|' + n.querySelector('.farm-smart-name-row strong').textContent : '';
+    const despuesDelSondeo = await ventana.webContents.executeJavaScript(`(() => {
+      const g = document.getElementById('farmPokemonGrid');
+      window.__farmSondeoObservador.disconnect();
+      return {
+        top: Math.round(g.scrollTop),
+        tarjetas: g.querySelectorAll('[data-i]').length,
+        altura: g.clientHeight,
+        ...window.__farmSondeo
+      };
     })()`);
 
-    console.log(`  antes:  ${cuentaAntes} tarjetas, primera «${marcaAntes}»`);
-    console.log(`  después: ${cuentaDespues} tarjetas, primera «${marcaDespues}»`);
-    comprobar(marcaDespues === marcaAntes,
-      'con el sondeo corriendo, la lista no se ha repintado sola',
-      `antes «${marcaAntes}», después «${marcaDespues}»`);
-    void nada;
+    console.log(`  después: ${despuesDelSondeo.tarjetas} tarjetas, desplazamiento ${despuesDelSondeo.top}, alto ${despuesDelSondeo.altura}`);
+    console.log(`  mutaciones de la lista en esos doce segundos: ${despuesDelSondeo.mutaciones}`);
+    if (despuesDelSondeo.cambios.length) console.log(`  qué se tocó: ${despuesDelSondeo.cambios.join(', ')}`);
 
-    // --- 5. El diseño ---------------------------------------------------------------
+    comprobar(despuesDelSondeo.mutaciones === 0,
+      'con el sondeo corriendo, nadie repinta la lista',
+      `${despuesDelSondeo.mutaciones} mutaciones: ${despuesDelSondeo.cambios.join(', ') || 'sin detalle'}`);
+    comprobar(despuesDelSondeo.top === antesDelSondeo.top,
+      'y el sondeo tampoco mueve la lista de sitio',
+      `desplazamiento ${antesDelSondeo.top} → ${despuesDelSondeo.top}`);
+
+    // --- Dónde está abierto el selector -------------------------------------------
+// Esto faltaba, y por eso el bug pasó: la prueba miraba cuántas tarjetas había en el
+// DOM, y eso funciona igual con el selector abierto detrás del panel que mal abierto. Se
+// abría, se pintaba, y no se veía.
+//
+// Lo que se comprueba NO es la geometría sino a quién ve el ratón: dos diálogos
+// centrados tienen el mismo centro, así que comparar posiciones no dice nada. Se pregunta
+// con `elementFromPoint`, que es exactamente lo que pasa cuando mueves el ratón por
+// encima. Y con la capa en `position: static` el diálogo caía en y=709 dentro de una
+// ventana de 705: debajo de la pantalla, y su centro no contenía nada.
+const sitio = await ventana.webContents.executeJavaScript(`(() => {
+  const capa = document.getElementById('farmPickerLayer');
+  const dlg = document.querySelector('.farm-picker');
+  const c = capa.getBoundingClientRect();
+  const d = dlg.getBoundingClientRect();
+  const est = getComputedStyle(capa);
+  const quien = (x, y) => {
+    const n = document.elementFromPoint(x, y);
+    return { nodo: n, dentro: Boolean(n && capa.contains(n)) };
+  };
+  const puntos = [
+    ['centro', Math.round(d.left + d.width / 2), Math.round(d.top + d.height / 2)],
+    ['cabecera', Math.round(d.left + d.width / 2), Math.round(d.top + 20)],
+    ['barra de filtros', Math.round(d.left + d.width / 2), Math.round(d.top + 120)]
+  ];
+  return {
+    posicion: est.position,
+    capa: { ancho: Math.round(c.width), alto: Math.round(c.height) },
+    ventana: { ancho: window.innerWidth, alto: window.innerHeight },
+    dialogo: { y: Math.round(d.top), alto: Math.round(d.height) },
+    cubreLaPantalla: c.width >= window.innerWidth - 2 && c.height >= window.innerHeight - 2,
+    dentroDeLaVentana: d.top >= -2 && d.bottom <= window.innerHeight + 2,
+    puntos: puntos.map(([nombre, x, y]) => {
+      const { nodo, dentro } = quien(x, y);
+      return {
+        nombre,
+        x,
+        y,
+        etiqueta: nodo ? nodo.tagName.toLowerCase() + (nodo.className ? '.' + String(nodo.className).split(' ')[0] : '') : 'nada',
+        dentro
+      };
+    })
+  };
+})()`);
+
+console.log('\n--- dónde se ha abierto ---');
+console.log(`  la capa: ${sitio.posicion}, ${sitio.capa.ancho}×${sitio.capa.alto} de ${sitio.ventana.ancho}×${sitio.ventana.alto}`);
+console.log(`  el diálogo: y ${sitio.dialogo.y}, alto ${sitio.dialogo.alto}`);
+for (const p of sitio.puntos) console.log(`  ${p.nombre.padEnd(16)} (${p.x},${p.y})  ${p.etiqueta}${p.dentro ? '  [del selector]' : '  [NO es del selector]'}`);
+
+comprobar(sitio.posicion === 'fixed', 'la capa del selector es fija: si no, el diálogo se va al flujo de la página y queda debajo de la pantalla', `position: ${sitio.posicion}`);
+comprobar(sitio.cubreLaPantalla, 'la capa cubre la ventana entera', JSON.stringify(sitio.capa));
+comprobar(sitio.dentroDeLaVentana, 'el diálogo cabe dentro de la ventana', JSON.stringify(sitio.dialogo));
+const encima = sitio.puntos.filter((p) => p.dentro).length;
+comprobar(encima === sitio.puntos.length, 'el ratón cae dentro del selector en los tres puntos: está encima de verdad',
+  `${encima} de ${sitio.puntos.length}: ${sitio.puntos.filter((p) => !p.dentro).map((p) => `${p.nombre}${p.etiqueta}`).join(', ')}`);
+
+// --- 5. El diseño ---------------------------------------------------------------
     const diseno = await ventana.webContents.executeJavaScript(`(() => {
       const d = document.querySelector('.farm-picker');
       const buscar = document.querySelector('.farm-search');
@@ -277,8 +368,8 @@ app.whenReady().then(async () => {
     comprobar(/blur/.test(diseno.cristal || ''), 'el diálogo es cristal', `backdrop-filter: ${diseno.cristal}`);
     comprobar(/inset/.test(diseno.sombraBuscador || ''), 'el buscador es un hueco', diseno.sombraBuscador);
     comprobar(/inset/.test(diseno.sombraVeredicto || ''), 'el veredicto es un hueco', diseno.sombraVeredicto);
-    // La tarjeta no lleva sombra hacia dentro. No se busca el texto que había antes —
-// `inset 4px 0 0`, que era como estaba escrito— sino la palabra `inset`, porque el valor
+    // La tarjeta no lleva sombra hacia dentro. No se busca el texto que había antes 
+// `inset 4px 0 0`, que era como estaba escrito sino la palabra `inset`, porque el valor
 // calculado llega reordenado: `rgb(85, 119, 139) 4px 0px 0px 0px inset`. Buscar la
 // expresión de origen no encuentra nunca nada y la comprobación queda verde siempre.
 comprobar(!/\binset\b/.test(diseno.separador || ''), 'la tarjeta no lleva sombra hacia dentro: la franja de color se fue', diseno.separador);
@@ -339,7 +430,7 @@ comprobar(!/\binset\b/.test(diseno.separador || ''), 'la tarjeta no lleva sombra
 
     console.log('\n--- cinco búsquedas seguidas ---');
     for (const [termino, nombres] of Object.entries(secuencia)) {
-      console.log(`  «${termino}» → ${nombres.length} tarjetas: ${nombres.slice(0, 2).join(', ') || '—'}`);
+      console.log(`  «${termino}»  ${nombres.length} tarjetas: ${nombres.slice(0, 2).join(', ') || ''}`);
     }
     let mezcla = 0;
     for (const [termino, nombres] of Object.entries(secuencia)) {

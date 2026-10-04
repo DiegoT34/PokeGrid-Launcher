@@ -5841,6 +5841,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   --pf-hundido: inset 2px 2px 5px rgba(0, 0, 0, .58), inset -2px -2px 5px rgba(255, 255, 255, .04);
   --pf-hundido-fuerte: inset 3px 3px 7px rgba(0, 0, 0, .62), inset -3px -3px 7px rgba(255, 255, 255, .045);
   --pf-sobresaliente: 2px 2px 5px rgba(0, 0, 0, .5), -2px -2px 5px rgba(255, 255, 255, .05);
+  /* El mismo pelo, un punto más alto. Lo lleva el ratón encima de la tarjeta. */
+  --pf-sobresaliente-alto: 3px 3px 9px rgba(0, 0, 0, .55), -2px -2px 6px rgba(255, 255, 255, .07);
   --pf-texto: #e6eef5;
   --pf-tenue: #93a9ba;
   --pf-muy-tenue: #7b90a1;
@@ -6502,7 +6504,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 
 /* ----------------------------------------------------- el diálogo, de cristal */
-.farm-picker-layer { position: static; padding: 0; background: none; margin: 0 auto; width: min(1180px, 96vw); }
 .farm-picker {
   position: relative;
   /* Antes 940 px con tres columnas de 275: el porcentaje competía con el texto y lo
@@ -6887,9 +6888,24 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   cursor: pointer;
   overflow: hidden;
 }
+/* La base pinta en la tarjeta una franja de color con `inset 4px 0 0
+   var(--farm-type-color)` para marcar el tipo, y lo hace en tres sitios: la recomendada,
+   la peligrosa y el ratón por encima. Los tres selectores llevan DOS clases, 0,2,0, así
+   que le ganan a la tarjeta de arriba, que lleva una sola, 0,1,0. No es un empate que
+   se resuelva por orden: 0,2,0 le gana a 0,1,0 siempre, y por eso la franja se colaba
+   justo en las tarjetas que llevan marca, que son las que más se miran.
+
+   Se declara aquí a propósito, con las mismas dos clases, para que la tarjeta sea la misma
+   esté como esté. Sin franja: no es un dato, es adorno, y una franja pintada hacia dentro
+   es justo el agujero que este panel reserva para el veredicto y el buscador. */
 .farm-pokemon-smart-option:hover {
   background: var(--pf-vidrio-alto);
   border-color: rgba(255, 255, 255, .16);
+  box-shadow: var(--pf-sobresaliente-alto);
+}
+.farm-pokemon-smart-option.is-recommended,
+.farm-pokemon-smart-option.is-dangerous {
+  box-shadow: var(--pf-sobresaliente);
 }
 .farm-pokemon-smart-option[data-matchup="excellent"] {
   border-color: rgba(141, 240, 196, .34);
@@ -7051,7 +7067,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   white-space: nowrap;
   box-shadow: var(--pf-hundido);
 }
-.farm-picker-cuenta b { color: var(--pf-bueno); }
 
 /* --- Las columnas del selector, por ventana --------------------------------------
    Estos son los mismos cortes que usa la base y que mi bloque ya no pisa. Están
