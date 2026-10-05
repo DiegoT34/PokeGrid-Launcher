@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Propuesta — Modo Farmeo</title>
+<!-- El CSS real del launcher: los tokens, los tipos y el material salen de ahí. -->
+<link rel="stylesheet" href="src/styles.css">
+<!-- Y encima, solo la propuesta. Este fichero no toca nada del proyecto. -->
+<link rel="stylesheet" href="propuesta.css">
+<style>
+  /* Solo el escenario: un fondo con algo de ruido para que el cristal se vea. */
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(1100px 620px at 18% 12%, #1d3b4a 0%, transparent 62%),
+      radial-gradient(900px 560px at 84% 78%, #24384f 0%, transparent 58%),
+      radial-gradient(760px 480px at 62% 24%, #2a2f52 0%, transparent 55%),
+      #0c1013;
+  }
+  .farm-backdrop { padding: 18px; }
+</style>
+</head>
+<body>
+
+<div id="farmBackdrop" class="modal-backdrop farm-backdrop">
+  <section class="modal farm-modal" role="dialog" aria-modal="true" aria-labelledby="farmTitle">
+
+    <div class="modal-heading farm-heading">
+      <div class="farm-heading-copy">
+        <h1 id="farmTitle">Modo farmeo</h1>
+      </div>
+      <div class="farm-heading-actions">
+        <span id="farmGlobalState" class="farm-global-state">451 zonas disponibles</span>
+        <button id="closeFarmButton" class="icon-button" type="button" aria-label="Cerrar"></button>
+      </div>
+    </div>
+
+    <div class="farm-toolbar">
+      <div>
+        <strong>Configuración por cuenta</strong>
+        <span>Los Pokémon bloqueados se habilitan al alcanzar su nivel de mapa.</span>
+      </div>
+      <div class="farm-toolbar-actions">
+        <label class="farm-orre-permission" title="Autoriza al launcher a confirmar automáticamente la advertencia de Orre">
+          <input type="checkbox" checked>
+          <span>Permitir viaje a Orre con o sin MT</span>
+        </label>
+        <button id="rereadFarmLeadersButton" class="button button-secondary" type="button"></button>
+        <button id="refreshFarmButton" class="button button-secondary" type="button"></button>
+      </div>
+    </div>
+
+    <div id="farmAccountGrid" class="farm-account-grid" aria-live="polys"></div>
+    <p id="farmMessage" class="modal-message farm-message" role="status"></p>
+
+    <div class="modal-actions farm-actions">
+      <button id="stopFarmButton" class="button farm-stop" type="button"></button>
+      <button id="cancelFarmButton" class="button button-secondary" type="button">Cancelar</button>
+      <button id="startFarmButton" class="button button-farm farm-start" type="button">Iniciar farmeo automático</button>
+    </div>
+
+  </section>
+</div>
+
+<script>
+// Los mismos iconos que genera el launcher, para que la提案 se vea con el mismo
+// trazo que el resto. Es una copia de la tabla: aquí no se importa nada del proyecto.
+const LAUNCHER_ICON_PATHS = {
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  refresh: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  map: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15"/><path d="M15 6v15"/>',
+  play: '<path d="M6 4.5v15l13-7.5z"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>'
+};
+const icono = (n, clase = '') => `<svg class="launcher-ui-icon ${clase}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${LAUNCHER_ICON_PATHS[n] || ''}</svg>`;
+
+document.getElementById('closeFarmButton').innerHTML = icono('close');
+document.getElementById('rereadFarmLeadersButton').innerHTML = `${icono('refresh')}<span>Releer líderes</span>`;
+document.getElementById('refreshFarmButton').innerHTML = `${icono('map')}<span>Actualizar mapas</span>`;
+document.getElementById('stopFarmButton').innerHTML = `${icono('stop')}<span>Desactivar</span>`;
+
+// Un Pokémon de mentira: un disco con el color del tipo. El sprite real lo pone el
+// launcher desde el juego.
+const sprite = (tono, classes = '') => `<span class="mini-sprite ${classes}" style="--tono:${tono}"></span>`;
+
+const CUENTAS = [
+  { i: '02', nombre: 'SHOKAVIN', meta: 'SHOKCVIN · Nivel 391 · Furious Slarmory', nivel: 375, fuerza: 8644, vida: '317/1596', hp: 833, atk: 1098, def: 955, spa: 698, spd: 734, vel: 631 },
+  { i: '03', nombre: 'SHOKAVIN', meta: 'SHOKAVIN · Nivel 317 · Furious Slarmory', nivel: 303, fuerza: 6632, vida: '5532/7392', hp: 616, atk: 794, def: 794, spa: 515, spd: 600, vel: 488 },
+  { i: '01', nombre: 'SHOCKVOR', meta: 'SHOCKVOR · Nivel 345 · Furious Slarmory', nivel: 318, fuerza: 7276, vida: '2802/7200', hp: 600, atk: 936, def: 926, spa: 473, spd: 657, vel: 450 },
+  { i: '04', nombre: 'DIEGO200', meta: 'DIEGO200 · Nivel 342 · Furious Slarmory', nivel: 320, fuerza: 8961, vida: '5535/8628', hp: 719, atk: 831, def: 900, spa: 579, spd: 598, vel: 413 }
+];
+
+document.getElementById('farmAccountGrid').innerHTML = CUENTAS.map((c) => `
+  <article class="farm-account" data-account-index="${c.i}">
+    <div class="farm-account-head">
+      <div class="farm-account-name">
+        <span class="farm-account-index">${c.i}</span>
+        <div>
+          <strong>${c.nombre}</strong>
+          <span class="farm-account-meta">${c.meta}</span>
+        </div>
+      </div>
+      <div class="farm-account-head-actions">
+        <button class="farm-leader-refresh" type="button" aria-label="Releer"></button>
+        <label class="farm-enable"><input type="checkbox" checked><span aria-hidden="true"></span></label>
+      </div>
+    </div>
+
+    <section class="farm-leader-card">
+      <span class="farm-leader-visual">${sprite('#c9a227')}</span>
+      <div class="farm-leader-copy">
+        <span class="farm-leader-eyebrow">Líder equipado</span>
+        <strong>Golem</strong>
+        <div class="farm-leader-types">
+          <span data-type="rock">Roca</span><span data-type="ground">Tierra</span>
+        </div>
+      </div>
+      <div class="farm-leader-stats">
+        <span><small>Nivel</small><b>${c.nivel}</b></span>
+        <span><small>Fuerza</small><b>${c.fuerza}</b></span>
+        <span><small>Vida</small><b>${c.vida}</b></span>
+      </div>
+      <div class="farm-leader-detail-stats">
+        <span><small>PS</small><b>${c.hp}</b></span>
+        <span><small>ATQ</small><b>${c.atk}</b></span>
+        <span><small>DEF</small><b>${c.def}</b></span>
+        <span><small>ATA</small><b>${c.spa}</b></span>
+        <span><small>DEF ESP</small><b>${c.spd}</b></span>
+        <span><small>VEL</small><b>${c.vel}</b></span>
+      </div>
+      <div class="farm-leader-tms is-empty">
+        <small>MT equipadas</small>
+        <span class="farm-leader-tm-empty">${icono('close')}Sin MT detectadas</span>
+      </div>
+    </section>
+
+    <div class="farm-account-body">
+      <button class="farm-target-button" type="button">
+        ${sprite('#d9d9d9')}
+        <span class="farm-target-copy">
+          <strong>Furious Slarmory</strong>
+          <small>Outlandia · Nivel 150 · Muy recomendado 82%</small>
+        </span>
+        <span class="farm-target-arrow"></span>
+      </button>
+      <button class="button button-farm farm-account-action" type="button" aria-label="Viajar e iniciar farmeo"></button>
+    </div>
+  </article>`).join('');
+
+// Los botones que el launcher construye con nodos, aquí con cadenas.
+document.querySelectorAll('.farm-leader-refresh').forEach((b) => { b.innerHTML = icono('refresh'); });
+document.querySelectorAll('.farm-account-action').forEach((b) => { b.innerHTML = icono('play'); });
+document.querySelectorAll('.farm-target-arrow').forEach((a) => { a.innerHTML = icono('chevron'); });
+</script>
+</body>
+</html>

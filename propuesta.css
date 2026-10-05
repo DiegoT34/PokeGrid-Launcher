@@ -1,0 +1,663 @@
+/* ============================================================================
+   PROPUESTA — Modo Farmeo. Solo una vista previa: este fichero NO forma parte del
+   launcher y no se usa en la aplicación. Va cargado encima de src/styles.css, así
+   que los tokens, los tipos y el material salen de ahí; aquí solo se cambia cómo
+   se ve y cómo se lee este panel.
+
+   El criterio, en una frase: el panel deja de ser una tabla de cajas y pasa a ser
+   una hoja de cristal con huecos hundidos dentro.
+
+     · Cristal para lo que envuelve: el fondo del diálogo y la barra de la cabecera
+       dejan ver lo que hay detrás, con un brillo arriba y un borde de pelo.
+     · Neomorfismo para lo que contiene: cada dato importante va en un hueco con
+       sombra hacia dentro, sin borde. Lo hundido se lee como «esto está aquí
+       dentro», que es lo que es un dato de configuración.
+     · Compacto: menos aire, tipografía más corta, lo mismo en menos sitio. El
+       panel mostraba dos cuentas y media con dos filas de seis estadísticas cada
+       una; ahora caben cuatro con las estadísticas en una línea.
+   ============================================================================ */
+
+:root {
+  /* Un solo sitio donde tocar el carácter del cristal. */
+  --pf-vidrio: rgba(255, 255, 255, .05);
+  --pf-vidrio-alto: rgba(255, 255, 255, .085);
+  --pf-pelo: rgba(255, 255, 255, .09);
+  --pf-hundido: inset 2px 2px 5px rgba(0, 0, 0, .58), inset -2px -2px 5px rgba(255, 255, 255, .04);
+  --pf-hundido-fuerte: inset 3px 3px 7px rgba(0, 0, 0, .62), inset -3px -3px 7px rgba(255, 255, 255, .045);
+  --pf-sobresaliente: 2px 2px 5px rgba(0, 0, 0, .5), -2px -2px 5px rgba(255, 255, 255, .05);
+  --pf-texto: #e6eef5;
+  --pf-tenue: #93a9ba;
+  --pf-muy-tenue: #7b90a1;
+  --pf-acento: #7fd4ff;
+}
+
+/* ---------------------------------------------------------------- la escena -- */
+.modal-backdrop.farm-backdrop { padding: 20px; }
+
+/* ------------------------------------------------------------- el diálogo --- */
+.modal.farm-modal {
+  padding: 0;
+  gap: 0;
+  max-width: 1320px;
+  height: calc(100vh - 40px);
+  border: 1px solid var(--pf-pelo);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .055) 0%, rgba(255, 255, 255, .018) 34%, rgba(255, 255, 255, .028) 100%);
+  backdrop-filter: blur(26px) saturate(1.35);
+  -webkit-backdrop-filter: blur(26px) saturate(1.35);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, .62),
+    inset 0 1.5px 0 rgba(255, 255, 255, .13);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------- la cabecera -- */
+/* El pokéball de la izquierda es un `::before` con posición absoluta, no un
+   elemento: hay que dejarle sitio con el relleno, o se monta encima del título.
+   Y el título deja de ir en mayúsculas: en mayúsculas gritaba, y con el icono al
+   lado ya se lee que es la cabecera. */
+.modal.farm-modal > .modal-heading.farm-heading {
+  padding: 12px 14px 12px 54px;
+  gap: 14px;
+  background: none;
+  border-bottom: 1px solid var(--pf-pelo);
+}
+.farm-heading::before {
+  left: 15px;
+  top: 12px;
+  width: 30px;
+  height: 30px;
+}
+.farm-heading-copy h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+  text-transform: none;
+  color: #f4f9fd;
+}
+.farm-heading-actions { gap: 10px; align-items: center; margin-left: auto; }
+
+/* «451 zonas disponibles» deja de ser una etiqueta y pasa a ser un estado: es lo
+   único que dice si el catálogo está listo. Verde cuando lo está. */
+.farm-global-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(94, 230, 168, .12);
+  color: #6fe8b0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  box-shadow: var(--pf-hundido);
+}
+.farm-global-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.farm-heading .icon-button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  box-shadow: var(--pf-hundido);
+  color: rgba(255, 255, 255, .55);
+  transition: box-shadow 130ms ease, color 130ms ease;
+}
+.farm-heading .icon-button:hover { color: #eaf2f8; box-shadow: var(--pf-hundido-fuerte); }
+.farm-heading .icon-button .launcher-ui-icon { width: 14px; height: 14px; }
+
+/* ------------------------------------------------------- la barra de arriba -- */
+/* Antes era un bloque con título, explicación y tres controles. La explicación se
+   reduce a una línea y los controles son botones de cristal. */
+.farm-toolbar {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.farm-toolbar > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.farm-toolbar strong {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: -.005em;
+  color: var(--pf-texto);
+  white-space: nowrap;
+}
+/* La explicación es ayuda, no un titular: baja a una línea discreta. */
+.farm-toolbar span {
+  font-size: 10px;
+  color: var(--pf-muy-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farm-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+
+.farm-toolbar .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .05);
+  color: #cfdce8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  box-shadow: var(--pf-hundido);
+  transition: box-shadow 130ms ease, color 130ms ease, background 130ms ease;
+}
+.farm-toolbar .button:hover {
+  color: #eef5fa;
+  background: rgba(255, 255, 255, .085);
+  box-shadow: var(--pf-hundido-fuerte);
+}
+.farm-toolbar .button .launcher-ui-icon { width: 13px; height: 13px; }
+
+/* La casilla de Orre. El marcado real es `<input>` + un `<span>` con el texto, así
+   que la casilla se dibuja con el `::before` de ese mismo span: no hace falta
+   añadir ningún elemento nuevo al HTML.
+   Y la casilla es del mismo verde que el resto de la interfaz, no del amarillo
+   que tenía antes: el amarillo parecía otro producto. */
+.farm-orre-permission {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .035);
+  box-shadow: var(--pf-hundido);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.farm-orre-permission input { position: absolute; opacity: 0; width: 0; height: 0; }
+.farm-orre-permission > span {
+  position: relative;
+  padding-left: 22px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #cfdce8;
+  line-height: 1;
+}
+/* La casilla, en el `::before` del texto. */
+.farm-orre-permission > span::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, .42);
+  box-shadow: inset 1.5px 1.5px 3px rgba(0, 0, 0, .62);
+}
+/* La marca, en el `::after`. Un SVG en línea con el mismo trazo que el resto. */
+.farm-orre-permission > span::after {
+  content: '';
+  position: absolute;
+  left: 4.5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 9px;
+  height: 9px;
+  opacity: 0;
+  transition: opacity 130ms ease;
+  background: no-repeat center / 9px 9px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236fe8b0' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+.farm-orre-permission input:checked + span::after { opacity: 1; }
+.farm-orre-permission input:focus-visible + span::before { outline: 2px solid rgba(127, 212, 255, .6); outline-offset: 1px; }
+
+/* ------------------------------------------------------------- la rejilla --- */
+.farm-account-grid {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .16) transparent;
+}
+
+/* ----------------------------------------------------- una tarjeta de cuenta - */
+.farm-account {
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--pf-pelo);
+  border-radius: 15px;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .018) 52%, rgba(255, 255, 255, .035));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, .06) inset,
+    0 10px 24px rgba(0, 0, 0, .3);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+.farm-account.is-running { border-color: rgba(94, 230, 168, .28); }
+.farm-account.is-disabled { opacity: .6; }
+
+/* --- la cabecera de la tarjeta --- */
+.farm-account-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+.farm-account-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+
+/* El número de cuenta deja de ser una etiqueta: pasa a ser la marca de posición. */
+.farm-account-index {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .05);
+  box-shadow: var(--pf-sobresaliente);
+  color: var(--pf-acento);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+.farm-account-name strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+  color: #f0f6fb;
+  line-height: 1.15;
+}
+.farm-account-meta {
+  display: block;
+  margin-top: 1px;
+  font-size: 9px;
+  color: var(--pf-muy-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farm-account-head-actions { display: flex; align-items: center; gap: 7px; flex: none; }
+
+/* Releer: un botón de icono, no un glifo suelto. */
+.farm-leader-refresh {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow: var(--pf-hundido);
+  color: var(--pf-tenue);
+  cursor: pointer;
+  transition: box-shadow 130ms ease, color 130ms ease;
+}
+.farm-leader-refresh:hover { color: var(--pf-acento); box-shadow: var(--pf-hundido-fuerte); }
+.farm-leader-refresh .launcher-ui-icon { width: 13px; height: 13px; }
+
+/* El interruptor de «incluir esta cuenta»: pastilla hundida. Antes era un
+   interruptor verde saturado, que era lo único que no era cristal en la tarjeta. */
+.farm-enable { display: inline-flex; cursor: pointer; }
+.farm-enable input { position: absolute; opacity: 0; width: 0; height: 0; }
+.farm-enable > span {
+  position: relative;
+  width: 38px;
+  height: 21px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .42);
+  box-shadow: var(--pf-hundido);
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+.farm-enable > span::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #6d7f8f;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, .5);
+  transition: transform 170ms cubic-bezier(.3, 1.4, .5, 1), background 150ms ease;
+}
+.farm-enable input:checked + span { background: rgba(94, 230, 168, .2); }
+.farm-enable input:checked + span::after { transform: translateX(17px); background: #6fe8b0; }
+
+/* --- la ficha del líder: el hueco grande --- */
+.farm-leader-card {
+  position: relative;
+  padding: 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'visual copy stats'
+    'detail detail detail'
+    'tms tms tms';
+  align-items: center;
+  gap: 7px 10px;
+  border: 0;
+  border-radius: 13px;
+  background: none;
+  box-shadow: var(--pf-hundido);
+}
+
+/* El sprite en su propio cuadrado hundido: es lo único de la fila que se reconoce
+   de un vistazo y por eso se le da un hueco propio. */
+.farm-leader-visual {
+  grid-area: visual;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, .28);
+  box-shadow: inset 1.5px 1.5px 4px rgba(0, 0, 0, .6);
+}
+.farm-leader-visual img,
+.farm-leader-visual .farm-sprite { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; }
+
+.farm-leader-copy { grid-area: copy; min-width: 0; }
+/* «POKÉMON LÍDER EQUIPADO · ID …» era un titular de tres líneas de largo. Ahora
+   es una línea corta y el ID se queda como dato, no como parte del nombre. */
+.farm-leader-eyebrow {
+  display: block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muy-tenue);
+}
+.farm-leader-copy > strong {
+  display: block;
+  margin-top: 1px;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -.015em;
+  color: #f0f6fb;
+  line-height: 1.1;
+}
+.farm-leader-types { display: flex; gap: 4px; margin-top: 4px; }
+.farm-leader-types > span,
+.farm-type-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #cfdce8;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .3);
+}
+.farm-leader-types > span[data-type="rock"] { color: #e0c98a; }
+.farm-leader-types > span[data-type="ground"] { color: #d8b47a; }
+
+/* Nivel, fuerza y vida: tres números grandes en fila. Es lo que se compara entre
+   cuentas, así que van alineados y con las cifras tabulares. */
+.farm-leader-stats {
+  grid-area: stats;
+  display: flex;
+  gap: 5px;
+}
+.farm-leader-stats > span {
+  min-width: 52px;
+  padding: 4px 7px;
+  display: grid;
+  gap: 1px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .045);
+  text-align: right;
+}
+.farm-leader-stats small {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--pf-muy-tenue);
+}
+.farm-leader-stats b {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+  color: var(--pf-texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Las seis estadísticas: una sola línea, y con abreviaturas de dos o tres
+   letras. Antes ocupaban dos filas con nombres de siete letras. */
+.farm-leader-detail-stats {
+  grid-area: detail;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+.farm-leader-detail-stats > span {
+  padding: 3px 5px;
+  display: grid;
+  gap: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .22);
+  text-align: center;
+}
+.farm-leader-detail-stats small {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: var(--pf-muy-tenue);
+}
+.farm-leader-detail-stats b {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pf-texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Las MT: una sola línea con su etiqueta al lado, no encima. */
+.farm-leader-tms {
+  grid-area: tms;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 1px;
+}
+.farm-leader-tms > small {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--pf-muy-tenue);
+}
+.farm-leader-tm-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  /* Venía como una casilla punteada de color de aviso: «aquí falta algo». Ese
+     aviso era el que más llamaba la atención del panel, y es lo de menos
+     importante: que un líder no lleve MT es lo normal. */
+  background: rgba(255, 255, 255, .04);
+  font-size: 9px;
+  color: var(--pf-muy-tenue);
+}
+.farm-leader-tm-empty .launcher-ui-icon { width: 11px; height: 11px; color: #6d8090; }
+.farm-leader-tm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  font-size: 8px;
+  font-weight: 700;
+  color: #cfdce8;
+}
+.farm-leader-tm .launcher-ui-icon { width: 10px; height: 10px; }
+
+/* --- el objetivo y el botón --- */
+.farm-account-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* El objetivo es la decisión que hay que tomar: por eso tiene su propio hueco y
+   su sprite a la izquierda, y no es un botón más de la fila. */
+.farm-target-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow: var(--pf-hundido);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 130ms ease, background 130ms ease;
+}
+.farm-target-button:hover { background: rgba(255, 255, 255, .075); box-shadow: var(--pf-hundido-fuerte); }
+.farm-target-button .farm-sprite { width: 30px; height: 30px; flex: none; object-fit: contain; image-rendering: pixelated; }
+.farm-target-copy { min-width: 0; display: grid; gap: 1px; }
+.farm-target-copy strong {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+  color: #f0f6fb;
+}
+.farm-target-copy small {
+  font-size: 9px;
+  color: var(--pf-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farm-target-arrow {
+  margin-left: auto;
+  flex: none;
+  color: var(--pf-muy-tenue);
+  display: grid;
+  place-items: center;
+}
+.farm-target-arrow .launcher-ui-icon { width: 14px; height: 14px; }
+
+/* Iniciar: la única acción sólida de la tarjeta. Verde, pero del mismo verde que
+   el resto de la interfaz, no un amarillo que parece otro producto. */
+.farm-account-action {
+  width: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(94, 201, 138, .16);
+  box-shadow: var(--pf-hundido);
+  color: #6fe8b0;
+  cursor: pointer;
+  transition: box-shadow 130ms ease, background 130ms ease;
+}
+.farm-account-action:hover:not(:disabled) { background: rgba(94, 201, 138, .26); box-shadow: var(--pf-hundido-fuerte); }
+.farm-account-action:disabled { opacity: .4; cursor: not-allowed; }
+.farm-account-action .launcher-ui-icon { width: 17px; height: 17px; }
+
+/* ---------------------------------------------------------------- el pie --- */
+/* Tres botones con pesos distintos: «Desactivar» es lo que se usa cuando algo ya
+   está corriendo, «Cancelar» no hace nada y «Iniciar» es la acción. Desactivar a
+   la izquierda, las otras dos pegadas a la derecha: en el pie anterior «Cancelar»
+   quedaba en el centro de la pantalla, solo, que es el peor sitio para un botón
+   que se usa a menudo. */
+.farm-message:empty { display: none; }
+.farm-message {
+  margin: 0 16px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow: var(--pf-hundido);
+  font-size: 10px;
+  color: var(--pf-tenue);
+}
+.modal-actions.farm-actions {
+  padding: 11px 16px;
+  gap: 8px;
+  justify-content: flex-end;
+  background: none;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+}
+.farm-actions .farm-stop { margin-right: auto; }
+.farm-actions .farm-start { margin-left: 0; }
+.farm-actions .button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .045);
+  color: #cfdce8;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: var(--pf-hundido);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: box-shadow 130ms ease, background 130ms ease, color 130ms ease;
+}
+.farm-actions .button:hover { background: rgba(255, 255, 255, .085); color: #eef5fa; box-shadow: var(--pf-hundido-fuerte); }
+.farm-actions .button .launcher-ui-icon { width: 12px; height: 12px; }
+
+.farm-actions .farm-stop { color: #ff9aa6; }
+.farm-actions .farm-stop .launcher-ui-icon { color: currentColor; }
+
+.farm-actions .farm-start {
+  background: rgba(94, 201, 138, .18);
+  color: #8df0c4;
+}
+.farm-actions .farm-start:hover { background: rgba(94, 201, 138, .28); color: #b6f7da; }
+
+/* ------------------------------------------------ el sprite de la vista previa - */
+/* El juego pone aquí un `<img>` o un `<span class="farm-sprite">` de tamaño fijo.
+   La maqueta usa un disco de color, así que necesita tamaño explícito: con
+   `width: 100%` dentro de una celda de rejilla se estiraba a lo que le daba. */
+.mini-sprite {
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--tono) 90%, white), var(--tono) 62%, color-mix(in srgb, var(--tono) 60%, black));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+.farm-target-button .mini-sprite { width: 30px; height: 30px; }

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propuesta — el selector de Pokémon</title>
+<!--
+  MAQUETA. No forma parte del launcher.
+
+  El marcado es el del selector real, con sus mismas clases, para que lo que se ve
+  aquí sea lo que se verá. Lo único inventado es la lista de Pokémon y el JavaScript
+  del virtualizado: los datos no importan para juzgar el diseño, y el virtualizado sí,
+  porque de eso va la propuesta.
+
+  El virtualizado de verdad: solo existen en el DOM las tarjetas que se ven. Al
+  desplazar, las que salen se crean y las que se van se borran. El hueco de arriba se
+  rellena con un `padding-top` calculada, para que la barra de desplazamiento mida lo
+  que mediría con las 451 tarjetas y el salto alFinal no dé un tirón.
+-->
+<link rel="stylesheet" href="src/styles.css">
+<link rel="stylesheet" href="propuesta-selector.css">
+</head>
+<body class="propuesta">
+
+<div class="farm-picker-layer">
+  <section class="farm-picker" role="dialog" aria-modal="true" aria-labelledby="farmPickerTitle">
+    <header class="farm-picker-head">
+      <div>
+        <span class="eyebrow">MAPAS DEL JUEGO</span>
+        <h2 id="farmPickerTitle">Elige el Pokémon objetivo</h2>
+        <p id="farmPickerAccount">SHOKAVIN · Golem Nv. 375 · Fuerza 8.844</p>
+      </div>
+      <span class="farm-picker-cuenta"><b id="cuentaEnPantalla">9</b> de <span id="cuentaTotal">451</span> en pantalla</span>
+      <button class="icon-button" type="button" aria-label="Cerrar">×</button>
+    </header>
+
+    <div class="farm-picker-tools">
+      <label class="farm-search">
+        <span aria-hidden="true"></span>
+        <input type="search" id="buscar" autocomplete="off" placeholder="Busca por nombre, tipo, mapa o nivel">
+      </label>
+      <div class="farm-area-filters" role="group" aria-label="Filtrar por región">
+        <button class="farm-area-button is-active" type="button">Todos</button>
+        <button class="farm-area-button" type="button">Kanto</button>
+        <button class="farm-area-button" type="button">Outlandia</button>
+        <button class="farm-area-button" type="button">Orre</button>
+        <button class="farm-area-button" type="button">Nightmare</button>
+      </div>
+      <div class="farm-advanced-filters" aria-label="Filtros avanzados">
+        <label>
+          <span>TIPO</span>
+          <select><option>Cualquier tipo</option><option>Bicho</option><option>Fuego</option><option>Agua</option></select>
+        </label>
+        <label>
+          <span>NIVEL</span>
+          <select><option>Cualquier nivel</option><option>Solo accesibles</option><option>Nivel 1–30</option><option>Nivel 201+</option></select>
+        </label>
+        <label>
+          <span>COMBATE</span>
+          <select><option>Cualquier combate</option><option>Recomendados</option><option>Ventaja de tipo</option><option>Nivel seguro</option></select>
+        </label>
+        <label>
+          <span>ORDEN</span>
+          <select><option selected>Mejor ajuste</option><option>Nivel menor</option><option>Nivel mayor</option><option>Nombre A–Z</option></select>
+        </label>
+        <label>
+          <span>VARIANTE</span>
+          <span class="farm-filter-check"><input type="checkbox"><b>Solo formas shiny</b></span>
+        </label>
+        <button class="farm-reset-filters" type="button">Limpiar</button>
+      </div>
+    </div>
+
+    <section class="farm-recommended-route">
+      <div class="farm-route-heading">
+        <div>
+          <strong>Ruta recomendada para Golem</strong>
+          <span>Pondera tipo, nivel, poder real y movimientos.</span>
+        </div>
+        <span class="farm-route-leader">Nv. 375 · Fuerza 8.844</span>
+      </div>
+      <div class="farm-route-list" id="ruta"></div>
+    </section>
+
+    <div class="farm-pokemon-grid" id="rejilla"></div>
+    <p class="farm-picker-empty" id="vacio" hidden>Ningún Pokémon coincide con la búsqueda.</p>
+  </section>
+</div>
+
+<div class="propuesta-nota">
+  <b>Desplaza la lista.</b> Solo hay <span id="notaNodo">9</span> tarjetas en el DOM de <span id="notaTotal">451</span>:
+  las que caben en la vista, más una fila por encima y otra por debajo. Al bajar se crean las
+  que entran y se borran las que salen. La barra de desplazamiento sigue midiendo la lista entera,
+  así que el salto al final no da un tirón.
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Datos de mentira. Solo para que haya de dónde pintar.
+// ---------------------------------------------------------------------------
+const TIPOS = [
+  ['bicho', 'Bicho'], ['fuego', 'Fuego'], ['electrico', 'Eléctrico'], ['veneno', 'Veneno'],
+  ['tierra', 'Tierra'], ['roca', 'Roca'], ['agua', 'Agua'], ['pelea', 'Lucha'],
+  ['volador', 'Volador'], ['psiquico', 'Psíquico'], ['hielo', 'Hielo'], ['acero', 'Acero'],
+  ['fantasma', 'Fantasma'], ['siniestro', 'Siniestro'], ['dragon', 'Dragón'], ['normal', 'Normal']
+];
+const ZONAS = ['Kanto', 'Outlandia', 'Orre', 'Nightmare', 'Johto', 'Hoenn'];
+const NOMBRES = [
+  'Ledyba', 'Pichu', 'Arbok', 'Weezing', 'Charizard', 'Magcargo', 'Muk', 'Brave Charizard',
+  'Brave Nidoqueen', 'Butterfree', 'Ledyian', 'Pidgeot', 'Rhydon', 'Wartortle', 'Kabutops',
+  'Victreebel', 'Golduck', 'Poliwrath', 'Snorlax', 'Golem', 'Alakazam', 'Slowpoke', 'Gengar',
+  'Dragonite', 'Lapras', 'Arcanine', 'Machamp', 'Porygon', 'Electabuzz', 'Tangela', 'Exeggutor'
+];
+const ETIQUETA = { excellent: 'muy recomendado', good: 'recomendado', possible: 'viable', dangerous: 'riesgoso', locked: 'Nv. alto' };
+const MOTIVOS = [
+  ['4× contra', 'resiste Normal', '365 de margen'],
+  ['eléctrico', '2× contra', '175 de margen'],
+  ['veneno contra bicho', '2× contra veneno', '335 de margen'],
+  ['roca', '4× contra', '150 de margen'],
+  ['fuego contra hielo', '3× contraNormal', '295 de margen']
+];
+
+const NOMBRES_LARGO = ['Brave Nidoqueen', 'Brave Charizard', 'Mega Charizard X', 'Mega Gengar', 'Alolan Exeggutor', 'Shiny Gyarados', 'Shadow Tyranitar', 'Origin Pultras'];
+// En el juego real casi todo sale por encima de 75: la ruta ya está filtrada por
+// compatibilidad. Poner percentages bajos a propósito haría creer que el diseño solo
+// aguanta el peor caso, y lo que hay que juzgar es el caso de verdad.
+const lista = [];
+for (let i = 0; i < 451; i++) {
+  const rng = (n, m) => ((i * 9301 + 49297) % 233280) / 233280 * (m - n) + n;
+  const t = Math.floor(rng(0, TIPOS.length));
+  const nTipos = i % 4 === 0 ? 2 : 1;
+  const tipos = [TIPOS[t][0]];
+  if (nTipos === 2) tipos.push(TIPOS[(t + 3) % TIPOS.length][0]);
+  const nivel = Math.round(rng(5, 220));
+  const locked = nivel > 375;
+  const bruto = locked ? 62 : Math.round(rng(76, 99));
+  const estado = locked ? 'locked' : bruto >= 90 ? 'excellent' : bruto >= 80 ? 'good' : 'possible';
+  const motiv = MOTIVOS[i % MOTIVOS.length];
+  // El nombre nunca se repite: con la lista entera a la vista, un «Brave Nidoqueen»
+  // en el 1 y en el 9 hace pensar que hay un fallo en vez de en los datos.
+  const base = NOMBRES[(i * 7 + Math.floor(i / NOMBRES.length)) % NOMBRES.length];
+  const nombre = i % 13 === 0 ? NOMBRES_LARGO[i % NOMBRES_LARGO.length] : base;
+  lista.push({
+    nombre,
+    tipos,
+    zona: ZONAS[i % ZONAS.length],
+    nivel,
+    tier: ['COMMON', 'RARE', 'EPIC', 'LEGEND'][i % 4],
+    estado,
+    pct: locked ? nivel : bruto,
+    etiqueta: ETIQUETA[locked ? 'locked' : estado],
+    motivo: locked
+      ? `Nv. ${nivel} · por encima de tu nivel`
+      : `${motiv[0]} · ${motiv[1]} · ${motiv[2]}`,
+    shiny: i % 9 === 0
+  });
+}
+
+const SPRITE = (color) => `<span class="farm-sprite" style="width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 34% 30%, #ffffff, ${color} 58%, #00000090)"></span>`;
+const COLORES = ['#c9a227', '#e07b3c', '#5aa9e6', '#8f6fd0', '#6fbf73', '#d05a8a', '#3fbfb0', '#b5651d'];
+const sprite = (i) => SPRITE(COLORES[i % COLORES.length]);
+
+const ICONO_SHINY = `<svg class="launcher-ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 2.2 5.8L20 10.5l-5.8 2.2L12 18.5l-2.2-5.8L4 10.5l5.8-2.2z"/></svg>`;
+
+// ---------------------------------------------------------------------------
+// La tarjeta. Es la misma estructura que construye el renderer real: sprite, copia
+// con el nombre, los tipos, el lugar, el motivo, y el veredicto aparte.
+// ---------------------------------------------------------------------------
+function tarjeta(p, i) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'farm-pokemon-option farm-pokemon-smart-option';
+  b.dataset.primaryType = p.tipos[0];
+  b.dataset.matchup = p.estado;
+  b.innerHTML = `
+    ${sprite(i)}
+    <span class="farm-smart-copy">
+      <span class="farm-smart-name-row">
+        <strong>${p.shiny ? ICONO_SHINY : ''}<span>${p.nombre}</span></strong>
+        <span class="farm-smart-rank">#${i + 1}</span>
+      </span>
+      <span class="farm-smart-types">${p.tipos.map((t) => {
+        const et = TIPOS.find((x) => x[0] === t)[1];
+        return `<span class="farm-type-badge" data-type="${t}">${et}</span>`;
+      }).join('')}</span>
+      <small>${p.zona} · Nivel ${p.nivel} · Tier ${p.tier}</small>
+      <small class="farm-smart-reason">${p.motivo}</small>
+    </span>
+    <span class="farm-matchup-verdict">
+      <b>${p.estado === 'locked' ? '🔒' : p.pct + '%'}</b>
+      <small>${p.etiqueta}</small>
+    </span>`;
+  b.title = `${p.etiqueta}: ${p.motivo}`;
+  return b;
+}
+
+// ---------------------------------------------------------------------------
+// El virtualizado. Esto es lo que hace que el panel deje de ir solo.
+//
+// La altura de la fila sale del CSS, no de un número escrito aquí. Con `HUECO` a mano
+// la tarjeta medía 104 px de verdad y el paso era de 96: el virtualizado iba askingando
+// y al llegar al final se quedaba en blanco. El alto ahora se lee de las variables
+// `--tarjeta` y `--hueco`, que son las dos únicas medidas que hay que mantener.
+// ---------------------------------------------------------------------------
+const rejilla = document.getElementById('rejilla');
+const COLS = 3;
+const MARGEN = 2;      // filas de reserva por arriba y por abajo
+const TOTAL = lista.length;
+const FILAS = Math.ceil(TOTAL / COLS);
+
+// El paso de una fila a la siguiente, leído del CSS.
+const leerPaso = () => {
+  const cs = getComputedStyle(rejilla);
+  const tarjeta = parseFloat(cs.getPropertyValue('--tarjeta')) || 96;
+  const hueco = parseFloat(cs.getPropertyValue('--hueco')) || 8;
+  return tarjeta + hueco;
+};
+
+let pintadas = [];
+
+function pintar(inicio, fin) {
+  // Lo que ya está bien se deja; lo que se sale se borra; lo nuevo se crea. Repintar
+  // todo en cada desplazamiento es justo lo que se está intentando evitar.
+  const fuera = pintadas.filter((i) => i < inicio || i >= fin);
+  if (fuera.length) {
+    const ids = new Set(fuera);
+    rejilla.querySelectorAll('[data-i]').forEach((n) => { if (ids.has(Number(n.dataset.i))) n.remove(); });
+    pintadas = pintadas.filter((i) => i >= inicio && i < fin);
+  }
+  const hay = new Set(pintadas);
+  const frag = document.createDocumentFragment();
+  for (let i = inicio; i < fin; i++) {
+    if (hay.has(i)) continue;
+    const n = tarjeta(lista[i], i);
+    n.dataset.i = String(i);
+    frag.appendChild(n);
+    pintadas.push(i);
+  }
+  rejilla.appendChild(frag);
+}
+
+function recalcular() {
+  const paso = leerPaso();
+  const arriba = rejilla.scrollTop;
+  const alto = rejilla.clientHeight;
+
+  // Estas son FILAS, no tarjetas. Y `primeraFila` no puede pasar de la última: al
+  // llegar al final, el desplazamiento máximo es mayor que la última fila completa y
+  // la cuenta se va de rango. Sin este tope, al final se piden tarjetas que no
+  // existen, se borran todas las que había y la lista se queda en blanco.
+  const primeraFila = Math.min(FILAS - 1, Math.max(0, Math.floor(arriba / paso)));
+  const ultimaFila = Math.min(FILAS - 1, Math.max(0, Math.ceil((arriba + alto) / paso)));
+
+  // Y `pintar` trabaja con índices de tarjeta. Sin pasar de filas a tarjetas, se
+  // pinta la fila 81 como si fuera la tarjeta 81 —que está muy por encima— y se
+  // quedan tres tarjetas en el DOM y un panel en blanco.
+  const inicioFila = Math.max(0, primeraFila - MARGEN);
+  const finFila = Math.min(FILAS, ultimaFila + 1 + MARGEN);
+  const inicio = inicioFila * COLS;
+  const fin = Math.min(TOTAL, finFila * COLS);
+
+  // Las filas se fijan en la plantilla de la rejilla y cada tarjeta se coloca en la
+  // suya con `grid-row`. Así la altura es la de la lista entera —451 tarjetas— sin
+  // un solo nodo de relleno, y el salto al final no da un tirón.
+  rejilla.style.gridTemplateRows = `repeat(${FILAS}, var(--tarjeta))`;
+  pintar(inicio, fin);
+  [...rejilla.querySelectorAll('[data-i]')].forEach((n) => {
+    n.style.gridRow = String(Math.floor(Number(n.dataset.i) / COLS) + 1);
+  });
+
+  const enPantalla = rejilla.querySelectorAll('[data-i]').length;
+  document.getElementById('cuentaEnPantalla').textContent = String(enPantalla);
+  document.getElementById('notaNodo').textContent = String(enPantalla);
+}
+
+let pendiente = false;
+rejilla.addEventListener('scroll', () => {
+  // Un scroll dispara decenas de eventos. Sin esta puerta se pinta una vez por
+  // evento, que es lo mismo que no virtualizar nada.
+  if (pendiente) return;
+  pendiente = true;
+  requestAnimationFrame(() => { pendiente = false; recalcular(); });
+}, { passive: true });
+
+document.getElementById('cuentaTotal').textContent = String(TOTAL);
+document.getElementById('notaTotal').textContent = String(TOTAL);
+
+// La ruta.
+document.getElementById('ruta').innerHTML = MOTIVOS.map((m, i) => `
+  <button class="farm-route-step" type="button">
+    <span class="farm-route-position">${i + 1}</span>
+    <span><b>${NOMBRES[i]}</b><small>${m[0]} · ${m[2]}</small></span>
+    <strong>${[92, 92, 92, 92, 92][i]}%</strong>
+  </button>`).join('');
+
+recalcular();
+new ResizeObserver(recalcular).observe(rejilla);
+</script>
+</body>
+</html>

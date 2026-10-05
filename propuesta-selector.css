@@ -1,0 +1,598 @@
+/* ============================================================================
+   PROPUESTA — el selector de Pokémon. Solo una vista previa: este fichero NO forma
+   parte del launcher y no se usa en la aplicación. Va cargado encima de
+   src/styles.css, así que los tokens, los tipos y el material salen de ahí; aquí solo
+   se cambia cómo se ve y cómo se lee este panel.
+
+   El criterio es el mismo del panel de Modo Farmeo, y por eso los tokens se llaman
+   igual:
+
+     · Cristal para lo que envuelve: el diálogo, la cabecera, la barra de filtros y la
+       tira de la ruta dejan ver lo que hay detrás, con un brillo arriba y un borde de
+       pelo.
+     · Neomorfismo para lo que contiene: el buscador, los desplegables, la casilla de
+       shiny y el porcentaje de cada tarjeta son huecos con sombra hacia dentro y sin
+       borde. Lo hundido se lee como «esto es un dato o un control», no como otra caja.
+
+   Lo que sobresale es lo que se pulsa: el número de orden de cada tarjeta y el
+   resultado bueno de la ruta. Un icono hundido se lee como un agujero.
+   ============================================================================ */
+
+:root {
+  --pf-vidrio: rgba(255, 255, 255, .05);
+  --pf-vidrio-alto: rgba(255, 255, 255, .085);
+  --pf-pelo: rgba(255, 255, 255, .09);
+  --pf-hundido: inset 2px 2px 5px rgba(0, 0, 0, .58), inset -2px -2px 5px rgba(255, 255, 255, .04);
+  --pf-hundido-fuerte: inset 3px 3px 7px rgba(0, 0, 0, .62), inset -3px -3px 7px rgba(255, 255, 255, .045);
+  --pf-sobresaliente: 2px 2px 5px rgba(0, 0, 0, .5), -2px -2px 5px rgba(255, 255, 255, .05);
+  --pf-texto: #e6eef5;
+  --pf-tenue: #93a9ba;
+  --pf-muy-tenue: #7b90a1;
+  --pf-acento: #7fd4ff;
+  --pf-bueno: #8df0c4;
+  --pf-cuidado: #ffd75e;
+  --pf-peligro: #ff9aa6;
+}
+
+/* ------------------------------------------------------- el fondo de la maqueta */
+body.propuesta {
+  margin: 0;
+  min-height: 100vh;
+  display: block;
+  padding: 24px 20px 40px;
+  /* Para juzgar el cristal hace falta algo detrás. En el launcher es el juego, que
+     cambia de color cada rato; aquí se pone un campo de color estable. */
+  background:
+    radial-gradient(1100px 520px at 18% 8%, #2b3f57 0%, transparent 62%),
+    radial-gradient(900px 480px at 84% 92%, #3a3350 0%, transparent 60%),
+    linear-gradient(158deg, #16212e 0%, #0b1119 58%, #121a24 100%);
+  color: var(--pf-texto);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ----------------------------------------------------- el diálogo, de cristal */
+.propuesta .farm-picker-layer { position: static; padding: 0; background: none; margin: 0 auto; width: min(1180px, 96vw); }
+.propuesta .farm-picker {
+  position: relative;
+  /* Antes 940 px con tres columnas de 275. Se abre a 1.180 para que las tarjetas
+     respiren: la columna del porcentaje competía con el texto y lo empujaba a dos
+     líneas.
+
+     La altura es FIJA y no `92vh`. Una maqueta que se encoge con la ventana se juzga
+     mal: a media pantalla las tarjetas salen cortadas y no se ve lo que se quiere ver.
+     Aquí el panel se ve siempre a 860 px, como en el launcher, y lo que sobra se
+     desplaza la página. */
+  width: min(1180px, 96vw);
+  height: 860px;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pf-pelo);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .06) 0%, rgba(255, 255, 255, .02) 30%, rgba(255, 255, 255, .012) 100%);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  box-shadow:
+    0 40px 110px rgba(0, 0, 0, .6),
+    inset 0 1.5px 0 rgba(255, 255, 255, .14);
+}
+
+/* ------------------------------------------------------------- la cabecera */
+.propuesta .farm-picker-head {
+  min-height: 68px;
+  padding: 12px 16px 11px 64px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015));
+}
+.propuesta .farm-picker-head .eyebrow {
+  font-size: 8px;
+  letter-spacing: .14em;
+  color: var(--pf-tenue);
+  font-weight: 800;
+}
+.propuesta .farm-picker-head h2 {
+  margin: 2px 0 0;
+  font-size: 19px;
+  letter-spacing: -.01em;
+  /* El título ya no se fuerza a mayúsculas: «SELECCIONAR POKÉMON» a veinte
+     píxeles gritaba. */
+  text-transform: none;
+}
+.propuesta .farm-picker-head p { margin: 3px 0 0; color: var(--pf-tenue); font-size: 10px; }
+
+/* El icono de la cabecera sigue siendo un `::before` —no hay hueco en el marcado—,
+   así que se le deja sitio con el `padding` de la izquierda. Pasa de ser un círculo
+   con un glifo a ser el icono del pack, en un disco de cristal. */
+.propuesta .farm-picker-head::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--pf-pelo);
+  border-radius: 11px;
+  background: var(--pf-vidrio);
+  box-shadow: var(--pf-sobresaliente);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffd75e' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 19px 19px;
+  font-size: 0;
+}
+.propuesta .farm-picker-head .icon-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--pf-pelo);
+  border-radius: 9px;
+  background: var(--pf-vidrio);
+  box-shadow: var(--pf-sobresaliente);
+  color: var(--pf-tenue);
+  font-size: 15px;
+  cursor: pointer;
+}
+.propuesta .farm-picker-head .icon-button:hover { background: var(--pf-vidrio-alto); color: var(--pf-texto); }
+
+/* El contador de la derecha: antes no existía. Con la lista virtualizada saber
+   «451 Pokémon, 9 en pantalla» deja de ser un detalle técnico y pasa a ser la
+   respuesta a la pregunta que se hace el jugador al_no ver nada nuevo al desplazar. */
+.propuesta .farm-picker-cuenta {
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 9px;
+  color: var(--pf-tenue);
+  box-shadow: var(--pf-hundido);
+}
+.propuesta .farm-picker-cuenta b { color: var(--pf-bueno); }
+
+/* ----------------------------------------------------------- la barra de filtros */
+.propuesta .farm-picker-tools {
+  padding: 9px 12px 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+  background: rgba(255, 255, 255, .012);
+}
+
+/* El buscador: un hueco. El icono va dentro como `::before`, así que el hueco se le
+   abre con el `padding` de la izquierda. */
+.propuesta .farm-search {
+  min-width: 250px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  box-shadow: var(--pf-hundido);
+  color: var(--pf-acento);
+}
+.propuesta .farm-search span[aria-hidden] {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  font-size: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fd4ff' stroke-width='2.1' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+.propuesta .farm-search input {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pf-texto);
+  font-size: 11.5px;
+}
+.propuesta .farm-search input::placeholder { color: var(--pf-muy-tenue); }
+
+/* Las zonas. La activa se hunde; las demás sobresalen. Pulsar es meterse en el
+   sitio, y eso es lo que dice el relieve. */
+.propuesta .farm-area-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.propuesta .farm-area-button {
+  min-height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pf-vidrio);
+  box-shadow: var(--pf-sobresaliente);
+  color: var(--pf-tenue);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  cursor: pointer;
+}
+.propuesta .farm-area-button:hover { color: var(--pf-texto); }
+.propuesta .farm-area-button.is-active {
+  background: rgba(255, 215, 94, .16);
+  box-shadow: var(--pf-hundido);
+  color: var(--pf-cuidado);
+}
+
+/* Los desplegables, en huecos también. La etiqueta baja a 8 px y deja de gritar. */
+.propuesta .farm-advanced-filters {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(104px, 1fr)) auto auto;
+  align-items: end;
+  gap: 7px;
+}
+.propuesta .farm-advanced-filters label { min-width: 0; display: grid; gap: 4px; }
+.propuesta .farm-advanced-filters label > span {
+  color: var(--pf-muy-tenue);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  padding-left: 2px;
+}
+.propuesta .farm-advanced-filters select {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  outline: 0;
+  box-shadow: var(--pf-hundido);
+  background: transparent;
+  color: var(--pf-texto);
+  font-size: 10px;
+  cursor: pointer;
+}
+.propuesta .farm-advanced-filters select:focus-visible { box-shadow: var(--pf-hundido-fuerte); }
+.propuesta .farm-advanced-filters select option { background: #131d29; color: var(--pf-texto); }
+
+/* La casilla de shiny: hueco con la marca dibujada encima, como la de Orre del otro
+   panel. El `input` de verdad se esconde para que no salga la casilla del navegador. */
+.propuesta .farm-filter-check {
+  min-height: 30px;
+  padding: 0 12px;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--pf-hundido);
+  color: var(--pf-texto) !important;
+  cursor: pointer;
+}
+.propuesta .farm-filter-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.propuesta .farm-filter-check b { font-size: 10px; font-weight: 600; }
+.propuesta .farm-filter-check > span { position: relative; }
+.propuesta .farm-filter-check > span::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  box-shadow: var(--pf-hundido);
+  background: rgba(0, 0, 0, .3);
+}
+.propuesta .farm-filter-check > span::after {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  border-radius: 2px;
+  background: no-repeat center / 8px 8px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238df0c4' stroke-width='3.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+.propuesta .farm-filter-check input:checked + span::after { opacity: 1; }
+
+/* «Restablecer» pasa a ser un texto plano: es la única acción de la fila que no
+   cambia un dato, y con relieve parecería un cuarto filtro. */
+.propuesta .farm-reset-filters {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--pf-pelo);
+  color: var(--pf-tenue);
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.propuesta .farm-reset-filters:hover { color: var(--pf-texto); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+
+/* ----------------------------------------------------- la tira de la ruta ---- */
+.propuesta .farm-recommended-route {
+  padding: 9px 12px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+  background: rgba(255, 255, 255, .014);
+}
+.propuesta .farm-route-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+/* El título y su aclaración en la misma columna, sin salto forzado: con un `<br>` la
+   fila se parte y la pastilla de la derecha se queda sola en su sitio, en el centro de
+   un hueco. */
+.propuesta .farm-route-heading > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.propuesta .farm-route-heading strong { font-size: 11.5px; letter-spacing: -.005em; flex: none; }
+.propuesta .farm-route-heading span { color: var(--pf-muy-tenue); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.propuesta .farm-route-leader {
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 9px !important;
+  color: var(--pf-bueno) !important;
+  box-shadow: var(--pf-hundido);
+}
+/* Los cinco pasos, en fila. Antes eran cajas con borde y una línea que las cruzaba;
+   aquí son fichas de cristal y el número sobresale. */
+.propuesta .farm-route-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.propuesta .farm-route-step {
+  min-width: 0;
+  min-height: 42px;
+  padding: 6px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--pf-vidrio);
+  box-shadow: var(--pf-sobresaliente);
+  text-align: left;
+  cursor: pointer;
+}
+.propuesta .farm-route-step:hover { background: var(--pf-vidrio-alto); }
+.propuesta .farm-route-position {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  box-shadow: var(--pf-sobresaliente);
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--pf-cuidado);
+}
+.propuesta .farm-route-step > span:nth-child(2) { min-width: 0; overflow: hidden; }
+.propuesta .farm-route-step b { display: block; font-size: 10.5px; overflow: hidden; }
+.propuesta .farm-route-step small {
+  display: block;
+  font-size: 8.5px;
+  color: var(--pf-tenue);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.propuesta .farm-route-step > strong { margin-left: auto; color: var(--pf-bueno); font-size: 11px; }
+.propuesta .farm-route-empty { grid-column: 1 / -1; margin: 0; color: var(--pf-tenue); font-size: 10px; }
+
+/* --------------------------------------------------------- la rejilla y las tarjetas */
+.propuesta .farm-pokemon-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  /* La fila tiene que medir lo mismo que la tarjeta MÁS el hueco. Si el ancho de la
+     fila y la altura de la tarjeta se escriben a mano en dos sitios, un día no
+     cuadran y el virtualizado va askingando: se pintan las filas equivocadas y al
+     final de la lista se queda en blanco. Aquí la fila sale de las dos medidas de
+     abajo, que son las únicas dos cosas que hay que mantener. */
+  --tarjeta: 104px;
+  --hueco: 8px;
+  grid-auto-rows: var(--tarjeta);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .16) transparent;
+}
+
+/* Las tarjetas son de cristal: flotan sobre el velo del diálogo y dejan ver lo que
+   hay detrás. Lo que va dentro —el porcentaje— sí es un hueco. */
+.propuesta .farm-pokemon-smart-option {
+  position: relative;
+  min-width: 0;
+  /* Altura fija. Es lo que hace barato el virtualizado: si la tarjeta pudiera crecer
+     con el texto, la fila no valdría lo mismo en todas partes y no se podría calcular
+     por dónde va el desplazamiento sin medir cada tarjeta. */
+  height: var(--tarjeta);
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--pf-pelo);
+  border-radius: 14px;
+  background: var(--pf-vidrio);
+  box-shadow: var(--pf-sobresaliente);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.propuesta .farm-pokemon-smart-option:hover {
+  background: var(--pf-vidrio-alto);
+  border-color: rgba(255, 255, 255, .16);
+}
+.propuesta .farm-pokemon-smart-option[data-matchup="excellent"] {
+  border-color: rgba(141, 240, 196, .34);
+  background: linear-gradient(150deg, rgba(141, 240, 196, .12), rgba(255, 255, 255, .02));
+}
+.propuesta .farm-pokemon-smart-option[data-matchup="dangerous"] {
+  border-color: rgba(255, 154, 166, .3);
+  background: linear-gradient(150deg, rgba(255, 154, 166, .1), rgba(255, 255, 255, .02));
+}
+.propuesta .farm-pokemon-smart-option[data-matchup="locked"] {
+  opacity: .42;
+  cursor: not-allowed;
+}
+.propuesta .farm-pokemon-smart-option.is-selected {
+  border-color: rgba(255, 215, 94, .55);
+  box-shadow: var(--pf-sobresaliente), 0 0 0 1px rgba(255, 215, 94, .3);
+}
+
+/* El separador vertical que partía la tarjeta en dos desaparece: el porcentaje es
+   ahora un hueco propio y no necesita que le dibujen una línea al lado. */
+.propuesta .farm-pokemon-smart-option::after { display: none; }
+
+.propuesta .farm-pokemon-option .farm-sprite {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  object-fit: contain;
+}
+.propuesta .farm-smart-copy { min-width: 0; display: grid; gap: 3px; }
+.propuesta .farm-smart-name-row { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.propuesta .farm-smart-name-row strong {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  overflow: hidden;
+}
+.propuesta .farm-smart-name-row strong > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.propuesta .farm-smart-name-row .launcher-ui-icon { width: 11px; height: 11px; flex: none; color: var(--pf-cuidado); }
+/* El número de orden sobresale: es el único dato que se compara de un vistazo. */
+.propuesta .farm-smart-rank {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  box-shadow: var(--pf-sobresaliente);
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--pf-muy-tenue);
+  flex: none;
+}
+.propuesta .farm-smart-types { display: flex; flex-wrap: wrap; gap: 4px; }
+.propuesta .farm-type-badge {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  box-shadow: var(--pf-hundido);
+  color: #dce7f0;
+}
+.propuesta .farm-type-badge[data-type="bicho"] { color: #b7e58a; }
+.propuesta .farm-type-badge[data-type="fuego"] { color: #ffb27a; }
+.propuesta .farm-type-badge[data-type="electrico"], .propuesta .farm-type-badge[data-type="eléctrico"] { color: #ffdc6a; }
+.propuesta .farm-type-badge[data-type="veneno"] { color: #e39cf0; }
+.propuesta .farm-type-badge[data-type="agua"] { color: #8ecdf5; }
+.propuesta .farm-type-badge[data-type="tierra"] { color: #e0c48c; }
+.propuesta .farm-type-badge[data-type="roca"] { color: #d7c39a; }
+.propuesta .farm-type-badge[data-type="volador"] { color: #b6e3f2; }
+.propuesta .farm-type-badge[data-type="pelea"] { color: #ff9d8a; }
+.propuesta .farm-type-badge[data-type="acero"] { color: #c3cede; }
+.propuesta .farm-type-badge[data-type="hielo"] { color: #a8e6f0; }
+.propuesta .farm-type-badge[data-type="fantasma"] { color: #c6aef0; }
+.propuesta .farm-type-badge[data-type="psiquico"] { color: #ff9fd0; }
+.propuesta .farm-type-badge[data-type="siniestro"] { color: #9aa8c4; }
+.propuesta .farm-type-badge[data-type="dragon"] { color: #c9a4ff; }
+.propuesta .farm-type-badge[data-type="normal"] { color: #cfd8e6; }
+.propuesta .farm-smart-copy > small:not(.farm-smart-reason) {
+  font-size: 9px;
+  color: var(--pf-muy-tenue);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* El motivo se parte en dos líneas como mucho, con puntos suspensivos. Antes
+   empujaba la altura de la tarjeta y las filas quedaban desiguales. */
+.propuesta .farm-smart-reason {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--pf-tenue);
+}
+
+/* El veredicto: un hueco con el porcentaje dentro y la palabra debajo.
+
+   Ni ancho de columna ni alto de columna. A 58 px y con la altura de la tarjeta se
+   leía como una columna oscura pegada al borde, o sea como otra caja. Estrecho y
+   con su propia altura, lee como lo que es: un dato. */
+.propuesta .farm-matchup-verdict {
+  align-self: center;
+  flex: none;
+  width: 46px;
+  padding: 6px 0 5px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  border-radius: 10px;
+  box-shadow: var(--pf-hundido);
+}
+.propuesta .farm-matchup-verdict b {
+  color: var(--pf-bueno);
+  font-size: 15px;
+  line-height: 1.05;
+  letter-spacing: -.03em;
+}
+.propuesta .farm-matchup-verdict small {
+  color: var(--pf-muy-tenue);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-align: center;
+  padding: 0 2px;
+  line-height: 1.1;
+}
+.propuesta .farm-pokemon-option[data-matchup="dangerous"] .farm-matchup-verdict b { color: var(--pf-peligro); }
+.propuesta .farm-pokemon-option[data-matchup="possible"] .farm-matchup-verdict b { color: var(--pf-cuidado); }
+.propuesta .farm-pokemon-option[data-matchup="locked"] .farm-matchup-verdict b { color: var(--pf-cuidado); }
+
+.propuesta .farm-picker-empty { padding: 24px; text-align: center; color: var(--pf-tenue); font-size: 11px; }
+
+/* La nota de la maqueta, fuera del diálogo. */
+.propuesta-nota {
+  max-width: 1180px;
+  margin: 14px auto 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, .3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--pf-tenue);
+}
+.propuesta-nota b { color: var(--pf-texto); }
+.propuesta-nota code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--pf-bueno);
+  font-size: 9.5px;
+}
