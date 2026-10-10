@@ -38,8 +38,7 @@ async function leerEstado(mainWindow) {
     const boton = document.querySelector('#unlinkAccountsButton');
     return {
       marca: document.querySelector('#brandSessionCount')?.textContent || '',
-      estadisticas: document.querySelector('#statisticsAccountCount')?.textContent || '',
-      notificaciones: document.querySelector('#notificationAccountCount')?.textContent || '',
+        notificaciones: document.querySelector('#notificationAccountCount')?.textContent || '',
       cuentas: document.querySelectorAll('#grid .panel').length,
       filas: document.querySelectorAll('.account-row').length,
       botonExiste: Boolean(boton),
@@ -100,8 +99,7 @@ app.whenReady().then(async () => {
     await abrirModal(mainWindow);
     const arranque = await leerEstado(mainWindow);
     assert.equal(arranque.marca, '4 cuentas · 1 juego', `El texto de la marca debe derivarse del número real: ${JSON.stringify(arranque)}`);
-    assert.equal(arranque.estadisticas, '4 cuentas', `Estadísticas: ${JSON.stringify(arranque)}`);
-    assert.equal(arranque.notificaciones, '4 cuentas', `Notificaciones: ${JSON.stringify(arranque)}`);
+      assert.equal(arranque.notificaciones, '4 cuentas', `Notificaciones: ${JSON.stringify(arranque)}`);
 
     // --- 1. Sin archivo vinculado el botón no puede verse ---
     assert.ok(!fs.existsSync(accountsSourceFile), 'No debería haber archivo vinculado al arrancar');
@@ -134,8 +132,7 @@ app.whenReady().then(async () => {
     assert.equal(conArchivo.botonVisible, true, `Con archivo vinculado el botón debe verse: ${JSON.stringify(conArchivo)}`);
     assert.ok(conArchivo.ruta.includes(template), `La ruta debe nombrar el archivo vinculado: ${JSON.stringify(conArchivo)}`);
     assert.equal(conArchivo.marca, '3 cuentas · 1 juego', `Importar debe reescribir la marca: ${JSON.stringify(conArchivo)}`);
-    assert.equal(conArchivo.estadisticas, '3 cuentas', `Importar debe reescribir el texto de estadísticas: ${JSON.stringify(conArchivo)}`);
-    assert.equal(conArchivo.notificaciones, '3 cuentas', `Importar debe reescribir el texto de notificaciones: ${JSON.stringify(conArchivo)}`);
+      assert.equal(conArchivo.notificaciones, '3 cuentas', `Importar debe reescribir el texto de notificaciones: ${JSON.stringify(conArchivo)}`);
 
     // --- Ya no hay sondeo: el archivo solo se lee al pulsar "Sincronizar ahora".
     // Antes había un poller de 15 s que lo releía sin parar, y esta comprobación
@@ -247,8 +244,7 @@ app.whenReady().then(async () => {
       const estado = await leerEstado(mainWindow);
       assert.equal(estado.cuentas, esperado.cuentas, `Quedan ${esperado.cuentas} paneles: ${JSON.stringify(estado)}`);
       assert.equal(estado.marca, esperado.marca, `La marca debe derivarse del número real: ${JSON.stringify(estado)}`);
-      assert.equal(estado.estadisticas, esperado.cuentas === 1 ? '1 cuenta' : `${esperado.cuentas} cuentas`, `Estadísticas: ${JSON.stringify(estado)}`);
-      assert.equal(estado.notificaciones, estado.estadisticas, `Notificaciones debe concordar con estadísticas: ${JSON.stringify(estado)}`);
+          assert.equal(estado.notificaciones, esperado.cuentas === 1 ? '1 cuenta' : `${esperado.cuentas} cuentas`, `Notificaciones: ${JSON.stringify(estado)}`);
     }
 
     console.log(JSON.stringify({ ok: true, arranque, conArchivo, cancelando, desvinculando, despuesDeUnlink, trasElBoton }));

@@ -28,7 +28,8 @@ assert.match(css, /\.script-auto-target/);
 
 // La paleta de cuentas no puede tener un tope: con 32 cuentas un array fijo
 // de 4 colores hace que dos cuentas compartan color.
-assert.doesNotMatch(renderer, /const STATISTICS_ACCOUNT_COLORS = \[/);
+// La rama de estadísticas se quitó entera: ni el panel, ni sus sondeos, ni sus contadores.
+  assert.doesNotMatch(renderer, /statistic/i, 'No puede quedar nada de la rama de estadísticas.');
 assert.match(renderer, /function accountColor\(index\)/);
 // El arranque del modulo de scripts debe validar el DOM en vez de abortar.
 assert.match(manager, /const missing = REQUIRED_SCRIPT_ELEMENTS\.filter/);

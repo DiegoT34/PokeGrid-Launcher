@@ -41,7 +41,6 @@
         <button id="farmButton" class="button button-farm" type="button"><span class="top-action-icon" aria-hidden="true">&#127919;</span><span>Modo farmeo</span></button>
         <button id="pokepediaButton" class="button button-pokepedia" type="button" title="Abrir Pokepedia en una ventana independiente"><span class="top-action-icon" aria-hidden="true">&#9672;</span><span>Pokepedia</span></button>
         <button id="scriptsButton" class="button button-scripts" type="button"><span class="top-action-icon is-code" aria-hidden="true">&lt;/&gt;</span><span>Scripts</span><span id="scriptsMenuBadge" class="menu-update-badge is-scripts" hidden>0</span></button>
-        <button id="statisticsButton" class="button button-statistics" type="button" aria-expanded="false" aria-controls="statisticsBackdrop"><span class="top-action-icon" aria-hidden="true">&#9636;</span><span>Estad&iacute;sticas</span></button>
         <button id="notificationButton" class="notification-button" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Abrir notificaciones">
           <span class="notification-bell top-action-icon" aria-hidden="true">&#128276;</span>
           <span class="notification-button-label">Notificaciones</span>
@@ -105,34 +104,6 @@
       </section>
     </div>
 
-    <div id="statisticsBackdrop" class="modal-backdrop statistics-backdrop" hidden>
-      <section class="modal statistics-modal" role="dialog" aria-modal="true" aria-labelledby="statisticsTitle">
-        <header class="statistics-heading">
-          <div>
-            <span class="eyebrow">RESUMEN MULTICUENTA ACTUAL</span>
-            <h1 id="statisticsTitle">Estad&iacute;sticas generales</h1>
-            <p>Totales combinados y detalle individual de <span id="statisticsAccountCount">tus cuentas</span>.</p>
-          </div>
-          <div class="statistics-heading-actions">
-            <button id="refreshStatisticsButton" class="button button-secondary" type="button">Actualizar</button>
-            <button id="closeStatisticsButton" class="icon-button" type="button" aria-label="Cerrar estad&iacute;sticas">&times;</button>
-          </div>
-        </header>
-        <p id="statisticsStatus" class="statistics-status" role="status">Preparando datos actuales&hellip;</p>
-        <nav class="statistics-view-tabs" aria-label="Vistas de estad&iacute;sticas">
-          <button class="statistics-view-tab is-active" type="button" data-statistics-view="summary" aria-selected="true">Resumen por cuenta</button>
-          <button class="statistics-view-tab" type="button" data-statistics-view="comparison" aria-selected="false">Comparaci&oacute;n de Hunt</button>
-        </nav>
-        <section id="statisticsSummaryView" class="statistics-view is-active" data-statistics-panel="summary">
-          <div id="statisticsTotals" class="statistics-totals" aria-label="Totales de todas las cuentas"></div>
-          <div id="statisticsAccounts" class="statistics-accounts" aria-label="Estad&iacute;sticas individuales"></div>
-        </section>
-        <section id="statisticsComparisonView" class="statistics-view statistics-comparison" data-statistics-panel="comparison" aria-label="Comparaci&oacute;n de Hunt" hidden>
-          <div id="statisticsComparisonHighlights" class="statistics-comparison-highlights"></div>
-          <div id="statisticsComparisonTable" class="statistics-comparison-table"></div>
-        </section>
-      </section>
-    </div>
 
     <aside id="notificationPanel" class="notification-panel" role="dialog" aria-modal="false" aria-labelledby="notificationTitle" hidden>
       <header class="notification-panel-head">
@@ -615,10 +586,33 @@
               <button class="hunt-float-action hunt-float-delete" type="button" title="Eliminar la sesión actual">
                 <span aria-hidden="true">⌫</span><span>Eliminar</span>
               </button>
+              <button class="hunt-float-action hunt-float-settings-toggle" type="button" aria-expanded="false" title="Cuántas veces se lee el Hunt Analyzer del juego">
+                <span aria-hidden="true">⚙</span><span>Ajustes</span>
+              </button>
               <button class="hunt-float-close" type="button" aria-label="Cerrar Hunt Analyzer">×</button>
             </div>
           </header>
           <div class="hunt-float-state" role="status">Conectando con la sesión…</div>
+          <div class="hunt-float-settings" hidden>
+            <label>
+              <span>Modo de lectura</span>
+              <select class="hunt-float-settings-modo">
+                <option value="abrir">Solo al abrir el panel</option>
+                <option value="intervalo">Cada cierto tiempo</option>
+                <option value="tiempo-real">Tiempo real</option>
+              </select>
+            </label>
+            <label class="hunt-float-settings-segundos" hidden>
+              <span>Leer cada</span>
+              <select class="hunt-float-settings-segundos-select">
+                <option value="5">5 segundos</option>
+                <option value="10">10 segundos</option>
+                <option value="30">30 segundos</option>
+                <option value="60">1 minuto</option>
+              </select>
+            </label>
+            <p class="hunt-float-settings-note"></p>
+          </div>
           <div class="hunt-float-content"></div>
         </aside>
         <aside class="capture-float-panel" aria-label="Capture Log" hidden>

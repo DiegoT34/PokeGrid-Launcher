@@ -81,48 +81,42 @@ const hidratosDespues = hidrataDespuesDeDibujar();
 assert.equal(hidratosDespues.length, 0,
   `Hidratan y dibujan después en las líneas ${hidratosDespues.join(", ")}. Los tres caminos tienen que dibujar primero.`);
 
-// Tres caminos más la definición de la función: cuatro apariciones en total. Si se
-// cuenta a pelo son cuatro, y por eso hay que excluir la definición o la prueba
-// pasa con dos caminos y dos llamadas.
+// DOS caminos más la definición de la función, y por eso hay que excluir la definición: si se
+// cuenta a pelo, la prueba pasaría con un camino y una llamada.
+//
+// Eran tres. El tercero era el de estadísticas —`readPanelStatistics` hidrataba los iconos
+// cuando el panel de esa cuenta estaba abierto—, y esa rama se quitó entera. Si algún día
+// vuelven a ser tres, es que el de estadísticas ha vuelto por la puerta de atrás.
 const llamadas = renderer.split('\n').filter((una) =>
   una.includes('hidratarIconosHunt(panel') && !una.includes('function hidratarIconosHunt')).length;
-assert.equal(llamadas, 3,
-  `hidratarIconosHunt tiene que llamarse en los tres caminos (renderer.js:4651, 7714 y 10035) y se ha encontrado en ${llamadas}.`);
+assert.equal(llamadas, 2,
+  `hidratarIconosHunt tiene que llamarse en los DOS caminos que quedan —la lectura del panel y el gancho de vista previa— y se ha encontrado en ${llamadas}.`);
 assert.equal((renderer.match(/hydrateHuntDropIcons/g) || []).length, 0,
   'Queda alguna aparición de hydrateHuntDropIcons, que es el nombre viejo.');
 assert.equal((renderer.match(/await\s+withTimeout\(\s*hidratarIconosHunt/g) || []).length, 0,
   'Queda un await con withTimeout sobre la hidratación: eso es lo que bloqueaba el sondeo 4 segundos.');
 
-// --- Cada camino dibuja UNA vez, y el legacy con su guarda --------------------
-// El legacy protege el dibujo con `if (panel.huntOpen)`, porque antes se añadió
-// una segunda llamada sin guarda y el panel se dibujaba con el cerrado. Es el
-// fallo que más fácilmente se cuela al reordenar líneas.
+// --- El bloque protegido que dibujaba era el de estadísticas, y ya no está ------
 //
-// Se ancla al `if (panel.huntOpen)` y NO a `huntFresh = true`, porque esa línea
-// sale dos veces: en la ruta de caché, que no dibuja, y en la de lectura, que sí.
-// Anclar a la primera comprobaba el bloque equivocado sin decir nada.
-// Se busca el `if (panel.huntOpen)` que CONTIENE el render, no el primero:
-// renderer.js tiene varios con ese mismo texto, y el primero está en
-// setHuntAnalyzerOpen, que no dibuja nada. Anclar al primero comprobaba el
-// bloque equivocado sin decir nada.
-{
-  const anclas = [];
-  let desde = 0;
-  for (;;) {
-    const at = renderer.indexOf('if (panel.huntOpen) {', desde);
-    if (at < 0) break;
-    anclas.push(at);
-    desde = at + 1;
-  }
-  const conRender = anclas.filter((at) =>
-    renderer.slice(at, at + 300).includes('renderHuntAnalyzer(panel, snapshot)'));
-  assert.equal(conRender.length, 1,
-    `Se esperaba un solo bloque protegido que dibuje, y hay ${conRender.length} de ${anclas.length} posibles.`);
-  const bloque = renderer.slice(conRender[0], conRender[0] + 300);
-  assert.equal((bloque.match(/renderHuntAnalyzer\(panel/g) || []).length, 1,
-    'El camino legacy tiene que dibujar exactamente una vez dentro de la guarda.');
-  assert.ok(/if \(panel\.huntOpen\)\s*\{[\s\S]{0,200}?renderHuntAnalyzer\(panel, snapshot\);[\s\S]{0,120}?hidratarIconosHunt\(panel, snapshot\);/.test(bloque),
-    'El legacy tiene que dibujar e hidratar dentro de `if (panel.huntOpen)`: si dibuja con el panel cerrado, aparece un panel que el usuario cerró.');
+// Había UN bloque `if (panel.huntOpen) { … renderHuntAnalyzer(panel, snapshot) … }`: el de
+// `readPanelStatistics`, que dibujaba el panel solo si estaba abierto. Esa rama se quitó
+// entera. La lectura de verdad del panel NO usa ese patrón: `refreshPanelHuntAnalyzer` sale
+// temprano si el panel está cerrado, que es lo que impide que dibuje de más. El invariante
+// bueno es doble: no puede quedar ningún bloque con esa guarda —si lo hay, ha vuelto el de
+// estadísticas— y la lectura tiene que seguir guardándose con la salida temprana.
+const anclas = [];
+let desde = 0;
+for (;;) {
+  const at = renderer.indexOf('if (panel.huntOpen) {', desde);
+  if (at < 0) break;
+  anclas.push(at);
+  desde = at + 1;
 }
+const conRender = anclas.filter((at) =>
+  renderer.slice(at, at + 300).includes('renderHuntAnalyzer(panel, snapshot)'));
+assert.equal(conRender.length, 0,
+  `El bloque protegido que dibujaba era el de estadísticas y ya no existe; hay ${conRender.length} de ${anclas.length} posibles.`);
+assert.ok(/if \(!panel\?\.huntOpen \|\| panel\.huntPreview\) return;/.test(renderer),
+  'La lectura del panel tiene que salir temprano cuando el panel está cerrado: es lo que impide que dibuje de más.');
 
 console.log('Hunt icon hydration smoke passed: dibuja antes, no espera a los iconos, no rechaza, y los tres caminos.');

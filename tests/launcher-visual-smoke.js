@@ -93,7 +93,7 @@ app.whenReady().then(async () => {
         (toolbarState.playIcons + toolbarState.playSvgs !== 1) ||
         // Los once botones del menú tienen que llevar SVG, y ninguno puede quedarse
         // con el emoji o el glifo que traían.
-        toolbarState.menuSvgs !== 10 || toolbarState.menuGlyphs !== 0 ||
+        toolbarState.menuSvgs !== 9 || toolbarState.menuGlyphs !== 0 ||
         toolbarState.hamburgerLines !== 3 ||
         toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
         !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.7') ||
@@ -156,8 +156,10 @@ app.whenReady().then(async () => {
         sidebarState.open.width < 220 || sidebarState.open.left < 6 || sidebarState.open.top < 54 ||
         sidebarState.open.bottomGap < 6 || sidebarState.open.borderRadius < 12 || sidebarState.open.backgroundImage !== 'none' ||
         sidebarState.open.gridLeft !== sidebarState.open.gridLeftBefore || !sidebarState.open.overlaysGrid ||
-        sidebarState.open.actionCount !== 11 || sidebarState.open.uniqueAccentCount !== 11 ||
-        sidebarState.open.flatButtonCount !== 11 || sidebarState.open.persisted !== '1' ||
+        // Diez y no once: el botón de estadísticas se quitó del menú. Los tres números tienen
+        // que cuadrar entre ellos, y el acento es uno por botón.
+        sidebarState.open.actionCount !== 10 || sidebarState.open.uniqueAccentCount !== 10 ||
+        sidebarState.open.flatButtonCount !== 10 || sidebarState.open.persisted !== '1' ||
         sidebarState.open.viewMenu.parent !== 'BODY' || sidebarState.open.viewMenu.position !== 'fixed' ||
         !sidebarState.open.viewMenu.visible || sidebarState.open.viewMenu.left <= sidebarState.open.viewMenu.sidebarRight ||
         !sidebarState.open.viewMenu.insideViewport ||

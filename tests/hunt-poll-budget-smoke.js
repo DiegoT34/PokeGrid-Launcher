@@ -4,11 +4,33 @@ const path = require('node:path');
 
 const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
 
-// --- La frecuencia es una constante con nombre, y es 3.000 --------------------
-const lineaSondeo = renderer.split('\n').find((una) => una.includes('setInterval(pollHuntAnalyzers'));
-assert.ok(lineaSondeo, 'No encuentro el setInterval de pollHuntAnalyzers.');
-assert.ok(lineaSondeo.includes('HUNT_SONDEO_MS'),
-  `La frecuencia tiene que ser una constante con nombre, no un número suelto. La línea es: ${lineaSondeo.trim()}`);
+// --- El periodo sale del ajuste del usuario, y el mínimo sigue siendo 3.000 -----
+//
+// Antes había un `setInterval(pollHuntAnalyzers, HUNT_SONDEO_MS)` fijo. Ahora el periodo lo
+// decide el ajuste de lectura: tiempo real (HUNT_SONDEO_MS), cada N segundos, o ninguno. Lo que
+// defiende esta prueba no cambia: el sondeo del hunt NUNCA puede ser más rápido que 3.000 ms, y
+// el modo de fábrica no sondea nada.
+assert.ok(/function huntLecturaMs\(\)/.test(renderer),
+  'Tiene que haber una función que diga cada cuánto se lee el hunt.');
+assert.ok(/if \(huntLectura\.modo === 'tiempo-real'\) return HUNT_SONDEO_MS;/.test(renderer),
+  'El modo de tiempo real tiene que usar la constante con nombre, no un número suelto.');
+assert.ok(/if \(huntLectura\.modo === 'intervalo'\) return huntLectura\.segundos \* 1000;/.test(renderer),
+  'El modo de intervalo tiene que leer los segundos del ajuste.');
+assert.ok(/if \(ms > 0\) huntLecturaTimer = window\.setInterval\(pollHuntAnalyzers, ms\)/.test(renderer),
+  'El temporizador solo puede programarse cuando hay periodo. Con 0 no se programa nada.');
+assert.ok(!/setInterval\(pollHuntAnalyzers, HUNT_SONDEO_MS\)/.test(renderer),
+  'No puede volver el temporizador fijo de antes: eso es lo que se quitó.');
+
+// Y los intervalos que el usuario puede elegir no pueden ser más rápidos que el mínimo.
+const lineaSegundos = renderer.split('\n').find((una) => /const HUNT_LECTURA_SEGUNDOS\s*=/.test(una));
+assert.ok(lineaSegundos, 'Falta la lista de intervalos elegibles.');
+const segundos = lineaSegundos.match(/\[([^\]]*)\]/)[1].split(',').map((valor) => Number(valor.trim())).filter(Number.isFinite);
+assert.ok(segundos.length >= 2, `La lista de intervalos elegibles está vacía: ${JSON.stringify(segundos)}`);
+assert.ok(segundos.every((valor) => valor * 1000 >= 3000),
+  `Ningún intervalo elegible puede bajar de 3 s: ${JSON.stringify(segundos)}`);
+const lineaPorDefecto = renderer.split('\n').find((una) => /HUNT_LECTURA_POR_DEFECTO\s*=/.test(una));
+assert.ok(/modo: 'abrir'/.test(lineaPorDefecto || ''),
+  `El modo de fábrica tiene que ser el que no sondea: ${(lineaPorDefecto || '').trim()}`);
 
 const constante = renderer.split('\n').find((una) => /const HUNT_SONDEO_MS\s*=\s*\d+/.test(una));
 assert.ok(constante, 'Falta la constante HUNT_SONDEO_MS.');
@@ -21,19 +43,26 @@ assert.equal(Number(constante.match(/=\s*(\d+)/)[1]), 3000,
 // subscribeToFieldKills() tiene éxito, y ese no es un sondeo permanente.
 // updatePanelLiveClocks a 1.000 es el único permitido por debajo: solo pone texto
 // en el reloj y no lee nada del juego.
-const anclaSondeos = renderer.lastIndexOf('window.setInterval(updatePanelLiveClocks');
-assert.ok(anclaSondeos > 0, 'No encuentro el bloque de sondeos del final del fichero.');
-const bloqueSondeos = renderer.slice(Math.max(0, anclaSondeos - 400));
+// Por anclas de texto y no por un número de caracteres hacia atrás: al mudarse el sondeo del
+// hunt a su propia función, con sus comentarios, un trozo fijo ya no daba para cuatro entradas y
+// la prueba se quedaba vigilando dos sin decir nada.
+const inicioSondeos = renderer.indexOf('syncUserScriptPanels();');
+// El final es la marca siguiente y no la línea de perfiles: cortando EN esa línea, la entrada
+// de perfiles se queda fuera del trozo y la cuenta sale uno menos sin decir nada.
+const finSondeos = renderer.indexOf('// El archivo .txt vinculado ya no se sondea');
+assert.ok(inicioSondeos > 0 && finSondeos > inicioSondeos, 'No encuentro el bloque de sondeos del arranque.');
+const bloqueSondeos = renderer.slice(inicioSondeos, finSondeos);
 const sondeos = bloqueSondeos.match(/window\.setInterval\(([\s\S]{0,120}?),\s*(\d+|HUNT_SONDEO_MS)\)/g) || [];
 const valores = sondeos.map((una) => una.match(/,\s*(\d+|HUNT_SONDEO_MS)\)$/)[1]);
 const rapidos = valores.filter((ms) => ms !== 'HUNT_SONDEO_MS' && Number(ms) < 3000);
 assert.deepEqual(rapidos, ['1000'],
   `En el bloque de sondeos solo updatePanelLiveClocks puede estar por debajo de 3000. Valores: ${JSON.stringify(valores)}`);
 
-// Y que el bloque conserva los cinco sondeos que había, para que la comprobación
-// no se quede vacía si alguien reorganiza el final del fichero.
-assert.ok(valores.length >= 5,
-  `El bloque de sondeos tiene ${valores.length} entradas y debería tener al menos 5. Si se reorganizó, esta prueba ya no vigila lo que cree vigilar.`);
+// Y que el bloque conserva los sondeos que quedan, para que la comprobación no se quede vacía
+// si alguien reorganiza el final del fichero. Son CUATRO desde que el del hunt se mudó a
+// `aplicarRitmoHunt`, porque su periodo ya no es fijo.
+assert.ok(valores.length >= 4,
+  `El bloque de sondeos tiene ${valores.length} entradas y debería tener al menos 4. Si se reorganizó, esta prueba ya no vigila lo que cree vigilar.`);
 
 // --- El script cachea el diálogo en vez de buscarlo cada vuelta --------------
 const script = renderer.slice(renderer.indexOf('function huntAnalyzerSnapshotScript'));

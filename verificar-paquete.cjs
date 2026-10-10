@@ -275,6 +275,42 @@ for (const [que, ok] of PERF) {
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
 
+// --- 6 quater. Sin estadísticas, y con los modos del Hunt Analyzer -----------------
+// La rama de estadísticas se quitó entera: al abrir esa ventana se ejecutaban tres scripts dentro
+// de CADA juego (hunt, perfil y ubicación) cada 5 s, aunque el panel de hunt de esa cuenta
+// estuviera cerrado. Aquí se comprueba que no quede ni rastro en lo que se empaqueta.
+//
+// Y de los modos de lectura del Hunt Analyzer, que existan los tres, que el de fábrica sea el que
+// menos gasta y que no haya vuelto el temporizador fijo de antes.
+// Las suites se miran en el ÁRBOL y no dentro del paquete: `tests/` no se empaqueta a propósito
+// —el verificador comprueba más abajo que no esté—, así que dentro del asar no hay dónde mirar.
+const pruebas = fs.readdirSync(path.join(RAIZ, 'tests')).filter((n) => n.endsWith('-smoke.js') || n.endsWith('.smoke.cjs'));
+console.log('');
+const LIMPIEZA = [
+  ['el renderer del paquete no tiene nada de estadísticas', !/statistic/i.test(renderer)],
+  ['ni el HTML', !/statistic/i.test(html)],
+  ['ni la hoja de estilos', !/statistic/i.test(styles)],
+  ['las pruebas del paquete tampoco', !pruebas.some((n) => /statistic/i.test(n))],
+  ['la suite de arrastrar y soltar sigue', pruebas.includes('dragdrop-smoke.js')],
+  ['y la de estadísticas ya no está', !pruebas.includes('statistics-and-dragdrop-smoke.js')],
+  // Del Hunt Analyzer: los tres modos y el de fábrica.
+  ['el ajuste de lectura del hunt existe', /HUNT_LECTURA_KEY = 'idle-poke:hunt-read:v1'/.test(renderer)],
+  ['de fábrica lee solo al abrir', /HUNT_LECTURA_POR_DEFECTO = Object\.freeze\(\{ modo: 'abrir'/.test(renderer)],
+  ['los tres modos están', /HUNT_LECTURA_MODOS = \['abrir', 'intervalo', 'tiempo-real'\]/.test(renderer)],
+  ['en «solo al abrir» no se programa temporizador', /if \(ms > 0\) huntLecturaTimer = window\.setInterval/.test(renderer)],
+  ['no ha vuelto el temporizador fijo de antes', !/setInterval\(pollHuntAnalyzers, HUNT_SONDEO_MS\)/.test(renderer)],
+  ['el panel trae su botón de ajustes', /hunt-float-settings-toggle/.test(html)],
+  ['y su bloque de ajustes', /class="hunt-float-settings" hidden/.test(html)],
+  ['el ajuste se guarda', /localStorage\.setItem\(HUNT_LECTURA_KEY/.test(renderer)],
+  ['y los controles se sincronizan al arrancar', /aplicarRitmoHunt\(\);\s*\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*renderHuntSettings\(\);/.test(renderer)],
+  // Un formateador de fecha no puede fabricarse dentro de un bucle o de un reloj.
+  ['ningún Intl.DateTimeFormat fuera de una constante', renderer.split('\n').filter((u) => /new Intl\.DateTimeFormat/.test(u)).every((u) => /^\s*const [A-Z_]+ = new Intl\.DateTimeFormat/.test(u))]
+];
+for (const [que, ok] of LIMPIEZA) {
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
+
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
 //

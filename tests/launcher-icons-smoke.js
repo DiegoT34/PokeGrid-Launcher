@@ -106,7 +106,6 @@ for (const [selector, icono] of [
   ['#farmButton', 'timer'],
   ['#pokepediaButton', 'book'],
   ['#scriptsButton', 'code'],
-  ['#statisticsButton', 'chartColumn'],
   ['#notificationButton', 'bell'],
   ['#accountsButton', 'users'],
   ['#cleanupMemoryButton', 'trash'],

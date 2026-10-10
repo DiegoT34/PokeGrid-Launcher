@@ -273,18 +273,6 @@ Promise.resolve(window.pokeGrid.getAppVersion?.())
     window.__pokeGridCurrentVersion = currentLauncherVersion;
     window.pokeGridUpdatePoll.arrancar();
   });
-const statisticsButton = document.querySelector('#statisticsButton');
-const statisticsBackdrop = document.querySelector('#statisticsBackdrop');
-const statisticsTotals = document.querySelector('#statisticsTotals');
-const statisticsAccounts = document.querySelector('#statisticsAccounts');
-const statisticsStatus = document.querySelector('#statisticsStatus');
-const statisticsSummaryView = document.querySelector('#statisticsSummaryView');
-const statisticsComparisonView = document.querySelector('#statisticsComparisonView');
-const statisticsComparisonHighlights = document.querySelector('#statisticsComparisonHighlights');
-const statisticsComparisonTable = document.querySelector('#statisticsComparisonTable');
-const statisticsViewTabs = [...document.querySelectorAll('.statistics-view-tab')];
-const refreshStatisticsButton = document.querySelector('#refreshStatisticsButton');
-const closeStatisticsButton = document.querySelector('#closeStatisticsButton');
 const accountsSourcePath = document.querySelector('#accountsSourcePath');
 const openGoalManagerButton = document.querySelector('#openGoalManagerButton');
 const goalManagerBackdrop = document.querySelector('#goalManagerBackdrop');
@@ -345,13 +333,6 @@ let goalDropCatalogPromise = null;
 let capturePollBusy = false;
 let huntPollBusy = false;
 let captureLogPollBusy = false;
-let statisticsBusy = false;
-let statisticsTimer = 0;
-let statisticsRows = [];
-let statisticsView = 'summary';
-const STATISTICS_REFRESH_INTERVAL_MS = 5_000;
-const STATISTICS_CONTEXT_INTERVAL_MS = 15_000;
-const STATISTICS_PROFILE_INTERVAL_MS = 30_000;
 // Color estable por indice de cuenta, sin paleta fija ni tope. El angulo aureo
 // reparte los tonos lo mas lejos posible entre si, de modo que las 32 cuentas
 // del tope real (MAX_ACCOUNTS en account-model.js) no repiten ninguno: un
@@ -360,7 +341,6 @@ function accountColor(index) {
   const hue = ((Math.round((Number(index) || 0) * 137.508) % 360) + 360) % 360;
   return `hsl(${hue} 72% 64%)`;
 }
-const statisticsAccountViews = new Map();
 const huntDropIconCache = new Map();
 const pokeApiSpeciesCache = new Map();
 const pokeApiSpriteCache = new Map();
@@ -428,7 +408,7 @@ function renderDynamicAccountLabels() {
   const juegos = browserInstances.length + 1;
   const brand = document.querySelector('#brandSessionCount');
   if (brand) brand.textContent = `${count} ${count === 1 ? 'cuenta' : 'cuentas'} · ${juegos} ${juegos === 1 ? 'juego' : 'juegos'}`;
-  ['#statisticsAccountCount', '#notificationAccountCount'].forEach((selector) => {
+  ['#notificationAccountCount'].forEach((selector) => {
     const node = document.querySelector(selector);
     if (node) node.textContent = accountCountText();
   });
@@ -1272,7 +1252,6 @@ const ICONOS_MENU = {
   '#farmButton': 'timer',
   '#pokepediaButton': 'book',
   '#scriptsButton': 'code',
-  '#statisticsButton': 'chartColumn',
   '#notificationButton': 'bell',
   '#accountsButton': 'users',
   '#cleanupMemoryButton': 'trash',
@@ -1545,7 +1524,7 @@ function renderNotifications() {
     title.textContent = notificationTitle(notification);
     const time = document.createElement('time');
     time.dateTime = new Date(notification.createdAt).toISOString();
-    time.textContent = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }).format(notification.createdAt);
+    time.textContent = FORMATO_FECHA_CORTA.format(notification.createdAt);
     heading.append(title, time);
     const details = document.createElement('div');
     details.className = 'notification-item-meta';
@@ -3705,7 +3684,7 @@ function renderCaptureLog(panel, snapshot) {
     hideCaptureDetail(panel);
     return;
   }
-  panel.captureLogState.textContent = `En vivo · ${new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(snapshot.updatedAt)}`;
+  panel.captureLogState.textContent = `En vivo · ${FORMATO_HORA_CORTA.format(snapshot.updatedAt)}`;
   panel.captureLogLastUpdate = Number(snapshot.updatedAt) || Date.now();
   const incomingRows = (snapshot.rows || []).map(enrichCaptureLogEntry);
   archiveCaptureRows(panel, incomingRows);
@@ -4502,6 +4481,9 @@ function formatHuntDuration(totalSeconds) {
 // fabricarlo cuesta 0,55 ms y reutilizarlo 0,006 ms. El reloj de abajo corre cada segundo,
 // así que fabricarlo dentro eran 2 s de CPU por hora para producir siempre el mismo objeto.
 const FORMATO_HORA_CORTA = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+// El de la fecha de una notificación lleva día y mes, así que es otro. Se fabrica aquí y no por
+// cada elemento de la lista: la lista se repinta con cada captura que entra.
+const FORMATO_FECHA_CORTA = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 function updatePanelLiveClocks() {
   const now = Date.now();
   panels.forEach((panel) => {
@@ -4511,31 +4493,13 @@ function updatePanelLiveClocks() {
     }
     if (panel.huntOpen && panel.huntState.classList.contains('is-live') && panel.huntLastUpdate) {
       const age = Math.max(0, Math.floor((now - panel.huntLastUpdate) / 1000));
-      panel.huntState.textContent = `En vivo · ${FORMATO_HORA_CORTA.format(panel.huntLastUpdate)} · hace ${age}s`;
+      pintarEstadoHunt(panel);
       const timer = panel.huntContent.querySelector('[data-metric-key="time"]');
       if (timer && Number.isFinite(panel.huntElapsedBase) && panel.huntElapsedAt) {
         timer.textContent = formatHuntDuration(panel.huntElapsedBase + ((now - panel.huntElapsedAt) / 1000));
       }
     }
   });
-  if (!statisticsBackdrop.hidden && statisticsRows.length) {
-    statisticsRows.forEach((row) => {
-      const baseSeconds = parseHuntDuration(statisticMetric(row.hunt, 'time'));
-      const updatedAt = Number(row.hunt?.updatedAt);
-      if (baseSeconds === null || !updatedAt) return;
-      const liveValue = formatHuntDuration(baseSeconds + Math.max(0, (now - updatedAt) / 1000));
-      const cardValue = statisticsAccounts.querySelector(`.statistics-account-card[data-account-index="${row.index}"] [data-statistic-kind="time"] b`);
-      if (cardValue) {
-        cardValue.textContent = liveValue;
-        cardValue.title = liveValue;
-      }
-      const comparisonValue = statisticsComparisonTable.querySelector(`[data-comparison-account="${row.index}"][data-comparison-key="time"]`);
-      if (comparisonValue) {
-        comparisonValue.textContent = liveValue;
-        comparisonValue.title = liveValue;
-      }
-    });
-  }
 }
 function renderHuntAnalyzer(panel, snapshot) {
   if (snapshot?.ok) panel.huntSnapshot = snapshot;
@@ -4554,7 +4518,9 @@ function renderHuntAnalyzer(panel, snapshot) {
     panel.huntElapsedBase = nativeSeconds;
     panel.huntElapsedAt = panel.huntLastUpdate;
   }
-  panel.huntState.textContent = `En vivo · ${new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(snapshot.updatedAt)}`;
+  // El texto lo pone el modo de lectura, y de paso reutiliza el formateador de módulo en vez de
+  // fabricar uno por lectura.
+  panel.huntState.textContent = huntEstadoTexto(panel, panel.huntLastUpdate);
   const metricGrid = document.createElement('div');
   metricGrid.className = 'hunt-flat-metrics';
   const metricIcons = {
@@ -4732,6 +4698,108 @@ async function deletePanelHuntSession(panel) {
     panel.huntDeleteButton.disabled = false;
   }
 }
+// Cuánto se lee el Hunt Analyzer del juego, que es una decisión del usuario y no una constante.
+//
+// Leer el panel cuesta: es un script que se ejecuta DENTRO de la webview de esa cuenta, y el
+// resultado cruza el puente de procesos. Con varias cuentas abiertas se nota, y hasta ahora se
+// leía cada 3 segundos siempre, aunque nadie estuviera mirando.
+//
+// Los tres modos:
+//
+//   · `abrir`       — una lectura al abrir el panel, y nada más. NO se programa ningún
+//                      temporizador: el botón Reset lee cuando el usuario quiere.
+//   · `intervalo`   — una lectura cada N segundos (5, 10, 30 o 60).
+//   · `tiempo-real` — cada HUNT_SONDEO_MS, que es como estaba antes.
+//
+// Por defecto, `abrir`. Y es UN ajuste para todas las cuentas: quien busca rendimiento quiere
+// apagarlo de golpe, no cuenta por cuenta.
+const HUNT_LECTURA_KEY = 'idle-poke:hunt-read:v1';
+const HUNT_LECTURA_MODOS = ['abrir', 'intervalo', 'tiempo-real'];
+const HUNT_LECTURA_SEGUNDOS = [5, 10, 30, 60];
+const HUNT_LECTURA_POR_DEFECTO = Object.freeze({ modo: 'abrir', segundos: 30 });
+let huntLecturaTimer = 0;
+
+// Lo que venga de localStorage se pasa por aquí: un valor raro guardado a mano no puede dejar
+// la aplicación leyendo cada 3 ms ni con un modo que no existe.
+function normalizarHuntLectura(valor) {
+  const modo = HUNT_LECTURA_MODOS.includes(valor?.modo) ? valor.modo : HUNT_LECTURA_POR_DEFECTO.modo;
+  const segundos = HUNT_LECTURA_SEGUNDOS.includes(Number(valor?.segundos)) ? Number(valor.segundos) : HUNT_LECTURA_POR_DEFECTO.segundos;
+  return { modo, segundos };
+}
+function cargarHuntLectura() {
+  try {
+    return normalizarHuntLectura(JSON.parse(localStorage.getItem(HUNT_LECTURA_KEY) || 'null'));
+  } catch {
+    return { ...HUNT_LECTURA_POR_DEFECTO };
+  }
+}
+let huntLectura = cargarHuntLectura();
+function guardarHuntLectura() {
+  try { localStorage.setItem(HUNT_LECTURA_KEY, JSON.stringify(huntLectura)); } catch {}
+}
+// Milisegundos entre lecturas, o 0 si no toca leer sola nunca.
+function huntLecturaMs() {
+  if (huntLectura.modo === 'tiempo-real') return HUNT_SONDEO_MS;
+  if (huntLectura.modo === 'intervalo') return huntLectura.segundos * 1000;
+  return 0;
+}
+// La línea de estado no puede decir «en vivo» cuando hace medio minuto que no se lee: cada modo
+// dice lo suyo.
+function huntEstadoTexto(panel, ahora) {
+  // Sin marca de tiempo la cuenta salía de cero y decía «hace 1791669407s», que son los segundos
+  // desde 1970. Si no se ha leído nunca, se dice.
+  if (!panel?.huntLastUpdate) return 'Sin leer todavía · pulsa Reset para actualizar';
+  const sello = FORMATO_HORA_CORTA.format(panel.huntLastUpdate);
+  const hace = Math.max(0, Math.floor((Number(ahora) - Number(panel.huntLastUpdate)) / 1000));
+  if (huntLectura.modo === 'tiempo-real') return `En vivo · ${sello} · hace ${hace}s`;
+  if (huntLectura.modo === 'intervalo') return `Cada ${huntLectura.segundos} s · última lectura ${sello} · hace ${hace}s`;
+  return `Al abrir · última lectura ${sello} · hace ${hace}s · pulsa Reset para actualizar`;
+}
+// El mismo texto que escribe una lectura nueva, para el reloj de un segundo.
+function pintarEstadoHunt(panel) {
+  if (!panel?.huntOpen || !panel.huntState.classList.contains('is-live')) return;
+  panel.huntState.textContent = huntEstadoTexto(panel, Date.now());
+}
+// Los controles de todos los paneles se ponen de acuerdo con el ajuste guardado.
+function renderHuntSettings() {
+  panels.forEach((panel) => {
+    if (!panel.huntSettingsModo) return;
+    panel.huntSettingsModo.value = huntLectura.modo;
+    panel.huntSettingsSegundosSelect.value = String(huntLectura.segundos);
+    panel.huntSettingsSegundos.hidden = huntLectura.modo !== 'intervalo';
+    panel.huntSettingsNote.textContent = huntLectura.modo === 'abrir'
+      ? 'Se lee al abrir el panel y cuando pulsas Reset. Es lo que menos gasta.'
+      : huntLectura.modo === 'intervalo'
+        ? `Se lee sola cada ${huntLectura.segundos} segundos, mientras el panel esté abierto.`
+        : 'Se lee cada 3 segundos, mientras el panel esté abierto.';
+  });
+}
+// Cambiar de modo reprograma el temporizador, o lo apaga del todo.
+function setHuntLectura(cambios) {
+  huntLectura = normalizarHuntLectura({ ...huntLectura, ...cambios });
+  guardarHuntLectura();
+  aplicarRitmoHunt();
+  renderHuntSettings();
+}
+function aplicarRitmoHunt() {
+  window.clearInterval(huntLecturaTimer);
+  huntLecturaTimer = 0;
+  const ms = huntLecturaMs();
+  if (ms > 0) huntLecturaTimer = window.setInterval(pollHuntAnalyzers, ms);
+  panels.forEach((panel) => pintarEstadoHunt(panel));
+}
+
+// Gancho de diagnóstico. Lo que hay que poder mirar desde una prueba es si el temporizador está
+// programado o no, que es lo único que cambia de verdad entre los modos, y el texto de estado,
+// que es lo que ve el usuario.
+window.__pokeGridHuntLectura = {
+  config: () => ({ ...huntLectura }),
+  ms: () => huntLecturaMs(),
+  programado: () => huntLecturaTimer !== 0,
+  texto: (panel) => huntEstadoTexto(panel || {}, Date.now()),
+  fijar: (cambios) => { setHuntLectura(cambios); return { ...huntLectura }; }
+};
+
 async function pollHuntAnalyzers() {
   if (huntPollBusy) return;
   const activePanels = panels.filter((panel) => panel.huntOpen);
@@ -7740,6 +7808,7 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   refresh: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
   reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
@@ -7893,384 +7962,6 @@ async function pollAccountProfiles() {
   } finally {
     accountProfilePollBusy = false;
   }
-}
-function statisticNumber(value) {
-  const text = String(value ?? '').trim().toLowerCase();
-  if (!text || text === '—') return null;
-  const suffix = text.match(/([kmb])\s*$/i)?.[1]?.toLowerCase() || '';
-  const multiplier = suffix === 'k' ? 1_000 : suffix === 'm' ? 1_000_000 : suffix === 'b' ? 1_000_000_000 : 1;
-  let raw = text.replace(/[^0-9,.-]/g, '');
-  const negative = raw.startsWith('-');
-  raw = raw.replace(/-/g, '');
-  if (!raw) return null;
-  const separators = [...raw.matchAll(/[.,]/g)].map((match) => match.index);
-  if (suffix && separators.length) {
-    const decimalAt = separators.at(-1);
-    raw = `${raw.slice(0, decimalAt).replace(/[.,]/g, '')}.${raw.slice(decimalAt + 1).replace(/[.,]/g, '')}`;
-  } else {
-    raw = raw.replace(/[.,]/g, '');
-  }
-  const number = Number(raw);
-  return Number.isFinite(number) ? (negative ? -number : number) * multiplier : null;
-}
-function statisticMetric(snapshot, key) {
-  return snapshot?.metrics?.find((metric) => metric.key === key)?.value || '—';
-}
-function statisticMetricNumber(snapshot, key) {
-  return statisticNumber(statisticMetric(snapshot, key));
-}
-function formatStatisticNumber(value) {
-  return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString('es-ES') : '—';
-}
-function mergeStatisticsProfile(panel, profile) {
-  const previous = panel.accountProfileLastGood || null;
-  if (!profile?.ok) return previous;
-  const verified = new Set(Array.isArray(profile.verified) ? profile.verified : []);
-  const merged = { ...(previous || {}), ok: true, updatedAt: Number(profile.updatedAt) || Date.now() };
-  for (const field of ['name', 'level', 'rank', 'pokedollars', 'diamonds', 'vip', 'sprite']) {
-    if (verified.has(field) || (!profile.verified && profile[field] !== null && profile[field] !== '')) merged[field] = profile[field];
-  }
-  panel.accountProfileLastGood = merged;
-  return merged;
-}
-function statisticsHuntContextScript() {
-  const readContext = () => {
-    const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const visible = (element) => {
-      if (!element) return false;
-      const style = getComputedStyle(element);
-      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) !== 0;
-    };
-    const locationSelectors = ['.phud-tloc', '.pg-player-meta', '[class*="trainer-meta"]', '[class*="trainerMeta"]'];
-    const locationText = locationSelectors.flatMap((selector) => [...document.querySelectorAll(selector)])
-      .filter(visible).map((element) => clean(element.textContent)).find(Boolean) || '';
-    const locationParts = locationText.split(/[·•|]/).map(clean).filter(Boolean);
-    const zone = locationParts.find((part) => !/(?:level|nivel|n[ií]vel|lv|nv)\.?\s*\d+/i.test(part)) || locationText;
-    const targetSelectors = [
-      '[data-guide="capture-bar"] [data-pokemon-name]',
-      '[data-guide="capture-bar"] .cap-name',
-      '[data-guide="capture-bar"] [class*="wild" i] [class*="name" i]',
-      '.wild-pokemon [class*="name" i]',
-      '.battle-window [class*="enemy" i] [class*="name" i]',
-      '[data-wild-pokemon] [class*="name" i]'
-    ];
-    const target = targetSelectors.flatMap((selector) => [...document.querySelectorAll(selector)])
-      .filter(visible)
-      .map((element) => clean(element.dataset?.pokemonName || element.getAttribute('data-pokemon-name') || element.textContent))
-      .map((value) => value.replace(/(?:lv|level|nivel|n[ií]vel)\.?\s*\d+.*/i, '').replace(/[·|:-]+$/g, '').trim())
-      .find((value) => value && value.length <= 80 && !/^(?:capture|captura|hunt|caza|pokemon|pokémon|no wild)/i.test(value)) || '';
-    return { ok: location.pathname !== '/login', zone, pokemon: target, updatedAt: Date.now() };
-  };
-  return `(${readContext.toString()})()`;
-}
-async function readPanelStatistics(panel) {
-  await ensureCaptureArchive(panel);
-  const now = Date.now();
-  let online = false;
-  try { online = panel.webview.getURL().startsWith(GAME_ORIGIN); } catch {}
-  let hunt = panel.huntSnapshot || null;
-  let huntFresh = false;
-  let profile = panel.accountProfileLastGood || null;
-  let context = panel.statisticsContext || null;
-  if (online) {
-    const cachedHuntIsLive = panel.huntOpen && hunt?.ok && now - Number(hunt.updatedAt || 0) < STATISTICS_REFRESH_INTERVAL_MS;
-    if (cachedHuntIsLive) {
-      huntFresh = true;
-    } else {
-      try {
-        const snapshot = await withTimeout(
-          panel.webview.executeJavaScript(huntAnalyzerSnapshotScript()),
-          PANEL_READ_TIMEOUT_MS,
-          'Hunt Analyzer no respondió a tiempo.'
-        );
-        if (snapshot?.ok) {
-          hunt = snapshot;
-          panel.huntSnapshot = snapshot;
-          huntFresh = true;
-          // El panel se dibuja antes de lanzar la hidratación, y solo si está abierto:
-          // un icono lento no debe dibujar nada ni retrasar la lectura.
-          if (panel.huntOpen) {
-            renderHuntAnalyzer(panel, snapshot);
-            hidratarIconosHunt(panel, snapshot);
-          }
-        }
-      } catch {}
-    }
-    if (!profile || now - Number(panel.statisticsProfileReadAt || 0) >= STATISTICS_PROFILE_INTERVAL_MS) {
-      try {
-        const nextProfile = await withTimeout(
-          panel.webview.executeJavaScript(accountProfileSnapshotScript()),
-          5000,
-          'El perfil no respondió a tiempo.'
-        );
-        profile = mergeStatisticsProfile(panel, nextProfile);
-        panel.statisticsProfileReadAt = now;
-        if (panel.accountInfoOpen && nextProfile) renderAccountProfile(panel, nextProfile);
-      } catch {}
-    }
-    if (!context || now - Number(context.updatedAt || 0) >= STATISTICS_CONTEXT_INTERVAL_MS) {
-      try {
-        const nextContext = await withTimeout(
-          panel.webview.executeJavaScript(statisticsHuntContextScript()),
-          3000,
-          'La ubicación no respondió a tiempo.'
-        );
-        if (nextContext?.ok) {
-          context = nextContext;
-          panel.statisticsContext = nextContext;
-        }
-      } catch {}
-    }
-  }
-  const captures = [...panel.captureArchive.values()].map(enrichCaptureLogEntry);
-  const shinyCaptures = captures.filter((capture) => capture.isShiny === true).length;
-  const legendaryCaptures = captures.filter((capture) =>
-    capture.isLegendarySpecies === true || capture.tier === 'legendary' || isLegendaryPokemonName(capture.name)
-  ).length;
-  const ivRows = captures.map((capture) => Number(capture.iv)).filter(Number.isFinite);
-  const averageIv = ivRows.length ? ivRows.reduce((sum, value) => sum + value, 0) / ivRows.length : null;
-  const drops = new Map();
-  for (const drop of hunt?.drops || []) {
-    const name = String(drop.name || '').trim();
-    if (!name) continue;
-    const key = normalizeSearchText(name);
-    const previous = drops.get(key) || { name, quantity: 0, icon: '', price: '', total: '' };
-    previous.quantity += statisticNumber(drop.quantity) || 0;
-    previous.icon ||= String(drop.icon || '');
-    previous.price ||= String(drop.price || '');
-    previous.total ||= String(drop.total || '');
-    drops.set(key, previous);
-  }
-  const cachedFarmContext = farmContexts[panel.index] || {};
-  const configuredTarget = panel.farmRunState === 'ok' ? String(farmConfigs[panel.index]?.target?.name || '') : '';
-  return {
-    index: panel.index,
-    online,
-    hunt,
-    huntFresh,
-    profile,
-    captures: captures.length,
-    shinyCaptures,
-    legendaryCaptures,
-    averageIv,
-    context: {
-      zone: String(context?.zone || cachedFarmContext.location || ''),
-      pokemon: String(context?.pokemon || configuredTarget || ''),
-      leader: String(cachedFarmContext.leader?.name || '')
-    },
-    drops: [...drops.values()].sort((left, right) => right.quantity - left.quantity)
-  };
-}
-function statisticsMetricMarkup(label, value, kind = 'default') {
-  return `<div class="statistics-account-metric is-${escapeHtml(kind)}" data-statistic-kind="${escapeHtml(kind)}"><span>${escapeHtml(label)}</span><b title="${escapeHtml(value)}">${escapeHtml(value)}</b></div>`;
-}
-function statisticsDropRows(row) {
-  return (Array.isArray(row?.drops) ? row.drops : []).map((drop) => {
-    if (Array.isArray(drop)) return { name: String(drop[0] || ''), quantity: Number(drop[1]) || 0, icon: '', price: '', total: '' };
-    return {
-      name: String(drop?.name || ''),
-      quantity: Number(drop?.quantity) || 0,
-      icon: String(drop?.icon || ''),
-      price: String(drop?.price || ''),
-      total: String(drop?.total || '')
-    };
-  }).filter((drop) => drop.name);
-}
-function statisticsDropMarkup(drop) {
-  const icon = drop.icon
-    ? `<img class="statistics-drop-sprite" src="${escapeHtml(drop.icon)}" alt="" loading="lazy">`
-    : `<span class="statistics-drop-sprite is-empty" aria-hidden="true">${launcherUiIcon('empty')}</span>`;
-  const detail = [drop.price ? `Unidad ${drop.price}` : '', drop.total ? `Valor ${drop.total}` : ''].filter(Boolean).join(' · ');
-  return `<article class="statistics-drop-item">${icon}<div><strong>${escapeHtml(drop.name)}</strong><small>${escapeHtml(detail || 'Drop detectado por Hunt Analyzer')}</small></div><b>×${escapeHtml(formatStatisticNumber(drop.quantity))}</b></article>`;
-}
-function statisticComparisonValue(row, key) {
-  if (key === 'balance') return statisticNumber(row.hunt?.balance);
-  if (key === 'drops') return statisticsDropRows(row).reduce((sum, drop) => sum + drop.quantity, 0);
-  if (key === 'time') return parseHuntDuration(statisticMetric(row.hunt, 'time'));
-  return statisticMetricNumber(row.hunt, key);
-}
-function rankStatisticsComparisonRows(rows) {
-  const scores = new Map(rows.map((row) => [row, 0]));
-  const weightedMetrics = [
-    ['balance', 2], ['xpRate', 1.5], ['lootRate', 1.5], ['killRate', 1.2],
-    ['captured', 1], ['defeated', .7], ['drops', .5]
-  ];
-  weightedMetrics.forEach(([key, weight]) => {
-    const values = rows.map((row) => Math.max(0, Number(statisticComparisonValue(row, key)) || 0));
-    const maximum = Math.max(0, ...values);
-    const minimum = Math.min(...values);
-    if (maximum <= 0) return;
-    rows.forEach((row, index) => {
-      const normalized = maximum === minimum ? 1 : (values[index] - minimum) / (maximum - minimum);
-      scores.set(row, scores.get(row) + normalized * weight);
-    });
-  });
-  return [...rows].sort((left, right) => {
-    if (left.online !== right.online) return Number(right.online) - Number(left.online);
-    const scoreDifference = scores.get(right) - scores.get(left);
-    if (Math.abs(scoreDifference) > .0001) return scoreDifference;
-    const balanceDifference = (statisticComparisonValue(right, 'balance') || 0) - (statisticComparisonValue(left, 'balance') || 0);
-    return balanceDifference || left.index - right.index;
-  }).map((row, index) => ({ row, rank: index + 1, score: scores.get(row) }));
-}
-function renderStatisticsComparison(rows) {
-  const highlightDefinitions = [
-    ['balance', 'Mejor balance', (row) => row.hunt?.balance || '—'],
-    ['xpRate', 'Mayor XP/h', (row) => statisticMetric(row.hunt, 'xpRate')],
-    ['lootRate', 'Mayor botín/h', (row) => statisticMetric(row.hunt, 'lootRate')],
-    ['captured', 'Más capturas', (row) => statisticMetric(row.hunt, 'captured')]
-  ];
-  statisticsComparisonHighlights.innerHTML = highlightDefinitions.map(([key, label, formatter]) => {
-    const available = rows.filter((row) => Number.isFinite(statisticComparisonValue(row, key)));
-    const winner = available.sort((left, right) => statisticComparisonValue(right, key) - statisticComparisonValue(left, key))[0];
-    if (!winner) return `<article class="statistics-comparison-highlight is-empty"><span>${escapeHtml(label)}</span><b>—</b><small>Sin datos todavía</small></article>`;
-    return `<article class="statistics-comparison-highlight" data-comparison-account-index="${winner.index}"><span>${escapeHtml(label)}</span><b>${escapeHtml(formatter(winner))}</b><small>${escapeHtml(winner.profile?.name || accounts[winner.index]?.label || `Cuenta ${winner.index + 1}`)}</small></article>`;
-  }).join('');
-  statisticsComparisonHighlights.querySelectorAll('[data-comparison-account-index]').forEach((card) => {
-    const index = Number(card.dataset.comparisonAccountIndex) || 0;
-    card.style.setProperty('--account-color', accountColor(index));
-  });
-  const columns = [
-    ['defeated', 'Derrotados'], ['captured', 'Capturados'], ['xp', 'XP'], ['balance', 'Balance'],
-    ['time', 'Tiempo'], ['xpRate', 'XP/h'], ['lootRate', 'Botín/h'], ['killRate', 'Kills/h'], ['drops', 'Drops']
-  ];
-  const bestValues = new Map(columns.map(([key]) => {
-    const values = rows.map((row) => statisticComparisonValue(row, key)).filter(Number.isFinite);
-    return [key, values.length ? Math.max(...values) : null];
-  }));
-  const rankedRows = rankStatisticsComparisonRows(rows);
-  const header = `<div class="statistics-comparison-row is-header"><span>Top / Cuenta / Hunt</span>${columns.map(([, label]) => `<span>${escapeHtml(label)}</span>`).join('')}</div>`;
-  const body = rankedRows.map(({ row, rank, score }) => {
-    const zone = row.context?.zone || 'Zona no detectada';
-    const target = row.context?.pokemon || '';
-    const cells = columns.map(([key]) => {
-      const numeric = statisticComparisonValue(row, key);
-      const raw = key === 'balance' ? row.hunt?.balance || '—'
-        : key === 'drops' ? formatStatisticNumber(numeric)
-          : statisticMetric(row.hunt, key);
-      const best = Number.isFinite(numeric) && bestValues.get(key) !== null && numeric === bestValues.get(key);
-      return `<span class="statistics-comparison-cell${best ? ' is-best' : ''}" data-comparison-account="${row.index}" data-comparison-key="${escapeHtml(key)}" title="${escapeHtml(raw)}">${escapeHtml(raw)}</span>`;
-    }).join('');
-    return `<article class="statistics-comparison-row${row.online ? '' : ' is-unavailable'}" data-comparison-account-index="${row.index}" data-comparison-rank="${rank}" data-comparison-score="${score.toFixed(3)}"><div class="statistics-comparison-account"><span class="statistics-comparison-rank">TOP ${rank}</span><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(zone)}${target ? ` · ${escapeHtml(target)}` : ''}</small></div></div>${cells}</article>`;
-  }).join('');
-  statisticsComparisonTable.innerHTML = `${header}${body}`;
-  statisticsComparisonTable.querySelectorAll('[data-comparison-account-index]').forEach((row) => {
-    const index = Number(row.dataset.comparisonAccountIndex) || 0;
-    row.style.setProperty('--account-color', accountColor(index));
-  });
-}
-function renderStatistics(rows) {
-  statisticsRows = rows;
-  const total = (getter) => rows.reduce((sum, row) => sum + (Number(getter(row)) || 0), 0);
-  const totalHuntSeconds = total((row) => parseHuntDuration(statisticMetric(row.hunt, 'time')));
-  const totals = [
-    ['Cuentas en línea', `${rows.filter((row) => row.online).length}/${accountCount()}`, 'is-accent'],
-    ['Derrotados', formatStatisticNumber(total((row) => statisticMetricNumber(row.hunt, 'defeated'))), ''],
-    ['Capturados (Hunt)', formatStatisticNumber(total((row) => statisticMetricNumber(row.hunt, 'captured'))), ''],
-    ['Capturas guardadas', formatStatisticNumber(total((row) => row.captures)), 'is-accent'],
-    ['Shinies capturados', formatStatisticNumber(total((row) => row.shinyCaptures)), 'is-shiny'],
-    ['Legendarias', formatStatisticNumber(total((row) => row.legendaryCaptures)), 'is-gold'],
-    ['XP de Hunt', formatStatisticNumber(total((row) => statisticMetricNumber(row.hunt, 'xp'))), ''],
-    ['Tiempo acumulado', formatHuntDuration(totalHuntSeconds), ''],
-    ['Pokédolares', formatStatisticNumber(total((row) => row.profile?.pokedollars)), 'is-gold'],
-    ['Diamantes', formatStatisticNumber(total((row) => row.profile?.diamonds)), 'is-shiny']
-  ];
-  statisticsTotals.innerHTML = totals.map(([label, value, className]) =>
-    `<article class="statistics-total-card ${className}"><span>${escapeHtml(label)}</span><b title="${escapeHtml(value)}">${escapeHtml(value)}</b></article>`
-  ).join('');
-  statisticsAccounts.replaceChildren();
-  rows.forEach((row) => {
-    const card = document.createElement('article');
-    card.className = `statistics-account-card${row.online ? '' : ' is-unavailable'}`;
-    card.dataset.accountIndex = String(row.index);
-    card.style.setProperty('--account-color', accountColor(row.index));
-    const huntAvailable = Boolean(row.hunt?.ok);
-    const drops = statisticsDropRows(row);
-    const accountView = statisticsAccountViews.get(row.index) === 'drops' ? 'drops' : 'summary';
-    const metrics = [
-      ['Derrotados', statisticMetric(row.hunt, 'defeated'), 'defeated'],
-      ['Capturados Hunt', statisticMetric(row.hunt, 'captured'), 'captured'],
-      ['XP Hunt', statisticMetric(row.hunt, 'xp'), 'xp'],
-      ['Balance Hunt', row.hunt?.balance || '—', 'balance'],
-      ['Tiempo Hunt', statisticMetric(row.hunt, 'time'), 'time'],
-      ['Capturas', formatStatisticNumber(row.captures), 'captures'],
-      ['Shinies', formatStatisticNumber(row.shinyCaptures), 'shiny'],
-      ['Legendarias', formatStatisticNumber(row.legendaryCaptures), 'legendary'],
-      ['IV promedio', row.averageIv === null ? '—' : row.averageIv.toLocaleString('es-ES', { maximumFractionDigits: 1 }), 'iv'],
-      ['Pokédolares', formatStatisticNumber(row.profile?.pokedollars), 'money']
-    ];
-    const zone = row.context?.zone || 'Zona no detectada';
-    const target = row.context?.pokemon || '';
-    const leader = row.context?.leader || '';
-    const dropsMarkup = drops.length
-      ? drops.map(statisticsDropMarkup).join('')
-      : '<p class="statistics-drops-empty">Sin drops detectados en la sesión actual.</p>';
-    card.innerHTML = `<header class="statistics-account-head"><div class="statistics-account-identity"><i aria-hidden="true"></i><div><strong>${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}</strong><small>${escapeHtml(accounts[row.index]?.label || `Cuenta ${row.index + 1}`)} · Nivel ${escapeHtml(formatAccountAmount(row.profile?.level))} · ${escapeHtml(row.profile?.rank || 'rango no disponible')}</small></div></div><span class="statistics-account-state">${row.online ? (huntAvailable ? 'EN VIVO' : 'CONECTADA') : 'SIN CONEXIÓN'}</span></header><div class="statistics-hunt-context"><span>${launcherUiIcon('target')} ${escapeHtml(zone)}</span>${target ? `<span>${launcherUiIcon('swords')} ${escapeHtml(target)}</span>` : ''}${leader ? `<span>${launcherUiIcon('filled')} Líder: ${escapeHtml(leader)}</span>` : ''}</div><nav class="statistics-account-tabs" aria-label="Datos de ${escapeHtml(row.profile?.name || accounts[row.index]?.label || `Cuenta ${row.index + 1}`)}"><button type="button" data-account-view="summary" class="${accountView === 'summary' ? 'is-active' : ''}">Resumen</button><button type="button" data-account-view="drops" class="${accountView === 'drops' ? 'is-active' : ''}">Drops <b>${drops.length}</b></button></nav><section class="statistics-account-pane" data-account-pane="summary"${accountView === 'summary' ? '' : ' hidden'}><div class="statistics-account-grid">${metrics.map(([label, value, kind]) => statisticsMetricMarkup(label, value, kind)).join('')}</div></section><section class="statistics-account-pane statistics-drops-pane" data-account-pane="drops"${accountView === 'drops' ? '' : ' hidden'}><div class="statistics-drops-list">${dropsMarkup}</div></section>`;
-    statisticsAccounts.appendChild(card);
-  });
-  renderStatisticsComparison(rows);
-}
-async function refreshStatistics() {
-  if (statisticsBusy || statisticsBackdrop.hidden) return;
-  statisticsBusy = true;
-  refreshStatisticsButton.disabled = true;
-  statisticsStatus.className = 'statistics-status is-loading';
-  statisticsStatus.textContent = `Leyendo Hunt Analyzer, perfiles y capturas de ${accountCountText()}…`;
-  try {
-    const results = await Promise.allSettled(panels.map(readPanelStatistics));
-    const rows = results.map((result, index) => result.status === 'fulfilled' ? result.value : {
-      index, online: false, hunt: panels[index]?.huntSnapshot || null, profile: panels[index]?.accountProfileLastGood || null,
-      captures: panels[index]?.captureArchive?.size || 0, shinyCaptures: 0, legendaryCaptures: 0, averageIv: null,
-      context: panels[index]?.statisticsContext || { zone:'', pokemon:'', leader:'' }, drops: []
-    });
-    renderStatistics(rows);
-    const stale = rows.filter((row) => row.online && !row.huntFresh).length;
-    statisticsStatus.className = 'statistics-status';
-    statisticsStatus.textContent = `En vivo · ${new Date().toLocaleTimeString('es-ES')}${stale ? ` · ${stale} cuenta${stale === 1 ? '' : 's'} conserva${stale === 1 ? '' : 'n'} el último Hunt válido` : ' · Hunt cada 5s, ubicación cada 15s y perfil cada 30s'}`;
-  } catch (error) {
-    statisticsStatus.className = 'statistics-status is-error';
-    statisticsStatus.textContent = error.message || 'No fue posible actualizar las estadísticas.';
-  } finally {
-    statisticsBusy = false;
-    refreshStatisticsButton.disabled = false;
-    window.clearTimeout(statisticsTimer);
-    statisticsTimer = statisticsBackdrop.hidden ? 0 : window.setTimeout(refreshStatistics, STATISTICS_REFRESH_INTERVAL_MS);
-  }
-}
-function setStatisticsView(nextView) {
-  statisticsView = nextView === 'comparison' ? 'comparison' : 'summary';
-  statisticsViewTabs.forEach((tab) => {
-    const active = tab.dataset.statisticsView === statisticsView;
-    tab.classList.toggle('is-active', active);
-    tab.setAttribute('aria-selected', String(active));
-  });
-  statisticsSummaryView.hidden = statisticsView !== 'summary';
-  statisticsSummaryView.classList.toggle('is-active', statisticsView === 'summary');
-  statisticsComparisonView.hidden = statisticsView !== 'comparison';
-  statisticsComparisonView.classList.toggle('is-active', statisticsView === 'comparison');
-}
-function openStatistics() {
-  closeNotificationPanel();
-  statisticsBackdrop.hidden = false;
-  statisticsButton.setAttribute('aria-expanded', 'true');
-  document.body.classList.add('has-statistics-modal');
-  setStatisticsView(statisticsView);
-  window.clearTimeout(statisticsTimer);
-  refreshStatistics();
-}
-function closeStatistics() {
-  statisticsBackdrop.hidden = true;
-  statisticsButton.setAttribute('aria-expanded', 'false');
-  document.body.classList.remove('has-statistics-modal');
-  window.clearTimeout(statisticsTimer);
-  statisticsTimer = 0;
-  statisticsRows = [];
-  statisticsTotals.replaceChildren();
-  statisticsAccounts.replaceChildren();
-  statisticsComparisonHighlights.replaceChildren();
-  statisticsComparisonTable.replaceChildren();
-  statisticsStatus.className = 'statistics-status';
-  statisticsStatus.textContent = 'Preparando datos actuales…';
 }
 function normalizeBrowserInstanceUrl(rawUrl) {
   const value = String(rawUrl || '').trim();
@@ -8815,6 +8506,14 @@ function createPanel(index) {
   const huntContent = fragment.querySelector('.hunt-float-content');
   const huntResetButton = fragment.querySelector('.hunt-float-reset');
   const huntDeleteButton = fragment.querySelector('.hunt-float-delete');
+  // Clases distintas a propósito: el botón y el bloque NO pueden compartir selector, porque
+  // `querySelector` devuelve el primero que aparece y los dos acabarían siendo el mismo nodo.
+  const huntSettingsButton = fragment.querySelector('.hunt-float-settings-toggle');
+  const huntSettingsBlock = fragment.querySelector('.hunt-float-settings');
+  const huntSettingsModo = fragment.querySelector('.hunt-float-settings-modo');
+  const huntSettingsSegundos = fragment.querySelector('.hunt-float-settings-segundos');
+  const huntSettingsSegundosSelect = fragment.querySelector('.hunt-float-settings-segundos-select');
+  const huntSettingsNote = fragment.querySelector('.hunt-float-settings-note');
   const accountInfoButton = fragment.querySelector('.account-info-toggle');
   // Los cuatro botones de la barra queiban vacíos en el HTML.
   const zoomOutButton = fragment.querySelector('.zoom-out');
@@ -8830,6 +8529,7 @@ function createPanel(index) {
   huntPanel.querySelector('.hunt-float-pin').innerHTML = launcherUiIcon('pin');
   huntResetButton.innerHTML = `${launcherUiIcon('reset')}<span>Reset</span>`;
   huntDeleteButton.innerHTML = `${launcherUiIcon('trash')}<span>Eliminar</span>`;
+  huntSettingsButton.innerHTML = `${launcherUiIcon('settings')}<span>Ajustes</span>`;
   huntPanel.querySelector('.hunt-float-close').innerHTML = launcherUiIcon('close');
   accountInfoPanel.querySelector('.account-info-close').innerHTML = launcherUiIcon('close');
   captureLogPanel.querySelector('.capture-float-position-reset').innerHTML = launcherUiIcon('refresh');
@@ -8907,6 +8607,12 @@ function createPanel(index) {
     huntContent,
     huntResetButton,
     huntDeleteButton,
+    huntSettingsButton,
+    huntSettingsBlock,
+    huntSettingsModo,
+    huntSettingsSegundos,
+    huntSettingsSegundosSelect,
+    huntSettingsNote,
     huntOpen: false,
     huntActionBusy: false,
     accountInfoButton,
@@ -9037,6 +8743,14 @@ function createPanel(index) {
   huntButton.addEventListener('click', () => setHuntAnalyzerOpen(panel, !panel.huntOpen));
   huntResetButton.addEventListener('click', () => resetPanelHuntAnalyzer(panel));
   huntDeleteButton.addEventListener('click', () => deletePanelHuntSession(panel));
+  huntSettingsButton.addEventListener('click', () => {
+    const abierto = !panel.huntSettingsBlock.hidden;
+    panel.huntSettingsBlock.hidden = abierto;
+    panel.huntSettingsButton.setAttribute('aria-expanded', String(!abierto));
+    if (!abierto) renderHuntSettings();
+  });
+  huntSettingsModo.addEventListener('change', () => setHuntLectura({ modo: huntSettingsModo.value }));
+  huntSettingsSegundosSelect.addEventListener('change', () => setHuntLectura({ segundos: Number(huntSettingsSegundosSelect.value) }));
   huntPanel.querySelector('.hunt-float-close').addEventListener('click', () => setHuntAnalyzerOpen(panel, false));
   accountInfoButton.addEventListener('click', () => setAccountInfoOpen(panel, !panel.accountInfoOpen));
   accountInfoPanel.querySelector('.account-info-close').addEventListener('click', () => setAccountInfoOpen(panel, false));
@@ -9591,23 +9305,6 @@ document.querySelector('#pokepediaButton').addEventListener('click', async () =>
   }
 });
 farmButton.addEventListener('click', openFarmModal);
-statisticsButton.addEventListener('click', openStatistics);
-refreshStatisticsButton.addEventListener('click', refreshStatistics);
-closeStatisticsButton.addEventListener('click', closeStatistics);
-statisticsViewTabs.forEach((tab) => tab.addEventListener('click', () => setStatisticsView(tab.dataset.statisticsView)));
-statisticsAccounts.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-account-view]');
-  const card = button?.closest('.statistics-account-card');
-  if (!button || !card) return;
-  const accountIndex = Number(card.dataset.accountIndex);
-  const view = button.dataset.accountView === 'drops' ? 'drops' : 'summary';
-  statisticsAccountViews.set(accountIndex, view);
-  card.querySelectorAll('[data-account-view]').forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
-  card.querySelectorAll('[data-account-pane]').forEach((pane) => { pane.hidden = pane.dataset.accountPane !== view; });
-});
-statisticsBackdrop.addEventListener('click', (event) => {
-  if (event.target === statisticsBackdrop) closeStatistics();
-});
 notificationButton.addEventListener('click', () => {
   if (notificationPanel.hidden) openNotificationPanel();
   else closeNotificationPanel();
@@ -9889,10 +9586,6 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && appbar.classList.contains('is-sidebar-open')) {
     applySidebarState(false);
     topbarToggle.focus();
-  }
-  if (event.key === 'Escape' && !statisticsBackdrop.hidden) {
-    closeStatistics();
-    statisticsButton.focus();
   }
   if (event.key === 'Escape' && !viewModeMenu.hidden) {
     viewModeMenu.hidden = true;
@@ -10392,7 +10085,12 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   syncUserScriptPanels();
   window.setInterval(pollCaptureNotifications, 3500);
   window.setInterval(pollCaptureLogs, 4000);
-  window.setInterval(pollHuntAnalyzers, HUNT_SONDEO_MS);
+  // El ritmo de lectura del Hunt Analyzer sale del ajuste del usuario: en «solo al abrir» esto
+  // no programa nada.
+  aplicarRitmoHunt();
+  // Y los desplegables de los paneles, que acaban de construirse, se ponen donde dice el ajuste:
+  // si no, tras recargar leería cada 10 s con el desplegable diciendo «solo al abrir».
+  renderHuntSettings();
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
   // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a

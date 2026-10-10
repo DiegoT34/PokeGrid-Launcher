@@ -308,7 +308,6 @@ input:focus-visible {
 .global-actions > .button-farm { --toolbar-accent: #42d88f; color: #fff; }
 .global-actions > .button-pokepedia { --toolbar-accent: #69aef4; }
 .global-actions > .button-scripts { --toolbar-accent: #a485f4; }
-.global-actions > .button-statistics { --toolbar-accent: #45cbc5; }
 .global-actions > .notification-button { --toolbar-accent: #efbd4e; }
 .global-actions > .button-accounts { --toolbar-accent: #aab5bf; }
 .global-actions > .memory-cleanup-button { --toolbar-accent: #4fd0a2; }
@@ -1119,6 +1118,49 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .account-info-vip.is-vip b { color: #42e6d0; }
 .account-info-vip.is-basic b { color: #8b9aa5; }
 
+/* --- Ajustes de lectura del Hunt Analyzer -------------------------------------------
+   El botón va en la barra, junto a Reset y Eliminar, y el bloque se despliega debajo de la
+   línea de estado. Es un ajuste que casi nadie tocará dos veces, así que no ocupa sitio hasta
+   que se pide: cerrado no se ve. */
+.hunt-float-settings {
+  margin: 0 0 8px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid #24404c;
+  border-radius: 10px;
+  background: #0b1b24;
+}
+.hunt-float-settings[hidden] { display: none; }
+/* Y el botón de la barra, que es otra cosa: no lleva nada de lo de arriba. */
+.hunt-float-settings-toggle[aria-expanded="true"] { background: #143139; border-color: #4fc4c5; }
+.hunt-float-settings label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: #9fb4c0;
+}
+.hunt-float-settings label[hidden] { display: none; }
+.hunt-float-settings select {
+  min-width: 132px;
+  padding: 4px 6px;
+  border: 1px solid #2b4653;
+  border-radius: 7px;
+  background: #0e222c;
+  color: #e6eef5;
+  font: inherit;
+  font-size: 10px;
+}
+.hunt-float-settings select:focus-visible { outline: 1px solid #4fc4c5; outline-offset: 1px; }
+.hunt-float-settings-note {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.35;
+  color: #7b90a1;
+}
+
 .hunt-float-panel {
   position: absolute;
   z-index: 35;
@@ -1817,267 +1859,6 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .modal-message { min-height: 18px; margin: 10px 0 0; color: var(--danger); font-size: 12px; }
 .modal-message.is-ok { color: var(--success); }
 .modal-actions { justify-content: flex-end; gap: 8px; margin-top: 4px; }
-
-.statistics-backdrop {
-  z-index: 265;
-  padding: clamp(8px, 2vw, 24px);
-  background:
-    radial-gradient(circle at 50% 0, rgba(40, 185, 181, .16), transparent 38rem),
-    rgba(2, 7, 11, .9);
-  backdrop-filter: none;
-}
-body.has-statistics-modal .webview-host webview { visibility: hidden !important; }
-.statistics-modal {
-  width: min(1120px, 96vw);
-  height: min(760px, 92vh);
-  max-height: 92vh;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-color: rgba(78, 213, 207, .38);
-  background:
-    radial-gradient(circle at 100% 0, rgba(48, 172, 173, .1), transparent 30rem),
-    linear-gradient(150deg, #111d25, #081018 72%);
-}
-.statistics-heading {
-  min-height: 78px;
-  padding: 13px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border-bottom: 1px solid rgba(78, 213, 207, .22);
-  background: linear-gradient(120deg, rgba(17, 63, 70, .76), rgba(10, 26, 42, .85));
-}
-.statistics-heading h1 { margin: 3px 0 0; font-size: 22px; }
-.statistics-heading p { margin: 4px 0 0; color: #87a7b4; font-size: 10px; }
-.statistics-heading-actions { display: flex; align-items: center; gap: 8px; }
-.statistics-status {
-  min-height: 29px;
-  margin: 0;
-  padding: 7px 16px;
-  border-bottom: 1px solid rgba(112, 145, 158, .14);
-  color: #7995a1;
-  font-size: 9px;
-}
-.statistics-status.is-loading { color: #75ddd2; }
-.statistics-status.is-error { color: #ff8795; }
-.statistics-totals {
-  padding: 12px 14px;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(100px, 1fr));
-  gap: 7px;
-  border-bottom: 1px solid rgba(91, 130, 143, .2);
-  background: rgba(4, 13, 20, .54);
-}
-.statistics-total-card,
-.statistics-account-metric {
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid rgba(77, 133, 146, .26);
-  border-radius: 9px;
-  background: rgba(15, 31, 40, .8);
-}
-.statistics-total-card span,
-.statistics-account-metric span {
-  display: block;
-  overflow: hidden;
-  color: #73909d;
-  font-size: 7px;
-  font-weight: 900;
-  letter-spacing: .06em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.statistics-total-card b,
-.statistics-account-metric b {
-  display: block;
-  margin-top: 4px;
-  overflow: hidden;
-  color: #e6f5f6;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.statistics-total-card.is-accent { border-color: rgba(79, 219, 184, .42); background: rgba(14, 54, 49, .68); }
-.statistics-total-card.is-gold b { color: #f3cf65; }
-.statistics-total-card.is-shiny b { color: #73e7f5; }
-.statistics-accounts {
-  min-height: 0;
-  padding: 12px 14px 16px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  overflow: auto;
-  scrollbar-width: thin;
-}
-.statistics-account-card {
-  min-width: 0;
-  padding: 11px;
-  border: 1px solid rgba(91, 132, 145, .28);
-  border-radius: 12px;
-  background: linear-gradient(145deg, rgba(17, 31, 42, .94), rgba(8, 18, 27, .96));
-}
-.statistics-account-card.is-unavailable { opacity: .72; }
-.statistics-account-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.statistics-account-head > div { min-width: 0; }
-.statistics-account-head strong { display: block; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-account-head small { display: block; margin-top: 3px; color: #718c99; font-size: 8px; }
-.statistics-account-state { padding: 3px 6px; border-radius: 999px; background: #153831; color: #70ddb6; font-size: 7px; font-weight: 900; }
-.statistics-account-card.is-unavailable .statistics-account-state { 
-  background: #38272a; color: #e5959e; }
-.statistics-account-grid { margin-top: 9px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.statistics-account-metric { padding: 7px; }
-.statistics-account-metric b { font-size: 11px; }
-.statistics-account-drops { margin: 9px 0 0; overflow: hidden; color: #728d9a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-account-drops b { color: #a9c5cd; }
-.statistics-view-tabs {
-  min-height: 36px;
-  padding: 5px 14px 0;
-  display: flex;
-  gap: 5px;
-  border-bottom: 1px solid rgba(91, 130, 143, .2);
-  background: #071019;
-}
-.statistics-view-tab {
-  min-width: 150px;
-  padding: 6px 12px;
-  border: 1px solid #263e4b;
-  border-bottom: 0;
-  border-radius: 7px 7px 0 0;
-  background: #0c1922;
-  color: #7897a5;
-  font-size: 9px;
-  font-weight: 900;
-  cursor: pointer;
-}
-.statistics-view-tab.is-active { border-color: #4fc4c5; background: #143139; color: #dffcff; }
-.statistics-view { min-height: 0; flex: 1; }
-.statistics-view[hidden] { display: none !important; }
-#statisticsSummaryView { min-height: 0; display: flex; flex-direction: column; }
-#statisticsSummaryView .statistics-accounts { flex: 1; }
-.statistics-account-card {
-  border-color: color-mix(in srgb, var(--account-color) 48%, #263c48);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--account-color) 9%, #111f2a), #08121b 76%);
-  box-shadow: inset 4px 0 0 var(--account-color);
-}
-.statistics-account-identity { display: flex; align-items: center; gap: 8px; }
-.statistics-account-identity > i {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--account-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--account-color) 18%, transparent);
-}
-.statistics-account-head strong { color: color-mix(in srgb, var(--account-color) 62%, #fff); }
-.statistics-hunt-context {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.statistics-hunt-context span {
-  padding: 3px 6px;
-  border: 1px solid color-mix(in srgb, var(--account-color) 30%, #263c48);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--account-color) 8%, #0b1720);
-  color: #9db4bd;
-  font-size: 7px;
-  font-weight: 800;
-}
-.statistics-account-tabs { margin-top: 8px; display: flex; gap: 4px; border-bottom: 1px solid #20343e; }
-.statistics-account-tabs button {
-  min-width: 78px;
-  padding: 4px 8px;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
-  background: transparent;
-  color: #6e8995;
-  font-size: 8px;
-  font-weight: 900;
-  cursor: pointer;
-}
-.statistics-account-tabs button.is-active {
-  border-color: color-mix(in srgb, var(--account-color) 45%, #263c48);
-  background: color-mix(in srgb, var(--account-color) 10%, #0c1821);
-  color: color-mix(in srgb, var(--account-color) 62%, #fff);
-}
-.statistics-account-tabs button b { margin-left: 3px; color: var(--account-color); }
-.statistics-account-pane[hidden] { display: none !important; }
-.statistics-account-grid { margin-top: 7px; }
-.statistics-account-metric { --metric-color: #62a9bf; border-color: color-mix(in srgb, var(--metric-color) 38%, #24404a); background: color-mix(in srgb, var(--metric-color) 8%, #0e1d26); }
-.statistics-account-metric b { color: color-mix(in srgb, var(--metric-color) 70%, #fff); }
-.statistics-account-metric.is-defeated { --metric-color: #ff7b68; }
-.statistics-account-metric.is-captured,.statistics-account-metric.is-captures { --metric-color: #5ed8a0; }
-.statistics-account-metric.is-xp { --metric-color: #a989ff; }
-.statistics-account-metric.is-balance,.statistics-account-metric.is-money { --metric-color: #e9c255; }
-.statistics-account-metric.is-time { --metric-color: #59bfe7; }
-.statistics-account-metric.is-shiny { --metric-color: #64e7f1; }
-.statistics-account-metric.is-legendary { --metric-color: #f29d53; }
-.statistics-account-metric.is-iv { --metric-color: #dc83ed; }
-.statistics-drops-pane { min-height: 96px; padding-top: 7px; }
-.statistics-drops-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
-.statistics-drop-item {
-  min-width: 0;
-  min-height: 42px;
-  padding: 5px 7px;
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid color-mix(in srgb, var(--account-color) 28%, #263c48);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--account-color) 6%, #0a151d);
-}
-.statistics-drop-sprite { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; }
-.statistics-drop-sprite.is-empty { display: grid; place-items: center; border: 1px solid #29404b; border-radius: 4px; color: #53717e; font-size: 17px; }
-.statistics-drop-item div { min-width: 0; }
-.statistics-drop-item strong { display: block; overflow: hidden; color: #dbe9ec; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-drop-item small { display: block; margin-top: 3px; overflow: hidden; color: #66828e; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-drop-item > b { color: var(--account-color); font-size: 11px; font-variant-numeric: tabular-nums; }
-.statistics-drops-empty { margin: 20px 0; color: #607d88; font-size: 8px; text-align: center; }
-.statistics-comparison { min-height: 0; padding: 10px 12px 14px; overflow: auto; background: #071019; scrollbar-width: thin; }
-.statistics-comparison-highlights { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 7px; }
-.statistics-comparison-highlight {
-  min-width: 0;
-  padding: 9px;
-  border: 1px solid color-mix(in srgb, var(--account-color, #526c78) 45%, #263c48);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--account-color, #526c78) 9%, #0d1b24);
-  box-shadow: inset 3px 0 0 var(--account-color, #526c78);
-}
-.statistics-comparison-highlight span,.statistics-comparison-highlight small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-comparison-highlight span { color: #738f9b; font-size: 7px; font-weight: 900; text-transform: uppercase; }
-.statistics-comparison-highlight b { display: block; margin-top: 4px; overflow: hidden; color: color-mix(in srgb, var(--account-color, #8aa) 70%, #fff); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-comparison-highlight small { margin-top: 3px; color: #829ba5; font-size: 8px; }
-.statistics-comparison-table { min-width: 1040px; margin-top: 9px; display: grid; gap: 3px; }
-.statistics-comparison-row {
-  min-height: 48px;
-  display: grid;
-  grid-template-columns: minmax(180px, 1.55fr) repeat(9, minmax(72px, .7fr));
-  align-items: stretch;
-  border: 1px solid color-mix(in srgb, var(--account-color) 35%, #263c48);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--account-color) 6%, #0c1921);
-  box-shadow: inset 3px 0 0 var(--account-color);
-}
-.statistics-comparison-row.is-header { min-height: 28px; border-color: #263e49; background: #10222c; box-shadow: none; }
-.statistics-comparison-row.is-header > span { display: flex; align-items: center; padding: 5px 7px; color: #7895a0; font-size: 7px; font-weight: 900; text-transform: uppercase; }
-.statistics-comparison-account { min-width: 0; padding: 7px 8px; display: grid; grid-template-columns: 7px minmax(0, 1fr); align-content: center; column-gap: 7px; }
-.statistics-comparison-account i { grid-row: 1 / 3; width: 7px; height: 7px; align-self: center; border-radius: 50%; background: var(--account-color); }
-.statistics-comparison-account strong,.statistics-comparison-account small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.statistics-comparison-account strong { color: color-mix(in srgb, var(--account-color) 64%, #fff); font-size: 10px; }
-.statistics-comparison-account small { margin-top: 2px; color: #6c8792; font-size: 7px; }
-.statistics-comparison-cell { min-width: 0; padding: 7px 6px; display: flex; align-items: center; border-left: 1px solid #1f333d; color: #bdd0d5; font-size: 9px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.statistics-comparison-cell.is-best { 
-  background: color-mix(in srgb, var(--account-color) 14%, transparent); color: color-mix(in srgb, var(--account-color) 70%, #fff); }
-.statistics-comparison-row.is-unavailable { opacity: .62; }
-
 .scripts-backdrop {
   z-index: 265;
   padding: clamp(6px, 1.5vw, 18px);
@@ -3469,9 +3250,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 
 @media (max-width: 900px), (max-height: 650px) {
-  .statistics-modal { width: 98vw; height: 96vh; max-height: 96vh; }
-  .statistics-totals { grid-template-columns: repeat(4, minmax(85px, 1fr)); }
-  .statistics-comparison-highlights { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
   .scripts-modal { width: min(870px, 97vw); height: min(650px, 96vh); max-height: 96vh; }
   .scripts-heading { min-height: 65px; padding-top: 9px; padding-bottom: 8px; }
   .scripts-security-note { min-height: 34px; }
@@ -3506,20 +3284,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   .brand-mark { width: 25px; height: 25px; }
   .appbar { gap: 5px; padding-left: 6px; }
   .global-actions .button { flex: 0 0 auto; padding: 0 8px; font-size: 8px; }
-  .statistics-backdrop { padding: 3px; }
-  .statistics-modal { width: calc(100vw - 6px); height: calc(100vh - 6px); max-height: calc(100vh - 6px); border-radius: 11px; }
-  .statistics-heading { min-height: 66px; padding: 9px; }
-  .statistics-heading h1 { font-size: 17px; }
-  .statistics-heading p { display: none; }
-  .statistics-heading-actions .button { padding: 0 8px; font-size: 8px; }
-  .statistics-view-tabs { padding-inline: 8px; }
-  .statistics-view-tab { min-width: 0; flex: 1; padding-inline: 6px; }
-  .statistics-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; }
-  .statistics-accounts { grid-template-columns: 1fr; padding: 8px; }
-  .statistics-account-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .statistics-drops-list { grid-template-columns: 1fr; }
-  .statistics-comparison { padding: 8px; }
-  .statistics-comparison-highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scripts-backdrop { padding: 3px; }
   .scripts-modal { width: calc(100vw - 6px); height: calc(100vh - 6px); max-height: calc(100vh - 6px); border-radius: 11px; }
   .scripts-heading { min-height: 58px; padding: 8px 44px 7px 53px; }
@@ -4037,48 +3801,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   color: #38ddff;
 }
 .account-info-benefit-icon .launcher-ui-icon { width: 22px; height: 22px; }
-
-/* Ranking de comparación: conserva el color estable de cada cuenta. */
-.statistics-comparison-row:not(.is-header) {
-  min-height: 62px;
-  border-width: 1px;
-  border-color: color-mix(in srgb, var(--account-color) 58%, #2a3c48);
-  border-radius: 9px;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--account-color) 16%, #0d1922), #0b151e 48%);
-  box-shadow: inset 5px 0 0 var(--account-color), 0 6px 12px rgba(0, 0, 0, .24);
-}
-.statistics-comparison-table { min-width: 1070px; }
-.statistics-comparison-row { grid-template-columns: minmax(210px, 1.7fr) repeat(9, minmax(72px, .7fr)); }
-.statistics-comparison-account {
-  padding: 8px 10px 8px 13px;
-  grid-template-columns: 49px 9px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-.statistics-comparison-account > div { min-width: 0; }
-.statistics-comparison-account strong,
-.statistics-comparison-account small { display: block; }
-.statistics-comparison-account i { grid-row: auto; width: 9px; height: 9px; }
-.statistics-comparison-rank {
-  min-width: 46px;
-  padding: 5px 6px;
-  border: 1px solid color-mix(in srgb, var(--account-color) 70%, #fff);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--account-color) 19%, #111c25);
-  color: color-mix(in srgb, var(--account-color) 72%, #fff);
-  font-size: 8px;
-  font-weight: 950;
-  text-align: center;
-  white-space: nowrap;
-}
-.statistics-comparison-row[data-comparison-rank="1"] .statistics-comparison-rank { border-color: #f2c94c; background: #3b3115; color: #ffe078; }
-.statistics-comparison-row[data-comparison-rank="2"] .statistics-comparison-rank { border-color: #aebac4; background: #28323a; color: #e2ebf1; }
-.statistics-comparison-row[data-comparison-rank="3"] .statistics-comparison-rank { border-color: #c78455; background: #35261d; color: #eeb58e; }
-.statistics-comparison-account strong { font-size: 11px; }
-.statistics-comparison-account small { font-size: 8px; }
-.statistics-comparison-cell { border-left-color: color-mix(in srgb, var(--account-color) 17%, #22343f); }
-
 @container (max-width: 470px) {
   .hunt-float-head { min-height: 64px; padding: 10px; }
   .hunt-float-kicker { display: block; font-size: 8px; }
@@ -5115,7 +4837,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
    corto cabe sin desplazamiento. La cabecera baja de 60 a 42 px de retrato.
    ============================================================================ */
 
-
 .capture-detail-head {
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 9px;
@@ -5298,7 +5019,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   color: rgba(190, 214, 230, .7);
 }
 
-
 /* ============================================================================
    El menú del launcher.
 
@@ -5336,7 +5056,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .global-actions > .button-farm { --toolbar-accent: #42d88f; }
 .global-actions > .button-pokepedia { --toolbar-accent: #69aef4; }
 .global-actions > .button-scripts { --toolbar-accent: #a485f4; }
-.global-actions > .button-statistics { --toolbar-accent: #45cbc5; }
 .global-actions > .notification-button { --toolbar-accent: #efbd4e; }
 .global-actions > .button-accounts { --toolbar-accent: #9fb0bd; }
 .global-actions > .memory-cleanup-button { --toolbar-accent: #4fd0a2; }
@@ -5493,24 +5212,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   height: 15px;
   color: currentColor;
 }
-
-/* Los dos iconos sueltos que había dentro de una línea de texto en Estadísticas:
-   la zona con un ⌖ y el objetivo con un ⚔. */
-.statistics-hunt-context .launcher-ui-icon {
-  width: 12px;
-  height: 12px;
-  margin-right: 3px;
-  vertical-align: -2px;
-  color: currentColor;
-}
-
-/* El entrenador sin sprite. */
-.statistics-account-avatar .launcher-ui-icon {
-  width: 20px;
-  height: 20px;
-  color: currentColor;
-}
-
 /* ============================================================================
    La tarjeta de datos de la cuenta, en neomorfismo.
 
@@ -7044,7 +6745,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .farm-pokemon-option[data-matchup="locked"] .farm-matchup-verdict b { color: var(--pf-cuidado); }
 
 .farm-picker-empty { padding: 24px; text-align: center; color: var(--pf-tenue); font-size: 11px; }
-
 
 /* Las medidas de la lista virtualizada —la altura de la tarjeta y el hueco entre
    filas— van declaradas en la propia regla de .farm-pokemon-grid, arriba del todo de
