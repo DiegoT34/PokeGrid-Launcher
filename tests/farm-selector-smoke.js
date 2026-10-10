@@ -22,6 +22,7 @@ const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-selector-vir
 process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
 
 require('../src/main.js'); // Launcher real: IPC, sesiones y ventana principal.
+const { sembrarCuentas } = require('./cuentas-de-prueba.cjs');
 
 const { app, BrowserWindow } = require('electron');
 
@@ -118,7 +119,9 @@ app.whenReady().then(async () => {
       await dormir(150);
     }
     assert.ok(ventana, 'la ventana principal no se creó');
-    await esperarA(ventana, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 4`);
+    // Las cuentas se crean aquí: sin fichero de credenciales ya no se inventa ninguna.
+    // Ver la nota de tests/cuentas-de-prueba.cjs.
+    await sembrarCuentas(ventana, 4);
 
     // --- Abrir el selector con una lista que de verdad hay que virtualizar --------
     // El botón de iniciar de cada tarjeta está deshabilitado sin objetivo y sin

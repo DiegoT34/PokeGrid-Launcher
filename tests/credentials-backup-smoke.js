@@ -61,10 +61,15 @@ const accounts = normalizeAccounts([
   { id: 2, label: 'Dos', username: 'dos@ejemplo.test', password: 'secreto2' }
 ]);
 
-// 1. Primer arranque: no hay fichero -> defaults.
-const arranque = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
-assert.equal(arranque.accounts.length, 4, 'Sin fichero de credenciales deben devolverse las cuentas por defecto.');
-assert.equal(arranque.source, 'defaults', 'Sin fichero no hay nada que recuperar: el origen es defaults.');
+// 1. Primer arranque: no hay fichero -> ninguna cuenta.
+//
+// Antes esto devolvía cuatro cuentas en blanco, y el renderer abría un panel —una webview
+// cargando el juego— por cada una: cuatro juegos en una instalación recién puesta, medidos en
+// más de tres núcleos ocupados de forma continua. El arreglo es aquí: sin fichero, sin
+// cuentas. Las filas en blanco para empezar las pone la ventana de cuentas.
+const arranque = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
+assert.equal(arranque.accounts.length, 0, 'Sin fichero de credenciales no debe inventarse ninguna cuenta.');
+assert.equal(arranque.source, 'none', 'Sin fichero no hay nada que recuperar: no salen de ningún sitio.');
 assert.equal(arranque.recovered, false, 'Arranque limpio no se anuncia como recuperación.');
 assert.equal(hasAccountsBackup({ file, backupFile, fs }), false, 'Sin copia no puede haber botón que restaurar.');
 
@@ -84,7 +89,7 @@ assert.ok(
 );
 assert.equal(fs.existsSync(temporal), false, 'El temporal no puede sobrevivir a un guardado correcto.');
 
-const readBack = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
+const readBack = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(readBack.accounts.length, 2);
 assert.equal(readBack.accounts[0].username, 'uno@ejemplo.test');
 assert.equal(readBack.accounts[1].password, 'secreto2');
@@ -98,12 +103,12 @@ writeAccountsFile({ file, fs, safeStorage: fakeSafeStorage, accounts: normalizeA
   { id: 3, label: 'Tres', username: 'tres@ejemplo.test', password: 'secreto3' }
 ]), normalize: normalizeAccounts });
 assert.equal(fs.existsSync(backupFile), true, 'El segundo guardado debe dejar accounts.enc.bak.');
-assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }).accounts.length, 3);
+assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }).accounts.length, 3);
 assert.equal(hasAccountsBackup({ file, backupFile, fs }), true, 'Con .bak distinto del principal hay algo que restaurar.');
 
 // 4. El principal corrupto cae al backup, y se dice que se recuperó.
 fs.writeFileSync(file, Buffer.from('no-es-un-bloque-valido'));
-const recovered = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
+const recovered = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(recovered.accounts.length, 2, 'Con el principal corrupto hay que recuperar del backup.');
 assert.equal(recovered.source, 'backup');
 assert.equal(recovered.recovered, true, 'Recuperar del backup no puede ser silencioso: el renderer lo muestra.');
@@ -113,7 +118,7 @@ assert.equal(fs.existsSync(`${file}.corrupt`), true, 'El fichero dañado debe co
 fs.writeFileSync(file, Buffer.from('roto'));
 fs.writeFileSync(backupFile, Buffer.from('tambien roto'));
 assert.throws(
-  () => readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }),
+  () => readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }),
   /No se pudieron leer las cuentas guardadas/,
   'Con ambos ficheros ilegibles el error debe ser explicito y en español.'
 );
@@ -142,7 +147,7 @@ assert.ok(
   espia.calls.some((entry) => entry.op === 'rename' && entry.from === temporal && entry.to === file),
   `La restauración renombra un temporal sobre accounts.enc: ${JSON.stringify(espia.calls)}`
 );
-const trasRestaurar = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
+const trasRestaurar = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(trasRestaurar.accounts.length, 1, 'Después de restaurar se leen las cuentas de la copia.');
 assert.equal(trasRestaurar.accounts[0].username, 'rescate@ejemplo.test');
 assert.equal(trasRestaurar.accounts[0].password, 'clave-rescatada');
@@ -160,12 +165,12 @@ assert.match(repetido.error, /nada que restaurar/, 'La segunda restauración tie
 fs.writeFileSync(backupFile, fakeSafeStorage.encryptString(JSON.stringify(normalizeAccounts([
   { id: 1, label: 'Antes del error', username: 'antes@ejemplo.test', password: 'clave-buena' }
 ]))));
-assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }).accounts[0].username,
+assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }).accounts[0].username,
   'rescate@ejemplo.test', 'Punto de partida: el principal es la generación mala.');
 const deshecho = restoreAccountsBackup({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(deshecho.ok, true, 'Un principal legible pero distinto también se puede deshacer.');
 assert.equal(deshecho.preservedCorrupt, false, 'Un principal que se lee bien no es un archivo dañado: no se etiqueta como .corrupt.');
-assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }).accounts[0].password, 'clave-buena');
+assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }).accounts[0].password, 'clave-buena');
 
 // 9. Si la copia no se pudo tomar, la escritura sigue y el aviso sale. Perder la copia
 // anterior callado es el fallo que la copia existe para evitar; abortar el guardado
@@ -192,7 +197,7 @@ assert.equal(writeAccountsFile({
 assert.equal(avisos.length, 1, `Si la copia falla tiene que haber un aviso, no un silencio: ${JSON.stringify(avisos)}`);
 assert.match(avisos[0], /copia de seguridad/i, 'El aviso nombra lo que falló.');
 assert.match(avisos[0], /antivirus/, 'El aviso dice por qué.');
-const guardadoIgual = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
+const guardadoIgual = readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(guardadoIgual.accounts[0].password, 'ultima', 'La escritura principal se completa aunque la copia falle.');
 assert.equal(guardadoIgual.source, 'file', 'El .bak intacto no se confunde con el principal nuevo.');
 
@@ -208,9 +213,9 @@ writeAccountsFile({
 });
 assert.equal(avisosDanado.length, 1, `Un principal dañado también tiene que avisar: ${JSON.stringify(avisosDanado)}`);
 assert.match(avisosDanado[0], /dañado/, 'El aviso distingue "no se pudo copiar" de "no se pudo descifrar".');
-const copiaIntacta = readAccountsFile({ file: backupFile, backupFile: `${backupFile}.bak`, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts });
+const copiaIntacta = readAccountsFile({ file: backupFile, backupFile: `${backupFile}.bak`, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts });
 assert.equal(copiaIntacta.accounts[0].password, 'clave-buena', 'La copia anterior legible no puede desaparecer al guardar sobre un principal roto.');
-assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }).accounts[0].password,
+assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }).accounts[0].password,
   'ocho-clave', 'El guardado nuevo sí se aplica al principal.');
 
 // 10. Sin cifrado disponible no se toca el disco: ni el principal ni la copia.
@@ -221,12 +226,12 @@ assert.throws(
   'Sin cifrado disponible el guardado se niega, no deja un archivo vacío.'
 );
 assert.throws(
-  () => readAccountsFile({ file, backupFile, fs, safeStorage: sinCifrar, defaults: 4, normalize: normalizeAccounts }),
+  () => readAccountsFile({ file, backupFile, fs, safeStorage: sinCifrar, normalize: normalizeAccounts }),
   /cifrado seguro/i,
   'Sin cifrado disponible la lectura se niega en vez de devolver cuentas vacías.'
 );
-assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, defaults: 4, normalize: normalizeAccounts }).accounts[0].password,
+assert.equal(readAccountsFile({ file, backupFile, fs, safeStorage: fakeSafeStorage, normalize: normalizeAccounts }).accounts[0].password,
   'ocho-clave', 'Los dos intentos negados no han tocado accounts.enc.');
 
 fs.rmSync(dir, { recursive: true, force: true });
-console.log('Credentials backup smoke passed: defaults, ida y vuelta, escritura atómica, backup, recuperacion, restauracion atomica y error controlado.');
+console.log('Credentials backup smoke passed: primer arranque sin cuentas, ida y vuelta, escritura atómica, backup, recuperacion, restauracion atomica y error controlado.');

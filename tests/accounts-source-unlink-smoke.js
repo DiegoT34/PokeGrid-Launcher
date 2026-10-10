@@ -15,6 +15,7 @@ process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
 // expone unlinkAccountsSource, y lo que hay que comprobar —que el archivo con las
 // contraseñas en claro desaparece del disco— solo se ve en el proceso principal.
 require('../src/main.js');
+const { sembrarCuentas } = require('./cuentas-de-prueba.cjs');
 
 const { app, BrowserWindow, dialog } = require('electron');
 
@@ -82,7 +83,9 @@ app.whenReady().then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     assert.ok(mainWindow, 'La ventana principal no se creó');
-    await waitFor(mainWindow, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 4`);
+    // Las cuentas se crean aquí: sin fichero de credenciales ya no se inventa ninguna.
+    // Ver la nota de tests/cuentas-de-prueba.cjs.
+    await sembrarCuentas(mainWindow, 4);
 
     // window.confirm es un diálogo nativo bloqueante: sin stub la prueba se cuelga
     // esperando a un botón que nadie va a pulsar. El stub registra el texto y obedece

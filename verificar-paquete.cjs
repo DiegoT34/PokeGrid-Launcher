@@ -51,6 +51,15 @@ fs.rmSync(TEMP, { recursive: true, force: true });
 asar.extractAll(ASAR, TEMP);
 console.log(`extraído a ${TEMP}`);
 
+// Los ficheros que leen las comprobaciones de más abajo, con un aviso claro si falta alguno.
+// Sin esto, un fichero que dejara de empaquetarse saldría como un `ENOENT` a secas, sin decir
+// de qué, y eso se confunde con un fallo del verificador.
+for (const rel of ['src/renderer.js', 'src/styles.css', 'src/index.html', 'src/main.js', 'src/credentials.js', 'package.json']) {
+  if (!fs.existsSync(path.join(TEMP, rel))) {
+    throw new Error(`El paquete no trae ${rel}, y las comprobaciones de abajo lo leen. ¿Ha dejado de empaquetarse?`);
+  }
+}
+
 // --- 3. Lo que hay dentro se parece a lo del árbol ------------------------------
 const COMPARAR = ['renderer.js', 'styles.css', 'index.html', 'preload.js', 'main.js'];
 const resultado = COMPARAR.map((nombre) => {
@@ -217,6 +226,53 @@ for (const [parte, nombre] of ESTADOS) {
   const lleva = FRANJA.test(r.cuerpo);
   if (lleva) fallos++;
   console.log(`  ${lleva ? 'FALTA' : 'ok  '} la tarjeta, ${nombre}: ${lleva ? 'vuelve a llevar' : 'no lleva'} franja de color`);
+}
+
+// El cuerpo de una función, por conteo de llaves. Hace falta para mirar DENTRO del reloj de un
+// segundo y no en el resto del fichero, que puede tener otro formateador que no importa.
+function cuerpoDeFuncion(texto, nombre) {
+  const desde = texto.indexOf(`function ${nombre}(`);
+  if (desde < 0) throw new Error(`No encuentro la función ${nombre} en el paquete.`);
+  const abre = texto.indexOf('{', desde);
+  let nivel = 0;
+  for (let i = abre; i < texto.length; i++) {
+    if (texto[i] === '{') nivel++;
+    else if (texto[i] === '}') {
+      nivel--;
+      if (nivel === 0) return texto.slice(abre, i + 1);
+    }
+  }
+  throw new Error(`La función ${nombre} no cierra sus llaves.`);
+}
+
+// --- 6 ter. Los arreglos de rendimiento ------------------------------------------
+// Un perfil sin cuentas abría cuatro paneles, y cada panel es una webview cargando el juego.
+// Medido con la carpeta de datos vacía: 16 procesos, 1,3 GB privados y entre 267% y 317% de un
+// núcleo de forma continua. Y el sondeo de capturas esperaba 3500 ms en bucles de 100 ms aunque
+// no hubiera nada que pulsar, con el sondeo cada 3500 ms: el panel se pasaba todo el rato dentro
+// del bucle. Medido, ese script tardaba 3500 ms donde ahora tarda 6.
+//
+// Esto se comprueba aquí porque son invariantes de código y el verificador ya mira los ficheros
+// del paquete. La mitad de rendimiento se mide aparte, con pruebas que cronometran.
+const credenciales = fs.readFileSync(path.join(TEMP, 'src', 'credentials.js'), 'utf8');
+console.log('');
+const PERF = [
+  ['sin fichero de cuentas no se inventa ninguna', /accounts: \[\],\s*\n\s*source: 'none'/.test(credenciales.replace(/\r\n/g, '\n'))],
+  ['y no queda el parámetro `defaults`', !/\bdefaults\b/.test(credenciales)],
+  ['la ventana de cuentas pone sus filas en blanco', /if \(!accounts\.length\) \{\s*\n\s*for \(let index = 0; index < DEFAULT_ACCOUNT_COUNT/.test(renderer.replace(/\r\n/g, '\n'))],
+  ['y se abre cuando no hay cuentas', /\} else if \(!accounts\.length\) \{/.test(renderer)],
+  ['hay UNA definición de «dentro del juego»', (renderer.match(/function panelDentroDelJuego\(/g) || []).length === 1],
+  ['el sondeo de capturas la usa', /if \(!panelDentroDelJuego\(panel\)\) return;/.test(renderer)],
+  ['el sondeo del farmeo también', /if \(!panelDentroDelJuego\(panel\)\) \{/.test(renderer)],
+  ['no queda ningún clic opcional con espera incondicional', !/(trigger|logButton)\?\.click\(\);/.test(renderer)],
+  // El reloj de un segundo no puede fabricar un formateador por vuelta. Medido, cuesta 0,55 ms
+  // cada vez y se reutiliza por 0,006: a una por segundo son 2 s de CPU por hora para producir
+  // siempre el mismo objeto.
+  ['el reloj de un segundo no fabrica un formateador por vuelta', !/new Intl\.DateTimeFormat/.test(cuerpoDeFuncion(renderer, 'updatePanelLiveClocks'))]
+];
+for (const [que, ok] of PERF) {
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
 
 // --- 7. Y nada de lo que se quitó ----------------------------------------------

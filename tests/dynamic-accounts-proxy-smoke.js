@@ -8,6 +8,7 @@ const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-dynamic-acco
 process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
 
 require('../src/main.js'); // Launcher real: IPC, sesiones y ventana principal.
+const { sembrarCuentas } = require('./cuentas-de-prueba.cjs');
 
 const http = require('node:http');
 
@@ -32,7 +33,9 @@ app.whenReady().then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     assert.ok(mainWindow, 'La ventana principal no se creó');
-    await waitFor(mainWindow, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 4`);
+    // Las cuentas se crean aquí: sin fichero de credenciales ya no se inventa ninguna.
+    // Ver la nota de tests/cuentas-de-prueba.cjs.
+    await sembrarCuentas(mainWindow, 4);
 
     // Contador de setProxy. fromPartition devuelve siempre la misma instancia por
     // partición, así que parchear esa instancia cuenta las llamadas que hace el

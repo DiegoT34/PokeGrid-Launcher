@@ -247,7 +247,6 @@ function readAccountsReport() {
     backupFile: accountsBackupPath(),
     fs,
     safeStorage,
-    defaults: DEFAULT_ACCOUNT_COUNT,
     normalize: normalizeAccounts
   });
   lastAccountsRead = { recovered: report.recovered, corruptPreserved: report.corruptPreserved };

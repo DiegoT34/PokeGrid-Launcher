@@ -1853,8 +1853,14 @@ function captureSnapshotScript() {
       if (!analyzer) {
         const trigger = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button, button, [role="button"]')]
           .find((button) => /hunt analyzer|hunt_analyzer|analisador de hunt/.test(descriptor(button)));
-        trigger?.click();
-        analyzer = await waitFor(() => document.querySelector('[data-pg-hunt-dialog="true"], .ha-window'));
+        // Solo se espera si de verdad se ha pulsado algo. Antes se esperaba siempre, y sin
+        // disparador eso era un bucle de 100 ms durante 3500 ms en CADA vuelta del sondeo:
+        // con el sondeo cada 3500 ms, el panel se pasaba todo el rato girando. Y como el
+        // sondeo va cada 3500 ms, una espera de 3500 ms nunca dejaba respirar al proceso.
+        if (trigger) {
+          trigger.click();
+          analyzer = await waitFor(() => document.querySelector('[data-pg-hunt-dialog="true"], .ha-window'), 1500);
+        }
       }
       if (analyzer) {
         hideMonitorSource(analyzer, 'hunt');
@@ -1862,9 +1868,13 @@ function captureSnapshotScript() {
           [...analyzer.querySelectorAll('button, a, [role="button"]')].find((button) =>
             /capture log|log de capturas|historial de capturas/i.test(normalized(button.textContent))
           );
-        logButton?.click();
-        captureLog = await waitFor(() => document.querySelector('.clog-window'));
-        if (captureLog) hideMonitorSource(captureLog, 'capture');
+        // Lo mismo con el registro de capturas: si no hay botón que pulsar, no hay nada que
+        // esperar. Y con 1500 ms sobra para que se abra el cuadro.
+        if (logButton) {
+          logButton.click();
+          captureLog = await waitFor(() => document.querySelector('.clog-window'), 1500);
+          if (captureLog) hideMonitorSource(captureLog, 'capture');
+        }
       }
     } else if (captureLog.dataset.pgLauncherMonitorSource) {
       hideMonitorSource(captureLog, 'capture');
@@ -1997,8 +2007,11 @@ function captureLogPanelSnapshotScript() {
       if (!analyzer) {
         const trigger = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button, button, [role="button"]')]
           .find((button) => /hunt analyzer|hunt_analyzer|analisador de hunt/.test(describeControl(button)));
-        trigger?.click();
-        analyzer = await waitFor(() => document.querySelector('.ha-window, [data-pg-hunt-dialog="true"]'));
+        // Sin disparador no hay nada que esperar: ver la nota del sondeo de capturas.
+        if (trigger) {
+          trigger.click();
+          analyzer = await waitFor(() => document.querySelector('.ha-window, [data-pg-hunt-dialog="true"]'), 1500);
+        }
       }
       if (analyzer) {
         hideSource(analyzer, 'hunt');
@@ -2006,8 +2019,10 @@ function captureLogPanelSnapshotScript() {
           [...analyzer.querySelectorAll('button, a, [role="button"]')].find((button) =>
             /capture log|log de capturas|historial de capturas/i.test(normalized(button.textContent))
           );
-        logButton?.click();
-        captureLog = await waitFor(() => document.querySelector('.clog-window'));
+        if (logButton) {
+          logButton.click();
+          captureLog = await waitFor(() => document.querySelector('.clog-window'), 1500);
+        }
       }
     }
     if (!captureLog) return { ok: false, error: 'Capture Log todavía no está disponible en esta sesión.' };
@@ -3046,13 +3061,28 @@ async function processCapturedEvent(panel, capture, source) {
   addCaptureNotification(enriched, panel.index);
   bridgeCaptureToTelegram(panel, enriched, source);
 }
+// Un panel está dentro del juego cuando su webview está en el origen del juego y no en la
+// página de acceso. La página de acceso pasa la comprobación de origen y no tiene nada que
+// leer: sondearla no da datos y cuesta mucho, porque el script del registro de capturas se
+// queda esperando en bucles de 100 ms. Es la misma regla que usa el sondeo del panel de
+// farmeo desde antes; está escrita una vez para que no vuelvan a separarse.
+function panelDentroDelJuego(panel) {
+  try {
+    const url = panel.webview.getURL();
+    if (!url.startsWith(GAME_ORIGIN)) return false;
+    return new URL(url).pathname !== '/login';
+  } catch {
+    return false;
+  }
+}
+
 async function pollCaptureNotifications() {
   if (capturePollBusy) return;
   capturePollBusy = true;
   try {
     await Promise.allSettled(panels.map(async (panel) => {
       try {
-        if (!panel.webview.getURL().startsWith(GAME_ORIGIN)) return;
+        if (!panelDentroDelJuego(panel)) return;
         if (Date.now() - Number(panel.captureMonitorHealthAt || 0) > 30_000) {
           panel.captureMonitorHealthAt = Date.now();
           await withTimeout(panel.webview.executeJavaScript(captureMonitorInstallScript()), PANEL_READ_TIMEOUT_MS, 'El monitor de eventos no respondió.').catch(() => {});
@@ -4223,8 +4253,11 @@ function huntAnalyzerSnapshotScript() {
       ].filter(Boolean).join(' '));
       const trigger = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button, button, [role="button"]')]
         .find((button) => /hunt analyzer|hunt_analyzer|analisador de hunt/.test(descriptor(button)));
-      trigger?.click();
-      dialog = await waitFor(findDialog);
+      // Sin disparador no hay nada que esperar: ver la nota del sondeo de capturas.
+      if (trigger) {
+        trigger.click();
+        dialog = await waitFor(findDialog, 1500);
+      }
     }
     if (!dialog) return { ok: false, error: 'Hunt Analyzer todavía no está disponible en esta sesión.' };
     dialog.dataset.pgLauncherHuntSource = 'true';
@@ -4465,17 +4498,20 @@ function formatHuntDuration(totalSeconds) {
   const remainder = seconds % 60;
   return `${hours ? `${hours}h ` : ''}${minutes ? `${minutes}m ` : ''}${remainder}s`;
 }
+// El formateador de la hora se fabrica UNA vez, al cargar, y no en cada vuelta. Medido:
+// fabricarlo cuesta 0,55 ms y reutilizarlo 0,006 ms. El reloj de abajo corre cada segundo,
+// así que fabricarlo dentro eran 2 s de CPU por hora para producir siempre el mismo objeto.
+const FORMATO_HORA_CORTA = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 function updatePanelLiveClocks() {
   const now = Date.now();
-  const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   panels.forEach((panel) => {
     if (panel.captureLogOpen && panel.captureLogState.classList.contains('is-live') && panel.captureLogLastUpdate) {
       const age = Math.max(0, Math.floor((now - panel.captureLogLastUpdate) / 1000));
-      panel.captureLogState.textContent = `En vivo · ${timeFormat.format(panel.captureLogLastUpdate)} · hace ${age}s`;
+      panel.captureLogState.textContent = `En vivo · ${FORMATO_HORA_CORTA.format(panel.captureLogLastUpdate)} · hace ${age}s`;
     }
     if (panel.huntOpen && panel.huntState.classList.contains('is-live') && panel.huntLastUpdate) {
       const age = Math.max(0, Math.floor((now - panel.huntLastUpdate) / 1000));
-      panel.huntState.textContent = `En vivo · ${timeFormat.format(panel.huntLastUpdate)} · hace ${age}s`;
+      panel.huntState.textContent = `En vivo · ${FORMATO_HORA_CORTA.format(panel.huntLastUpdate)} · hace ${age}s`;
       const timer = panel.huntContent.querySelector('[data-metric-key="time"]');
       if (timer && Number.isFinite(panel.huntElapsedBase) && panel.huntElapsedAt) {
         timer.textContent = formatHuntDuration(panel.huntElapsedBase + ((now - panel.huntElapsedAt) / 1000));
@@ -5905,8 +5941,7 @@ async function refreshFarmContexts({ render = true, forcePokes = false, accountI
     const contexts = await Promise.all(panels.map(async (panel, index) => {
       if (accountIndex !== null && index !== accountIndex) return farmContexts[index];
       try {
-        const url = panel.webview.getURL();
-        if (!url.startsWith(GAME_ORIGIN) || new URL(url).pathname === '/login') {
+        if (!panelDentroDelJuego(panel)) {
           return { level: null, location: '', ready: false, leader: null };
         }
         return await withTimeout(
@@ -9228,7 +9263,20 @@ function reindexAccountRows() {
 function openAccountsModal() {
   accountRows.replaceChildren();
   setModalMessage('');
-  accounts.forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
+  // Sin cuentas guardadas se ofrecen filas en blanco para rellenar. Antes esas filas salían
+  // de que el lector de credenciales se inventaba cuatro cuentas y el renderer creaba un
+  // panel por cada una, o sea cuatro juegos cargando sin haber configurado nada. Las filas
+  // son de esta ventana; los paneles, de las cuentas de verdad.
+  if (!accounts.length) {
+    for (let index = 0; index < DEFAULT_ACCOUNT_COUNT; index += 1) {
+      accountRows.appendChild(renderAccountRow(
+        { id: index + 1, label: '', username: '', password: '', proxy: defaultProxy() },
+        index
+      ));
+    }
+  } else {
+    accounts.forEach((account, index) => accountRows.appendChild(renderAccountRow(account, index)));
+  }
   const addButton = document.createElement('button');
   addButton.type = 'button';
   addButton.className = 'button button-secondary';
@@ -10353,5 +10401,9 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   if (!result.ok) {
     openAccountsModal();
     setModalMessage(result.error || 'No se pudieron leer las cuentas guardadas.');
+  } else if (!accounts.length) {
+    // Primer arranque: no hay ninguna cuenta guardada. En vez de abrir cuatro paneles vacíos
+    // —cuatro webviews cargando el juego para nada— se abre la ventana para poder empezar.
+    openAccountsModal();
   }
 })();

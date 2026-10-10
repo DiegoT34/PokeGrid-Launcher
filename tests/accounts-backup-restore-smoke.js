@@ -98,7 +98,10 @@ app.whenReady().then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     assert.ok(mainWindow, 'La ventana principal no se creó');
-    await waitFor(mainWindow, `!document.querySelector('#grid').hidden && document.querySelectorAll('#grid .panel').length === 4`);
+    // Un perfil sin fichero de cuentas ya no tiene paneles, y está bien que no los tenga: no
+        // hay ninguna cuenta que cargar. Se espera al estado del que parte esta prueba, que es
+        // el launcher listo y la ventana de cuentas abierta con sus filas en blanco.
+        await waitFor(mainWindow, `!document.getElementById('modalBackdrop').hidden && document.querySelectorAll('.account-row').length >= 1`);
 
     await mainWindow.webContents.executeJavaScript(`(() => {
       window.__backup = { avisos: [], aceptar: true };

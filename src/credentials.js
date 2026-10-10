@@ -20,7 +20,6 @@
 
 const path = require('node:path');
 
-const DEFAULT_ACCOUNTS_ON_FIRST_RUN = 4;
 const BACKUP_SUFFIX = '.bak';
 const CORRUPT_SUFFIX = '.corrupt';
 const TEMPORARY_SUFFIX = '.tmp';
@@ -48,13 +47,16 @@ function readBytes(file, fs) {
 // Devuelve un informe y no solo el array porque el renderer necesita saber de dónde
 // salieron las cuentas: recuperar del backup sin decirlo sería tapar el problema que
 // el backup acaba de tapar. Un cambio silencioso de contrato a propósito.
-function readAccountsFile({ file, backupFile, fs, safeStorage, defaults = DEFAULT_ACCOUNTS_ON_FIRST_RUN, normalize }) {
+function readAccountsFile({ file, backupFile, fs, safeStorage, normalize }) {
   requireNormalize(normalize, 'readAccountsFile');
-  const count = Math.max(1, Math.floor(Number(defaults) || DEFAULT_ACCOUNTS_ON_FIRST_RUN));
+  // Sin fichero no hay cuentas, y punto. Antes se devolvían cuatro cuentas en blanco, y el
+  // renderer abre un panel —una webview cargando el juego— por cuenta: cuatro juegos abiertos
+  // en una instalación recién puesta. Las cuatro filas en blanco para empezar las pone la
+  // ventana de cuentas, que no crea ninguna webview.
   if (!fs.existsSync(file)) {
     return {
-      accounts: normalize(Array.from({ length: count }, (_, index) => ({ id: index + 1 }))),
-      source: 'defaults',
+      accounts: [],
+      source: 'none',
       recovered: false,
       corruptPreserved: false
     };
@@ -215,7 +217,6 @@ function restoreAccountsBackup({ file, backupFile, fs, safeStorage, normalize })
 }
 
 module.exports = {
-  DEFAULT_ACCOUNTS_ON_FIRST_RUN,
   hasAccountsBackup,
   readAccountsFile,
   restoreAccountsBackup,
