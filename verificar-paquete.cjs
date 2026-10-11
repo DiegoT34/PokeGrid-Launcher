@@ -332,8 +332,8 @@ const CAPTURE = [
   ['y caída al sprite del juego', /image\.src = capture\.sprite;/.test(renderer)],
   // El IV no está en `.clog-meta` en el juego real: va dentro de `.clog-lvl`. Se arregló en los DOS
   // scripts de capturas, porque el panel usa el segundo y al principio solo se tocó el primero.
-  ['el IV se busca en los dos sitios, en el script del panel', /const ivMatch = meta\.match\(\/iv\\s\*\(\\d\+\)\(?:\\s\*\\\/\\s\*\(\\d\+\)\)\?\/i\) \|\|/.test(renderer)],
-  ['y en el de las notificaciones', /nivelTexto\.match\(\/iv\\\\s\*\(\\\\d\+\)/.test(renderer)],
+  ['el IV se busca en los dos sitios, en el script del panel', /meta\.match\(\/iv[\s\S]{0,200}?levelText\.match\(\/iv/.test(renderer)],
+  ['y en el de las notificaciones', /meta\.match\(\/iv[\s\S]{0,200}?nivelTexto\.match\(\/iv/.test(renderer)],
   ['y el nivel no se saca del primer número', !/const rowLevel = Number\(levelText\.match\(\/\\d\+\/\)\?\.\[0\]\) \|\| null;/.test(renderer) && !/const level = clean\(row\.querySelector\('\.clog-lvl'\)\?\.textContent\);/.test(renderer)]
 ];
 console.log('');
