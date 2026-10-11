@@ -4232,10 +4232,16 @@ function huntAnalyzerSnapshotScript() {
       ].filter(Boolean).join(' '));
       const trigger = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button, button, [role="button"]')]
         .find((button) => /hunt analyzer|hunt_analyzer|analisador de hunt/.test(descriptor(button)));
-      // Sin disparador no hay nada que esperar: ver la nota del sondeo de capturas.
-      if (trigger) {
+      // El panel del juego NO está en el DOM mientras está cerrado: se crea al pulsar. Se apunta
+      // cuándo se pulsó para no volver a pulsar mientras se espera a que aparezca. Pulsar otra vez
+      // en cada intento, con un botón que sea interruptor, lo cerraría justo antes de leerlo.
+      const pulsadoHace = Date.now() - Number(window.__pokeGridHuntPulsadoEn || 0);
+      if (trigger && pulsadoHace > 6000) {
+        window.__pokeGridHuntPulsadoEn = Date.now();
         trigger.click();
-        dialog = await waitFor(findDialog, 1500);
+      }
+      if (trigger) {
+        dialog = await waitFor(findDialog, 3000);
       }
     }
     if (!dialog) return { ok: false, error: 'Hunt Analyzer todavía no está disponible en esta sesión.' };
@@ -4276,6 +4282,9 @@ function huntAnalyzerSnapshotScript() {
       return remainder && /(?:\d|—)/.test(remainder) ? remainder : '—';
     };
     const readDetail = (card, labelElement, labelText = '') => {
+      // Sin etiqueta reconocida no se sabe qué es el detalle, así que no se pone: antes se cogía
+      // el propio texto de la etiqueta y salía pegado al valor («6m 49s Tiempo en la caza»).
+      if (!labelElement) return '';
       const parenthetical = clean(labelText).match(/\(([^)]+)\)/)?.[1] || '';
       const small = [...card?.querySelectorAll('small') || []]
         .filter((element) => element !== labelElement)
@@ -4300,7 +4309,9 @@ function huntAnalyzerSnapshotScript() {
     };
     const baseMetrics = [
       readMetric('defeated', 'Derrotados', /^(defeated|derrotados?|abatidos?)\b/, 'default', '.ha-grid > .ha-card:not(.ha-xp):not(.ha-catch):nth-child(1)'),
-      readMetric('time', 'Tiempo de caza', /^(time in hunt|tempo na hunt|tiempo en hunt)\b/, 'time', '.ha-grid > .ha-card:not(.ha-xp):not(.ha-catch):nth-child(2)'),
+      // «Tiempo en la caza» es lo que dice el juego en español; sin esa forma la etiqueta no se
+      // reconocía y su texto salía como detalle de la tarjeta.
+      readMetric('time', 'Tiempo de caza', /^(time in hunt|tempo na hunt|tiempo en hunt|tiempo en la caza)\b/, 'time', '.ha-grid > .ha-card:not(.ha-xp):not(.ha-catch):nth-child(2)'),
       readMetric('xp', 'XP obtenida', /^xp (gained|ganha|ganada)\b/, 'xp', '.ha-card.ha-xp'),
       readMetric('captured', 'Capturados', /^(captured|capturados?)\b/, 'capture', '.ha-card.ha-catch'),
       readMetric('loot', 'Botín', /^(loot|botin)\b/, 'loot', '.ha-card.ha-loot'),
