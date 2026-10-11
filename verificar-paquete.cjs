@@ -311,6 +311,37 @@ for (const [que, ok] of LIMPIEZA) {
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
 
+// --- 6 quinquies. El registro de capturas -----------------------------------------
+// El modo de guardado, los sprites de PokeAPI y la lectura afinada. Se mira en el paquete porque
+// son invariantes de código, y varias de ellas son cosas que YA se rompieron una vez al escribirlas.
+const CAPTURE = [
+  ['el modo de guardado existe', /CAPTURE_MODO_KEY = 'idle-poke:capture-archive:v1'/.test(renderer)],
+  ['de fábrica se guarda completo', /CAPTURE_MODO_POR_DEFECTO = Object\.freeze\(\{ modo: 'completo' \}\)/.test(renderer)],
+  ['los dos modos están', /CAPTURE_MODOS = \['completo', 'visible'\]/.test(renderer)],
+  ['solo se archiva cuando toca', /if \(captureArchivaTodo\(\)\) archiveCaptureRows\(panel, incomingRows\);/.test(renderer)],
+  ['y la lista sale del archivo solo en ese modo', /panel\.captureLogPreview \|\| !captureArchivaTodo\(\)/.test(renderer)],
+  ['el contador distingue los modos', /en el registro del juego/.test(renderer)],
+  ['el panel trae su botón de ajustes', /capture-float-settings-toggle/.test(html)],
+  ['y su bloque, con los dos modos', /<option value="visible">/.test(html) && /class="capture-float-settings" hidden/.test(html)],
+  // Esta es la que faltó al escribirlo: sin los campos en el objeto del panel, el manejador hacía
+  // `undefined.hidden` y el botón no hacía nada SIN dar error, porque el fallo ocurre dentro de un
+  // `dispatchEvent` y eso no se propaga a quien llamó.
+  ['los ajustes están en el objeto del panel', /^\s{4}captureSettingsBlock,$/m.test(renderer) && /^\s{4}captureSettingsModo,$/m.test(renderer)],
+  ['el sprite sale de PokeAPI', /const speciesId = await resolvePokeApiSpeciesId\(capture\)/.test(renderer)],
+  ['con variante shiny', /\? \[`\$\{base\}\/shiny\/\$\{id\}\.png`\]/.test(renderer)],
+  ['y caída al sprite del juego', /image\.src = capture\.sprite;/.test(renderer)],
+  // El IV no está en `.clog-meta` en el juego real: va dentro de `.clog-lvl`. Se arregló en los DOS
+  // scripts de capturas, porque el panel usa el segundo y al principio solo se tocó el primero.
+  ['el IV se busca en los dos sitios, en el script del panel', /const ivMatch = meta\.match\(\/iv\\s\*\(\\d\+\)\(?:\\s\*\\\/\\s\*\(\\d\+\)\)\?\/i\) \|\|/.test(renderer)],
+  ['y en el de las notificaciones', /nivelTexto\.match\(\/iv\\\\s\*\(\\\\d\+\)/.test(renderer)],
+  ['y el nivel no se saca del primer número', !/const rowLevel = Number\(levelText\.match\(\/\\d\+\/\)\?\.\[0\]\) \|\| null;/.test(renderer) && !/const level = clean\(row\.querySelector\('\.clog-lvl'\)\?\.textContent\);/.test(renderer)]
+];
+console.log('');
+for (const [que, ok] of CAPTURE) {
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
+
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
 //

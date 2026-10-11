@@ -627,6 +627,7 @@
               <button class="capture-float-delete" type="button" title="Eliminar todo el registro de capturas">
                 <span class="capture-float-delete-label">Eliminar</span>
               </button>
+              <button class="capture-float-settings-toggle float-geometry-action" type="button" aria-expanded="false" title="Qué se guarda del registro de capturas"></button>
               <button class="capture-float-close" type="button" aria-label="Cerrar Capture Log"></button>
             </div>
           </header>
@@ -663,6 +664,16 @@
             </div>
           </details>
           <div class="capture-float-state" role="status">Conectando con Capture Log…</div>
+          <div class="capture-float-settings" hidden>
+            <label>
+              <span>Qué se guarda</span>
+              <select class="capture-float-settings-modo">
+                <option value="completo">Guardar completo</option>
+                <option value="visible">Solo lo que muestra el juego</option>
+              </select>
+            </label>
+            <p class="capture-float-settings-note"></p>
+          </div>
           <div class="capture-float-list"></div>
           <div class="capture-detail-popover" role="tooltip" hidden></div>
         </aside>

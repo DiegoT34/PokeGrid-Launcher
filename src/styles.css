@@ -1118,11 +1118,12 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .account-info-vip.is-vip b { color: #42e6d0; }
 .account-info-vip.is-basic b { color: #8b9aa5; }
 
-/* --- Ajustes de lectura del Hunt Analyzer -------------------------------------------
+/* --- Ajustes de los dos paneles del launcher: el Hunt Analyzer y el Capture Log ----------
+   Los dos usan el mismo bloque, así que las reglas son las mismas con dos selectores.----------------------------------------
    El botón va en la barra, junto a Reset y Eliminar, y el bloque se despliega debajo de la
    línea de estado. Es un ajuste que casi nadie tocará dos veces, así que no ocupa sitio hasta
    que se pide: cerrado no se ve. */
-.hunt-float-settings {
+.hunt-float-settings, .capture-float-settings {
   margin: 0 0 8px;
   padding: 9px 10px;
   display: grid;
@@ -1131,10 +1132,10 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   border-radius: 10px;
   background: #0b1b24;
 }
-.hunt-float-settings[hidden] { display: none; }
+.hunt-float-settings[hidden], .capture-float-settings[hidden] { display: none; }
 /* Y el botón de la barra, que es otra cosa: no lleva nada de lo de arriba. */
-.hunt-float-settings-toggle[aria-expanded="true"] { background: #143139; border-color: #4fc4c5; }
-.hunt-float-settings label {
+.hunt-float-settings-toggle[aria-expanded="true"], .capture-float-settings-toggle[aria-expanded="true"] { background: #143139; border-color: #4fc4c5; }
+.hunt-float-settings label, .capture-float-settings label {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1142,8 +1143,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   font-size: 10px;
   color: #9fb4c0;
 }
-.hunt-float-settings label[hidden] { display: none; }
-.hunt-float-settings select {
+.hunt-float-settings label[hidden], .capture-float-settings label[hidden] { display: none; }
+.hunt-float-settings select, .capture-float-settings select {
   min-width: 132px;
   padding: 4px 6px;
   border: 1px solid #2b4653;
@@ -1153,8 +1154,8 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   font: inherit;
   font-size: 10px;
 }
-.hunt-float-settings select:focus-visible { outline: 1px solid #4fc4c5; outline-offset: 1px; }
-.hunt-float-settings-note {
+.hunt-float-settings select:focus-visible, .capture-float-settings select:focus-visible { outline: 1px solid #4fc4c5; outline-offset: 1px; }
+.hunt-float-settings-note, .capture-float-settings-note {
   margin: 0;
   font-size: 9px;
   line-height: 1.35;

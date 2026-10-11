@@ -1881,12 +1881,21 @@ function captureSnapshotScript() {
       const rawName = row.querySelector('.clog-name')?.childNodes?.[0]?.textContent ||
         row.querySelector('.clog-name')?.textContent || row.querySelector('.clog-ico img')?.alt;
       const name = cleanName(rawName);
-      const level = clean(row.querySelector('.clog-lvl')?.textContent);
+      // El juego pone la CALIDAD dentro de \`.clog-lvl\` («Incomum ×1.19 IV 92/192»), no el nivel. Se
+      // guarda el texto entero para poder sacar de ahí el IV, y el nivel solo se toma si el texto
+      // es de verdad un nivel: quedarse con el primer número daba «1» —el de «×1.19»— en todas.
+      const nivelTexto = clean(row.querySelector('.clog-lvl')?.textContent);
+      const level = /^(?:lv|nivel|n[ií]vel|n)\\.?\\s*(\\d{1,3})\\s*$/i.test(nivelTexto)
+        ? String(Number(nivelTexto.match(/(\\d{1,3})/)[1]))
+        : (/^\\d{1,3}$/.test(nivelTexto) ? nivelTexto : '');
       const meta = clean(row.querySelector('.clog-meta')?.textContent);
       const ball = clean(row.querySelector('.clog-ball')?.textContent);
       const when = clean(row.querySelector('.clog-when')?.textContent);
-      const ivMatch = meta.match(/iv\\s*(\\d+)(?:\\s*\\/\\s*(\\d+))?/i);
       const text = clean(row.textContent);
+      // El IV no está en \`.clog-meta\` —va vacío—: viene dentro de \`.clog-lvl\`, junto a la calidad.
+      const ivMatch = meta.match(/iv\\s*(\\d+)(?:\\s*\\/\\s*(\\d+))?/i)
+        || nivelTexto.match(/iv\\s*(\\d+)(?:\\s*\\/\\s*(\\d+))?/i)
+        || text.match(/iv\\s*(\\d+)(?:\\s*\\/\\s*(\\d+))?/i);
       const ordinalText = clean(row.querySelector('.clog-num, [class*="ordinal"], [class*="capture-number"]')?.textContent);
       const ordinal = Number(ordinalText.match(/\d+/)?.[0]) || null;
       const rowId = clean(row.dataset.captureId || row.dataset.id || reactRowId(row));
@@ -2447,8 +2456,15 @@ function captureLogPanelSnapshotScript() {
       const name = cleanName(rawName);
       const levelText = clean(row.querySelector('.clog-lvl')?.textContent);
       const meta = clean(row.querySelector('.clog-meta')?.textContent);
-      const ivMatch = meta.match(/iv\s*(\d+)(?:\s*\/\s*(\d+))?/i);
-      const rowLevel = Number(levelText.match(/\d+/)?.[0]) || null;
+      // El IV no está en \`.clog-meta\` en el juego real —va vacío—: viene dentro de \`.clog-lvl\`, junto
+      // a la calidad. Se busca en los dos sitios.
+      const ivMatch = meta.match(/iv\s*(\d+)(?:\s*\/\s*(\d+))?/i) ||
+        levelText.match(/iv\s*(\d+)(?:\s*\/\s*(\d+))?/i);
+      // Y el nivel, solo si el texto es un nivel. Antes se cogía el primer número del texto, que
+      // con la calidad delante es el «1» de «×1.19»: todas las capturas salían con nivel 1.
+      const rowLevel = /^(?:lv|nivel|n[ií]vel|n)\.?\s*(\d{1,3})\s*$/i.test(levelText)
+        ? Number(levelText.match(/(\d{1,3})/)[1])
+        : (/^\d{1,3}$/.test(levelText) ? Number(levelText) : null);
       const rowIv = ivMatch ? Number(ivMatch[1]) : null;
       const rowId = clean(row.dataset.captureId || row.dataset.id || reactRowId(row));
       const reactDetail = extractReactDetail(row);
@@ -3162,24 +3178,46 @@ function enrichCaptureLogEntry(capture) {
   };
 }
 function createCaptureLogSprite(capture, size, detail = false) {
-  if (capture.sprite) {
-    const image = document.createElement('img');
-    image.className = detail ? 'capture-detail-sprite' : 'capture-flat-sprite';
-    image.src = capture.sprite;
-    image.alt = capture.name;
-    return image;
-  }
-  if (capture.looktype) {
-    const atlasSprite = createFarmSprite({ looktype: capture.looktype, name: capture.name }, size);
-    atlasSprite.classList.add(detail ? 'capture-detail-sprite' : 'capture-flat-sprite', 'capture-atlas-sprite');
-    atlasSprite.setAttribute('role', 'img');
-    atlasSprite.setAttribute('aria-label', capture.name);
-    return atlasSprite;
-  }
-  const fallback = document.createElement('span');
-  fallback.className = `${detail ? 'capture-detail-sprite' : 'capture-flat-sprite'} capture-flat-sprite-fallback`;
-  fallback.innerHTML = launcherUiIcon('live');
-  return fallback;
+  const clase = detail ? 'capture-detail-sprite' : 'capture-flat-sprite';
+  // El sprite sale de PokeAPI en pixel art y no del juego. El id de la especie se resuelve por el
+  // nombre, que ya sabe quitar los prefijos del juego («Enraged Typhlosion» → «typhlosion»), y la
+  // imagen se carga en diferido: la fila se pinta ya y el sprite entra cuando llega. Es el mismo
+  // camino que usa el selector de farmeo, así que la caché es la misma y no se pide dos veces.
+  const image = document.createElement('img');
+  image.className = `${clase} capture-pokeapi-sprite`;
+  image.alt = capture?.name || '';
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  (async () => {
+    const speciesId = await resolvePokeApiSpeciesId(capture);
+    const dataUrl = speciesId ? await loadPokeApiSpriteData(speciesId, capture?.isShiny === true) : '';
+    if (image.isConnected === false && !image.parentElement) return;
+    if (dataUrl) {
+      image.src = dataUrl;
+      image.dataset.speciesId = String(speciesId);
+      image.dataset.spriteSource = 'pokeapi';
+      return;
+    }
+    // Sin sprite de PokeAPI no se deja un hueco: se cae al del juego, que es lo que había antes.
+    if (capture?.sprite) {
+      image.src = capture.sprite;
+      image.dataset.spriteSource = 'game';
+      return;
+    }
+    if (capture?.looktype) {
+      const atlasSprite = createFarmSprite({ looktype: capture.looktype, name: capture.name }, size);
+      atlasSprite.classList.add(clase, 'capture-atlas-sprite');
+      atlasSprite.setAttribute('role', 'img');
+      atlasSprite.setAttribute('aria-label', capture.name);
+      image.replaceWith(atlasSprite);
+      return;
+    }
+    const fallback = document.createElement('span');
+    fallback.className = `${clase} capture-flat-sprite-fallback`;
+    fallback.innerHTML = launcherUiIcon('live');
+    image.replaceWith(fallback);
+  })();
+  return image;
 }
 function sortedCaptureLogRows(rows, sort) {
   const tierValue = (capture) => tierRank(capture.tier);
@@ -3673,6 +3711,79 @@ function reabrirCaptureDetail(panel, key) {
   if (!captura) return;
   showCaptureDetail(panel, captura, fila);
 }
+// Cuánto se guarda del registro de capturas, que es una decisión del usuario y no una constante.
+//
+// El launcher lee el Capture Log del juego y ADEMÁS archiva cada captura en IndexedDB, que es un
+// archivo permanente y sin tope: el juego conserva las de la sesión y el launcher guarda todas las
+// que ha visto nunca. Con el tiempo eso crece —medido en un caso real, 119 guardadas donde el juego
+// tenía 48— y hay equipos donde se nota.
+//
+// Los dos modos:
+//
+//   · `completo` — se archiva todo, como siempre. Es lo que viene de fábrica.
+//   · `visible`  — se lee y se muestra igual, pero NO se archiva: la lista pasa a ser la que el
+//                    Capture Log del juego tiene en ese momento. Lo ya guardado no se borra: sigue
+//                    en el archivo y vuelve a verse al elegir «completo» otra vez.
+//
+// Un solo ajuste para todas las cuentas, como el modo de lectura del Hunt.
+const CAPTURE_MODO_KEY = 'idle-poke:capture-archive:v1';
+const CAPTURE_MODOS = ['completo', 'visible'];
+const CAPTURE_MODO_POR_DEFECTO = Object.freeze({ modo: 'completo' });
+
+// Lo que venga de localStorage pasa por aquí: un valor raro guardado a mano no puede dejar el
+// registro a medias.
+function normalizarCaptureModo(valor) {
+  return { modo: CAPTURE_MODOS.includes(valor?.modo) ? valor.modo : CAPTURE_MODO_POR_DEFECTO.modo };
+}
+function cargarCaptureModo() {
+  try {
+    return normalizarCaptureModo(JSON.parse(localStorage.getItem(CAPTURE_MODO_KEY) || 'null'));
+  } catch {
+    return { ...CAPTURE_MODO_POR_DEFECTO };
+  }
+}
+let captureModo = cargarCaptureModo();
+function guardarCaptureModo() {
+  try { localStorage.setItem(CAPTURE_MODO_KEY, JSON.stringify(captureModo)); } catch {}
+}
+// El nombre dice lo que hace. Leer `captureModo.modo === 'completo'` por el fichero es cómo se
+// acaba equivocando uno en una negación.
+function captureArchivaTodo() {
+  return captureModo.modo === 'completo';
+}
+// Los controles de todos los paneles se ponen de acuerdo con el ajuste guardado.
+function renderCaptureModoSettings() {
+  panels.forEach((panel) => {
+    if (!panel.captureSettingsModo) return;
+    panel.captureSettingsModo.value = captureModo.modo;
+    panel.captureSettingsNote.textContent = captureArchivaTodo()
+      ? 'Se guardan todas las capturas que el launcher ve, aunque salgan del registro del juego. Es como funcionaba siempre.'
+      : 'Se muestra solo lo que el Capture Log del juego tiene ahora. Lo ya guardado sigue a salvo y vuelve a verse al elegir «Guardar completo».';
+  });
+}
+function setCaptureModo(modo) {
+  captureModo = normalizarCaptureModo({ modo });
+  guardarCaptureModo();
+  renderCaptureModoSettings();
+  // El panel se repinta ya, sin esperar al siguiente sondeo, para que la lista y el contador digan
+  // lo del modo nuevo.
+  panels.forEach((panel) => {
+    if (panel.captureLogOpen && panel.captureLogSnapshot) {
+      panel.captureLogSignature = '';
+      renderCaptureLog(panel, panel.captureLogSnapshot);
+    }
+  });
+}
+
+// Gancho de diagnóstico: si se archiva o no es lo único que cambia entre los modos, y desde la
+// pantalla no se ve —un panel con 48 capturas se ve igual archívelas o no—.
+window.__pokeGridCaptureModo = {
+  config: () => ({ ...captureModo }),
+  archiva: () => captureArchivaTodo(),
+  fijar: (modo) => { setCaptureModo(modo); return { ...captureModo }; },
+  archivadas: (indice) => Number(panels[Number(indice)]?.captureArchive?.size || 0)
+};
+
 function renderCaptureLog(panel, snapshot) {
   panel.captureLogSnapshot = snapshot?.ok ? snapshot : null;
   panel.captureLogState.classList.toggle('is-live', Boolean(snapshot?.ok));
@@ -3687,23 +3798,30 @@ function renderCaptureLog(panel, snapshot) {
   panel.captureLogState.textContent = `En vivo · ${FORMATO_HORA_CORTA.format(snapshot.updatedAt)}`;
   panel.captureLogLastUpdate = Number(snapshot.updatedAt) || Date.now();
   const incomingRows = (snapshot.rows || []).map(enrichCaptureLogEntry);
-  archiveCaptureRows(panel, incomingRows);
-  const allRows = panel.captureLogPreview
+  // En «solo lo que muestra el juego» no se archiva nada: la lista es la del juego, entera y sin
+  // nada de antes. Lo ya guardado sigue en el archivo, por si se vuelve a «guardar completo».
+  if (captureArchivaTodo()) archiveCaptureRows(panel, incomingRows);
+  const allRows = panel.captureLogPreview || !captureArchivaTodo()
     ? incomingRows
     : [...panel.captureArchive.values()].map(enrichCaptureLogEntry);
   syncCaptureFilterOptions(panel, allRows);
   panel.captureFilterBadge.hidden = !captureFiltersActive(panel.captureFilters);
   const filteredRows = filteredCaptureLogRows(allRows, panel.captureFilters);
   const reportedTotal = Math.max(Number(snapshot.total) || 0, allRows.length);
-  const archiveLabel = `${allRows.length} guardada${allRows.length === 1 ? '' : 's'}`;
+  const archiveLabel = captureArchivaTodo()
+    ? `${allRows.length} guardada${allRows.length === 1 ? '' : 's'}`
+    : `${allRows.length} en el registro del juego`;
   panel.captureLogCount.textContent = captureFiltersActive(panel.captureFilters)
     ? `${filteredRows.length} de ${archiveLabel}${reportedTotal > allRows.length ? ` · ${reportedTotal} totales` : ''}`
     : reportedTotal > allRows.length
       ? `${archiveLabel} · ${reportedTotal} totales`
-      : `${allRows.length} captura${allRows.length === 1 ? '' : 's'}`;
+      // Sin filtros, el contador dice lo que hay: «N guardadas» si se archiva, o lo que muestra el
+      // registro del juego si no. Antes decía siempre «N capturas» y en modo sin guardado no se
+      // sabía de dónde salía el número.
+      : archiveLabel;
   const rows = sortedCaptureLogRows(filteredRows, panel.captureLogSort.value);
   const visibleRows = rows.slice(0, 500);
-  const signature = `${panel.captureLogSort.value}|${JSON.stringify(panel.captureFilters)}|${rows.map((capture) => [
+  const signature = `${captureModo.modo}|${panel.captureLogSort.value}|${JSON.stringify(panel.captureFilters)}|${rows.map((capture) => [
     capture.key, capture.level, capture.iv, capture.tier, capture.when, capture.power,
     Object.values(capture.stats || {}).join(',')
   ].join(':')).join('|')}`;
@@ -4119,14 +4237,20 @@ async function resolvePokeApiSpeciesId(target) {
   }
   return Number.isInteger(directId) && directId > 0 && directId <= 2_000 ? directId : 0;
 }
-async function loadPokeApiSpriteData(speciesId) {
+async function loadPokeApiSpriteData(speciesId, shiny = false) {
   const id = Math.max(0, Number(speciesId) || 0);
   if (!id || typeof window.pokeGrid?.loadImageDataUrl !== 'function') return '';
-  if (!pokeApiSpriteCache.has(id)) {
-    const paths = [
-      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`,
-      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
-    ];
+  // La clave lleva la variante delante para que el sprite normal y el shiny no se pisen en la
+  // caché: son dos imágenes distintas del mismo Pokémon.
+  const clave = shiny ? `shiny:${id}` : String(id);
+  if (!pokeApiSpriteCache.has(clave)) {
+    const base = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
+    // El primero es el pixel art; el de la variante normal cae al artwork si no hay pixel art,
+    // pero el shiny no: mezclar un shiny de pixel art con un artwork normal cantaría más que no
+    // enseñar nada, y sin imagen se cae al sprite del juego.
+    const paths = shiny
+      ? [`${base}/shiny/${id}.png`]
+      : [`${base}/${id}.png`, `${base}/other/official-artwork/${id}.png`];
     const request = (async () => {
       for (const url of paths) {
         try {
@@ -4136,9 +4260,9 @@ async function loadPokeApiSpriteData(speciesId) {
       }
       return '';
     })();
-    rememberLauncherCache(pokeApiSpriteCache, id, request, 64);
+    rememberLauncherCache(pokeApiSpriteCache, clave, request, 64);
   }
-  return pokeApiSpriteCache.get(id);
+  return pokeApiSpriteCache.get(clave);
 }
 function createFarmSprite(target, size = 48) {
   const sprite = document.createElement('span');
@@ -8500,6 +8624,12 @@ function createPanel(index) {
   const captureLogSort = fragment.querySelector('.capture-float-sort');
   const captureLogTooltip = fragment.querySelector('.capture-detail-popover');
   const captureLogDeleteButton = fragment.querySelector('.capture-float-delete');
+  // Clases distintas a propósito: el botón y el bloque NO pueden compartir selector, porque
+  // `querySelector` devuelve el primero que aparece y los dos serían el mismo nodo.
+  const captureSettingsToggle = fragment.querySelector('.capture-float-settings-toggle');
+  const captureSettingsBlock = fragment.querySelector('.capture-float-settings');
+  const captureSettingsModo = fragment.querySelector('.capture-float-settings-modo');
+  const captureSettingsNote = fragment.querySelector('.capture-float-settings-note');
   const captureFilterBadge = fragment.querySelector('.capture-filter-badge');
   const captureFilterDays = fragment.querySelector('.capture-filter-days');
   const captureFilterNumber = fragment.querySelector('.capture-filter-number');
@@ -8546,6 +8676,7 @@ function createPanel(index) {
   captureLogPanel.querySelector('.capture-float-position-reset').innerHTML = launcherUiIcon('refresh');
   captureLogPanel.querySelector('.capture-float-pin').innerHTML = launcherUiIcon('pin');
   captureLogPanel.querySelector('.capture-float-delete').innerHTML = launcherUiIcon('trash');
+  captureSettingsToggle.innerHTML = launcherUiIcon('settings');
   captureLogPanel.querySelector('.capture-float-close').innerHTML = launcherUiIcon('close');
   accountInfoButton.innerHTML = launcherUiIcon('user');
   zoomOutButton.innerHTML = launcherUiIcon('zoomOut');
@@ -8588,6 +8719,10 @@ function createPanel(index) {
     captureLogSort,
     captureLogTooltip,
     captureLogDeleteButton,
+    captureSettingsToggle,
+    captureSettingsBlock,
+    captureSettingsModo,
+    captureSettingsNote,
     captureFilterBadge,
     captureFilterDays,
     captureFilterNumber,
@@ -8700,6 +8835,13 @@ function createPanel(index) {
   expandButton.addEventListener('click', () => toggleExpanded(panel));
   captureLogButton.addEventListener('click', () => setCaptureLogOpen(panel, !panel.captureLogOpen));
   captureLogDeleteButton.addEventListener('click', () => deletePanelCaptureLog(panel));
+  captureSettingsToggle.addEventListener('click', () => {
+    const abierto = !panel.captureSettingsBlock.hidden;
+    panel.captureSettingsBlock.hidden = abierto;
+    panel.captureSettingsToggle.setAttribute('aria-expanded', String(!abierto));
+    if (!abierto) renderCaptureModoSettings();
+  });
+  captureSettingsModo.addEventListener('change', () => setCaptureModo(captureSettingsModo.value));
   captureLogPanel.querySelector('.capture-float-close').addEventListener('click', () => setCaptureLogOpen(panel, false));
   captureLogPanel.addEventListener('click', (event) => {
     if (!event.target.closest('.capture-flat-row')) hideCaptureDetail(panel);
@@ -10102,6 +10244,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   // Y los desplegables de los paneles, que acaban de construirse, se ponen donde dice el ajuste:
   // si no, tras recargar leería cada 10 s con el desplegable diciendo «solo al abrir».
   renderHuntSettings();
+  renderCaptureModoSettings();
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
   // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a
