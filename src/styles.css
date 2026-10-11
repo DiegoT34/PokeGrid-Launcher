@@ -1519,6 +1519,10 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 .capture-float-panel img,
 .hunt-float-panel img { max-width: 100%; object-fit: contain; }
+/* El sprite de PokeAPI es un lienzo de 96×96 con el Pokémon en el centro y margen alrededor; el
+   del juego venía recortado al borde. Sin esto, en la misma caja de 40px se ve más pequeño que
+   antes y el cambio sería a peor. Se agranda la imagen, no la caja: así la fila no se descoloca. */
+.capture-pokeapi-sprite { transform: scale(1.3); }
 
 /* Matte launcher palette: keep both tools' layout intact and only replace color. */
 .hunt-float-panel,
