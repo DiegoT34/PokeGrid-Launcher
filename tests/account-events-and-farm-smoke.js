@@ -9,6 +9,16 @@ function loadRendererFunction(source, name, nextName) {
   return Function(`${source.slice(start, end)}; return ${name};`)();
 }
 
+// Igual, pero tomando el trozo desde OTRA función. El guion de farmeo llama a la pieza que detecta
+// el aviso de viaje a Orre, así que las dos tienen que entrar en el mismo ámbito: si se extrae solo
+// el guion, la llamada se queda sin encontrar la pieza y la prueba revienta sin comprobar nada.
+function loadRendererFunctionFrom(source, fromName, toName, name) {
+  const start = source.indexOf(`function ${fromName}(`);
+  const end = source.indexOf(`function ${toName}(`, start);
+  if (start < 0 || end < 0) throw new Error(`Could not extract ${name}.`);
+  return Function(`${source.slice(start, end)}; return ${name};`)();
+}
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     show: false,
@@ -23,7 +33,7 @@ app.whenReady().then(async () => {
     const monitorScript = loadRendererFunction(renderer, 'captureMonitorInstallScript', 'clearNativeCaptureLogScript');
     const farmScript = loadRendererFunction(renderer, 'farmEnhancedContextScript', 'farmEnhancedCatalogScript');
     const farmCatalogScript = loadRendererFunction(renderer, 'farmEnhancedCatalogScript', 'captureReferenceCatalogScript');
-    const farmAutomationScript = loadRendererFunction(renderer, 'buildFarmAutomationScript', 'cleanFarmError');
+    const farmAutomationScript = loadRendererFunctionFrom(renderer, 'buildOrreTravelConfirmationScript', 'cleanFarmError', 'buildFarmAutomationScript');
 
     await window.webContents.executeJavaScript(`(() => {
       const root = document.querySelector('.game-root');

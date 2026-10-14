@@ -6895,9 +6895,93 @@ function closeFarmModal() {
   window.clearInterval(farmContextTimer);
   farmContextTimer = null;
 }
+// Detecta el aviso de viaje a Orre y pulsa «Sí», en una sola pasada. Devuelve
+// `{ confirmado: false }` si no hay aviso, que es el caso normal cuando el viaje no lo pide.
+//
+// La primera búsqueda es por estructura —un «Sí» con un «No» al lado— porque no depende del
+// idioma ni de cómo el juego redacte el aviso. La segunda, por texto, cubre el aviso suelto sin
+// botón «No»: antes solo miraba en inglés, y en español no encontraba nada.
+function buildOrreTravelConfirmationScript() {
+  return `(() => {
+    const visible = (element) => {
+      if (!element || element.hidden) return false;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .replace(/\\s+/g, ' ')
+      .toLowerCase()
+      .trim();
+    const textoBoton = (boton) => normalize([boton.dataset?.pgLabel, boton.dataset?.guide,
+      boton.dataset?.slug, boton.dataset?.huntSlug, boton.value, boton.textContent]
+      .filter(Boolean).join(' '));
+    const esSi = /^(yes|si|confirm|confirmar|aceptar|entrar)$/;
+    const esNo = /^(no|cancel|cancelar)$/;
+    // El aviso, en los dos idiomas: el segundo es el del juego del usuario, que es el que no
+    // estaba y hacía que todo esto no sirviera para nada.
+    const textoAviso = new RegExp([
+      'hunt properly|needs both the aoe|elemental tms|still want to enter',
+      'deseas entrar|quieres entrar|quiere entrar|aun asi|necesita tener los tms|tms de aoe'
+    ].join('|'));
+    const botones = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]')]
+      .filter(visible);
+    const candidatos = botones.filter((boton) => esSi.test(textoBoton(boton)));
+
+    // El contenedor más cercano que tenga más de un botón: ahí es donde puede estar el «No».
+    const contenedorDe = (boton) => {
+      let contenedor = boton.parentElement;
+      for (let depth = 0; contenedor && depth < 10; depth += 1, contenedor = contenedor.parentElement) {
+        if (contenedor.querySelectorAll('button, [role="button"]').length > 1) return { contenedor, depth };
+      }
+      return { contenedor: boton.parentElement, depth: 99 };
+    };
+
+    // 1) Por estructura: un «Sí» con un «No» al lado. Vale en cualquier idioma.
+    let porPareja = null;
+    for (const boton of candidatos) {
+      const { contenedor, depth } = contenedorDe(boton);
+      if (!contenedor) continue;
+      const tieneNo = [...contenedor.querySelectorAll('button, [role="button"]')]
+        .some((otro) => esNo.test(textoBoton(otro)));
+      if (!tieneNo) continue;
+      if (!porPareja || depth < porPareja.depth) porPareja = { boton, depth };
+    }
+
+    // 2) Por texto: el aviso que se reconoce, con el español añadido.
+    let porTexto = null;
+    if (!porPareja) {
+      for (const boton of candidatos) {
+        let contenedor = boton.parentElement;
+        for (let depth = 0; contenedor && depth < 10; depth += 1, contenedor = contenedor.parentElement) {
+          if (textoAviso.test(normalize(contenedor.textContent))) {
+            porTexto = { boton, depth };
+            break;
+          }
+        }
+        if (porTexto) break;
+      }
+    }
+
+    const elegido = porPareja || porTexto;
+    if (!elegido) return { confirmado: false, como: null };
+    elegido.boton.scrollIntoView?.({ block: 'center', inline: 'center' });
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup'].forEach((type) => {
+      const EventType = type.startsWith('pointer') && typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
+      elegido.boton.dispatchEvent(new EventType(type, { bubbles: true, cancelable: true, view: window, button: 0 }));
+    });
+    elegido.boton.click();
+    return { confirmado: true, como: porPareja ? 'pareja' : 'texto' };
+  })`;
+}
 function buildFarmAutomationScript(config, options = {}) {
   const target = JSON.stringify(config.target);
   const allowOrreTravel = Boolean(options.allowOrreTravel);
+  // La detección del aviso va en una pieza aparte —buildOrreTravelConfirmationScript— y aquí se
+  // inyecta su código. Se define una sola vez y la usan las pruebas del área directamente.
+  const orreTravelConfirmation = buildOrreTravelConfirmationScript();
   return `(async () => {
     const target = ${target};
     const allowOrreTravel = ${JSON.stringify(allowOrreTravel)};
@@ -7083,34 +7167,15 @@ function buildFarmAutomationScript(config, options = {}) {
       const targetRegion = normalize([target.map, target.mapName, target.area, target.areaName].filter(Boolean).join(' '));
       const isOrreTarget = targetRegion.split(/[^a-z0-9]+/).includes('orre');
       if (isOrreTarget && allowOrreTravel) {
-        const confirmation = await waitFor(() => {
-          const promptPattern = /hunt properly|needs both the aoe|elemental tms|still want to enter/;
-          const yesPattern = /^(yes|si|confirm|aceptar|entrar)$/;
-          const candidates = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]')]
-            .filter((button) => visible(button) && yesPattern.test(normalize(buttonDescriptor(button) || button.value)));
-          const matches = candidates.map((button) => {
-            let container = button.parentElement;
-            for (let depth = 0; container && depth < 10; depth += 1, container = container.parentElement) {
-              if (promptPattern.test(normalize(container.textContent))) {
-                const hasNoButton = [...container.querySelectorAll('button, [role="button"]')]
-                  .some((candidate) => /^(no|cancel|cancelar)$/.test(normalize(buttonDescriptor(candidate))));
-                return { button, depth, hasNoButton };
-              }
-            }
-            return null;
-          }).filter(Boolean).sort((left, right) => Number(right.hasNoButton) - Number(left.hasNoButton) || left.depth - right.depth);
-          if (matches[0]) return { yesButton: matches[0].button };
+        // El aviso se reconoce dentro de la pieza aparte, por estructura. Aquí solo se espera a
+        // que aparezca, y la espera se corta en cuanto el mapa se cierra o ya se está en el
+        // destino: sin eso, cada viaje a Orre sin aviso esperaría 6,5 s a propósito.
+        const aviso = await waitFor(() => {
+          const r = (${orreTravelConfirmation})();
+          if (r.confirmado) return r;
           return !findMapWindow() || locationMatchesTarget() ? { skipped: true } : null;
         }, 6500);
-        if (confirmation?.yesButton) {
-          confirmation.yesButton.scrollIntoView?.({ block: 'center', inline: 'center' });
-          ['pointerdown', 'mousedown', 'pointerup', 'mouseup'].forEach((type) => {
-            const EventType = type.startsWith('pointer') && typeof PointerEvent === 'function' ? PointerEvent : MouseEvent;
-            confirmation.yesButton.dispatchEvent(new EventType(type, { bubbles: true, cancelable: true, view: window, button: 0 }));
-          });
-          confirmation.yesButton.click();
-          await delay(300);
-        }
+        if (aviso?.confirmado) await delay(300);
       }
       const travelStarted = await waitFor(() => locationMatchesTarget() || !findMapWindow(), 9000);
       if (!travelStarted) throw new Error('El viaje no se inició. Revisa el nivel y que el Pokémon líder tenga vida.');

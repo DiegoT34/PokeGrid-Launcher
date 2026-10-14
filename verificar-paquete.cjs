@@ -404,6 +404,40 @@ for (const [que, ok] of EMERGENTES) {
   console.log('  ' + (ok ? 'ok  ' : 'FALTA ') + que);
 }
 
+// --- 6 sexies. El aviso de viaje a Orre ------------------------------------------------
+//
+// El permiso llegaba bien; lo que no se reconocía era el aviso. La detección se ataba a las
+// cuatro frases en inglés del juego y, como el juego va en español, nunca casaba: la espera se
+// agotaba y el diálogo se quedaba abierto esperando un clic.
+const orrePieza = renderer.slice(renderer.indexOf('function buildOrreTravelConfirmationScript()'), renderer.indexOf('function buildFarmAutomationScript('));
+const orreGuion = renderer.slice(renderer.indexOf('function buildFarmAutomationScript('), renderer.indexOf('function cleanFarmError('));
+
+const ORRE = [
+  ['la deteccion esta en su propia pieza', /function buildOrreTravelConfirmationScript\(\)/.test(orrePieza)],
+  ['y se define una sola vez', (renderer.match(/function buildOrreTravelConfirmationScript\(/g) || []).length === 1],
+  // Una expresion regular no puede ocupar dos lineas, y al partir el patron asi el guion
+  // inyectado no llegaba a parsear: Electron lo reportaba como un error generico sin decir nada.
+  ['el aviso se arma con new RegExp, que no se parte sin avisar', /const textoAviso = new RegExp\(\[/.test(orrePieza)],
+  ['y el español esta en el patron', /deseas entrar\|quieres entrar\|quiere entrar\|aun asi\|necesita tener los tms/.test(orrePieza)],
+  // El ingles sigue ahi: el juego puede venir en cualquier idioma y no se pierde lo que ya
+  // funcionaba.
+  ['el ingles no se ha perdido', /hunt properly\|needs both the aoe\|elemental tms\|still want to enter/.test(orrePieza)],
+  ['lo primero que mira es la forma: un Si con un No al lado', /const tieneNo = \[\.\.\.contenedor\.querySelectorAll/.test(orrePieza)],
+  ['y un Si suelto, sin aviso que lo acompane, no se pulsa', /if \(!tieneNo\) continue;/.test(orrePieza)],
+  // El doble paréntesis: la IIFE devuelta ya se ejecuta sola y el punto de llamada la llamaba
+  // otra vez. Reventaba el farmeo entero al llegar a Orre, y no se ve leyendo el codigo.
+  ['la pieza NO se ejecuta a si misma', /return \{ confirmado: true, como: porPareja \? 'pareja' : 'texto' \};\r?\n  \}\)`;/.test(orrePieza)],
+  ['y el guion la invoca una sola vez', /const r = \(\$\{orreTravelConfirmation\}\)\(\);/.test(orreGuion)],
+  ['la inyecta una sola vez', (orreGuion.match(/buildOrreTravelConfirmationScript\(\)/g) || []).length === 1],
+  ['el permiso sigue mandando: solo en destino de Orre y con el permiso activo', /if \(isOrreTarget && allowOrreTravel\)/.test(orreGuion)]
+  ['y la espera se corta si el mapa se cerro, para no esperar 6,5 s a proposito', /!findMapWindow\(\) \|\| locationMatchesTarget\(\) \? \{ skipped: true \}/.test(orreGuion)]
+];
+console.log('');
+for (const [que, ok] of ORRE) {
+  if (!ok) fallos++;
+  console.log('  ' + (ok ? 'ok  ' : 'FALTA ') + que);
+}
+
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
 //
