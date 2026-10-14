@@ -53,6 +53,7 @@ const browserInstanceCount = document.querySelector('#browserInstanceCount');
 const browserInstanceMessage = document.querySelector('#browserInstanceMessage');
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
+const browserInstancePopups = document.querySelector('#browserInstancePopups');
 const viewModeButton = document.querySelector('#viewModeButton');
 const viewModeMenu = document.querySelector('#viewModeMenu');
 const viewModeAccounts = document.querySelector('#viewModeAccounts');
@@ -8503,8 +8504,15 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
   webview.setAttribute('partition', browserInstancePartition(instance.id, index));
   webview.setAttribute('src', 'about:blank');
-  webview.setAttribute('allowpopups', 'false');
-  webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no');
+  // 'true' NO abre ventanas: solo hace que la peticion de apertura llegue al manejador del proceso
+  // principal, que es quien decide —y deniega, salvo las emergentes que el usuario ha permitido—.
+  // Con 'false' Chromium las paraba antes de preguntar, y la instancia se quedaba sin ventanas.
+  // Se deja siempre en 'true' para que el interruptor pueda cambiar en caliente: este atributo se
+  // lee al enganchar la webview, y reengancharla perderia la pagina que tuviera abierta.
+  webview.setAttribute('allowpopups', 'true');
+  // nativeWindowOpen=yes es lo que hace que Electron cree la ventana cuando el manejador lo permite.
+  // Sin esta preferencia, aunque el manejador diga que sí, no sale ninguna ventana.
+  webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no, nativeWindowOpen=yes');
   host.appendChild(webview);
   element.append(panelbar, host);
   workspace.appendChild(element);
@@ -8585,6 +8593,51 @@ function removeBrowserInstance(instanceId) {
   if (activeBrowserInstanceId === instanceId) activateBrowserInstance(PRIMARY_BROWSER_INSTANCE_ID);
   renderBrowserInstanceTabs();
 }
+// Las ventanas emergentes de las instancias de navegador.
+//
+// Quien las abre es el proceso principal —necesita la partición de quien las pide— y lo único que
+// hace falta aquí es saber si el usuario las quiere. El valor vive en localStorage como los otros
+// ajustes, y se le pasa al arrancar y cada vez que cambia. Por eso el proceso principal arranca con
+// el valor por defecto y este lo corrige enseguida, en vez de ir a leer un fichero.
+const VENTANAS_EMERGENTES_KEY = 'idle-poke:ventanas-emergentes:v1';
+const VENTANAS_EMERGENTES_POR_DEFECTO = Object.freeze({ habilitado: true });
+
+// Lo que venga de localStorage pasa por aquí: un valor raro guardado a mano no puede dejar el
+// manejador en un estado que nadie eligió.
+function normalizarVentanasEmergentes(valor) {
+  return {
+    habilitado: typeof valor?.habilitado === 'boolean'
+      ? valor.habilitado
+      : VENTANAS_EMERGENTES_POR_DEFECTO.habilitado
+  };
+}
+function cargarVentanasEmergentes() {
+  try {
+    return normalizarVentanasEmergentes(JSON.parse(localStorage.getItem(VENTANAS_EMERGENTES_KEY) || 'null'));
+  } catch {
+    return { ...VENTANAS_EMERGENTES_POR_DEFECTO };
+  }
+}
+let ventanasEmergentes = cargarVentanasEmergentes();
+function guardarVentanasEmergentes() {
+  try {
+    localStorage.setItem(VENTANAS_EMERGENTES_KEY, JSON.stringify(ventanasEmergentes));
+  } catch {}
+}
+function aplicarVentanasEmergentes() {
+  if (browserInstancePopups) browserInstancePopups.checked = ventanasEmergentes.habilitado;
+  // El puente puede no estar —las pruebas con preload de vista previa no lo traen— y eso no es un
+  // fallo: sin proceso principal no hay ventanas emergentes que abrir.
+  if (typeof window.pokeGrid?.setPopupsEnabled === 'function') {
+    window.pokeGrid.setPopupsEnabled(ventanasEmergentes.habilitado).catch(() => {});
+  }
+}
+function setVentanasEmergentes(habilitado) {
+  ventanasEmergentes = normalizarVentanasEmergentes({ habilitado: Boolean(habilitado) });
+  guardarVentanasEmergentes();
+  aplicarVentanasEmergentes();
+}
+
 function openBrowserInstanceModal() {
   browserInstanceMessage.textContent = '';
   browserInstanceName.value = '';
@@ -9690,6 +9743,10 @@ document.querySelector('#cancelButton').addEventListener('click', closeAccountsM
 addBrowserInstanceButton.addEventListener('click', openBrowserInstanceModal);
 closeBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 cancelBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
+browserInstancePopups?.addEventListener('change', () => {
+  setVentanasEmergentes(browserInstancePopups.checked);
+});
+
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
   browserInstanceMessage.classList.remove('is-ok');
@@ -10245,6 +10302,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   // si no, tras recargar leería cada 10 s con el desplegable diciendo «solo al abrir».
   renderHuntSettings();
   renderCaptureModoSettings();
+  aplicarVentanasEmergentes();
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
   // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a

@@ -49,6 +49,10 @@ const shopScreenshotCache = new Map();
 const pokeApiSpeciesCache = new Map();
 const loadedUnpackedExtensions = [];
 const browserInstanceSessions = new WeakSet();
+// El nombre de la partición de cada sesión de instancia. Hace falta porque
+// `webContents.session.partition` NO existe —no es API pública— y sin el nombre no se puede abrir
+// una ventana en la MISMA sesión que la webview que la pidió, que es de lo que se trata.
+const particionesDeInstancia = new WeakMap();
 let scriptShopCache = null;
 // Resultado del applyAccountProxies del arranque, en la forma {id, ok, error?}. Se
 // guarda para que el renderer pueda repartir el aviso por panel al pintar la rejilla:
@@ -1153,6 +1157,7 @@ function createWindow() {
     if (!partition.startsWith('persist:pokegrid-instance-')) return;
     const browserSession = session.fromPartition(partition);
     browserInstanceSessions.add(browserSession);
+    particionesDeInstancia.set(browserSession, partition);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
@@ -1452,15 +1457,108 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+// --- Ventanas emergentes de las instancias de navegador ---------------------------------
+//
+// El juego no las necesita —allí una emergente es un anuncio— pero en las instancias de
+// navegador sí: hay páginas que no se usan sin ventana propia, como un juego de web o el inicio
+// de sesión con Google.
+//
+// La ventana la crea Electron, no el launcher: el manejador devuelve `allow` y Electron la abre
+// con `nativeWindowOpen`. Abrirla a mano con `new BrowserWindow` desde aquí se colgaba —el
+// proceso principal se quedaba dentro del constructor—, y de paso se perdía `window.opener`,
+// que es justo lo que necesitan los inicios de sesión. Así la ventana nace en la sesión de quien
+// la pidió, sin pasarle la partición, y la página nueva puede hablar con la que la abrió.
+const MAX_VENTANAS_EMERGENTES = 6;
+const MAX_PROFUNDIDAD_EMERGENTE = 2;
+const ventanasEmergentes = new Set();
+let ventanasEmergentesHabilitadas = true;
+
+// Que una URL pueda abrirse en una ventana nuestra: https y sin credenciales. Es la MISMA regla
+// que aplica el guardia de navegación de la instancia, escrita una sola vez y usada por los
+// dos. `about:blank`, `mailto:` o `javascript:` no se abren, y para esos casos denegar es lo
+// correcto.
+function urlPermitidaEnVentana(rawUrl) {
+  try {
+    const target = new URL(String(rawUrl || '').trim());
+    return target.protocol === 'https:' && !target.username && !target.password;
+  } catch {
+    return false;
+  }
+}
+
+// Las medidas de la ventana. Se las pide Electron al abrirla, en vez de fijarlas después, para
+// que aparezca ya con su sitio y no dé un salto al abrir nada.
+function opcionesVentanaEmergente() {
+  return { width: 960, height: 720, minWidth: 420, minHeight: 320, title: 'Ventana de la pagina', autoHideMenuBar: true };
+}
+
+// Lo que se le hace a la ventana una vez creada: contarla para el tope, darle su propio manejador
+// de aperturas —con dos niveles, que una cadena de ventanas casi siempre es publicidad— y el
+// mismo guardia de navegación que usa la instancia.
+function prepararVentanaEmergente(ventana, particion, nivel) {
+  ventanasEmergentes.add(ventana);
+  if (particion) particionesDeInstancia.set(ventana.webContents.session, particion);
+  ventana.once('closed', () => ventanasEmergentes.delete(ventana));
+
+  ventana.webContents.setWindowOpenHandler(({ url: siguiente }) => {
+    if (ventanasEmergentesHabilitadas && nivel < MAX_PROFUNDIDAD_EMERGENTE &&
+        ventanasEmergentes.size < MAX_VENTANAS_EMERGENTES && urlPermitidaEnVentana(siguiente)) {
+      return { action: 'allow', overrideBrowserWindowOptions: opcionesVentanaEmergente() };
+    }
+    openExternal(siguiente);
+    return { action: 'deny' };
+  });
+
+  const guard = (event, destino) => {
+    if (urlPermitidaEnVentana(destino)) return;
+    event.preventDefault();
+    openExternal(destino);
+  };
+  ventana.webContents.on('will-navigate', guard);
+  ventana.webContents.on('will-redirect', guard);
+  return ventana;
+}
+
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return;
 
   const isBrowserInstance = browserInstanceSessions.has(contents.session);
 
   contents.setWindowOpenHandler(({ url }) => {
+    // Las instancias de navegador pueden abrir ventanas emergentes con su misma sesión, si el
+    // usuario lo deja activado. Se deja que Electron las abra. El tope está para que una página
+    // que abre anuncios en bucle no se coma el escritorio, y lo que no cabe no se pierde: sale
+    // fuera, en el navegador del sistema, que es lo que pasaba antes.
+    if (isBrowserInstance && ventanasEmergentesHabilitadas && urlPermitidaEnVentana(url)) {
+      if (ventanasEmergentes.size >= MAX_VENTANAS_EMERGENTES) {
+        openExternal(url);
+        return { action: 'deny' };
+      }
+      return { action: 'allow', overrideBrowserWindowOptions: opcionesVentanaEmergente() };
+    }
+    // Todo lo demás igual que antes: en las instancias, al navegador del sistema; en el juego,
+    // denegado.
     if (isBrowserInstance || !isGameUrl(url)) openExternal(url);
     return { action: 'deny' };
   });
+
+  // Las ventanas que Electron abra desde una webview de instancia: contarlas para el tope y
+  // darles su propio manejador. Sin esto, la segunda ventana en cascada se abriría sin control.
+  if (isBrowserInstance) {
+    // El argumento de did-create-window ES la ventana, no un webContents: le pasarlo a
+    // BrowserWindow.fromWebContents reventaba, y al ser una excepción sin capturar en el proceso
+    // principal Electron abría un diálogo modal que dejaba el launcher entero bloqueado
+    // esperando a que alguien pulsara Aceptar.
+    contents.on('did-create-window', (ventanaNueva) => {
+      try {
+        prepararVentanaEmergente(ventanaNueva, particionesDeInstancia.get(contents.session) || '', 1);
+      } catch (error) {
+        // Blindado a propósito: un fallo al preparar la ventana no puede dejar el launcher
+        // colgado. Se anota y la ventana sigue abierta, que es lo menos malo.
+        console.warn('No se pudo preparar la ventana emergente: ' + (error && error.message ? error.message : error));
+      }
+    });
+  }
 
   const guardNavigation = (event, url) => {
     if (isBrowserInstance) {
@@ -1475,6 +1573,14 @@ app.on('web-contents-created', (_event, contents) => {
 
   contents.on('will-navigate', guardNavigation);
   contents.on('will-redirect', guardNavigation);
+});
+
+// El interruptor del modal de instancias. Lo decide el renderer —que guarda el valor— y aqui solo
+// se anota para el manejador de aperturas, que es quien lo necesita.
+ipcMain.handle('ventanas-emergentes:ajustar', (event, habilitado) => {
+  assertMainWindowSender(event);
+  ventanasEmergentesHabilitadas = Boolean(habilitado);
+  return { ok: true, habilitado: ventanasEmergentesHabilitadas };
 });
 
 ipcMain.handle('pokepedia:open', (event) => {

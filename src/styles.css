@@ -903,7 +903,28 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .browser-instance-form { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 11px; }
 .browser-instance-form .browser-instance-url-field,
 .browser-instance-form .modal-message,
-.browser-instance-form .modal-actions { grid-column: 1 / -1; }
+.browser-instance-form .modal-actions,
+/* El interruptor ocupa las dos columnas, como el campo de enlace y los botones: en la primera se
+   quedaría estrecho, al lado del desplegable de pantallas. */
+.browser-instance-form .browser-instance-popups { grid-column: 1 / -1; }
+.browser-instance-popups {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, .09);
+}
+/* Casilla con accent-color, como las demás del launcher, en vez de un interruptor dibujado a mano:
+   menos reglas que mantener y el mismo aspecto que el resto de ajustes. */
+.browser-instance-popups-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.browser-instance-popups-check input { width: 16px; height: 16px; flex: 0 0 auto; accent-color: #54d4e2; }
+.browser-instance-popups-check input:focus-visible { outline: 2px solid #54d4e2; outline-offset: 2px; }
+.browser-instance-popups-note { margin: 0; font-size: 12px; line-height: 1.45; }
 .browser-instance-form select {
   width: 100%; height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px;
   background: #090e16; color: var(--text);

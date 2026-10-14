@@ -92,6 +92,8 @@ console.log(`  ${pkg.version === pkgArbol.version ? 'coinciden' : 'NO COINCIDEN'
 const renderer = fs.readFileSync(path.join(TEMP, 'src', 'renderer.js'), 'utf8');
 const styles = fs.readFileSync(path.join(TEMP, 'src', 'styles.css'), 'utf8');
 const html = fs.readFileSync(path.join(TEMP, 'src', 'index.html'), 'utf8');
+const mainProceso = fs.readFileSync(path.join(TEMP, 'src', 'main.js'), 'utf8');
+const preload = fs.readFileSync(path.join(TEMP, 'src', 'preload.js'), 'utf8');
 
 const TEXTOS = [
   ['Líder equipado', /leaderEyebrow\.textContent = leader \? 'Líder equipado' : 'Líder sin detectar';/, renderer],
@@ -340,6 +342,66 @@ console.log('');
 for (const [que, ok] of CAPTURE) {
   if (!ok) fallos++;
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
+
+// --- 6 quinquies. Las ventanas emergentes de las instancias de navegador -----------------
+//
+// Lo que importa aqui es lo que NO se ve mirando la pantalla. La ventana tiene que salir en la
+// sesion de quien la pidio -si no, el inicio de sesion con Google no serviria de nada-, y el
+// manejador que la prepara no puede dejar una excepcion sin capturar: en el proceso principal eso
+// abre un dialogo modal que bloquea el launcher entero. Las dos cosas ya se rompieron una vez.
+const sinComentarios = (fuente) => {
+  let dentro = '';
+  let enBloque = false;
+  for (const linea of fuente.split(/\r?\n/)) {
+    const t = linea.trim();
+    if (enBloque) {
+      if (t.includes('*/')) enBloque = false;
+      dentro += '\n';
+      continue;
+    }
+    if (t.startsWith('/*')) {
+      if (!t.includes('*/')) enBloque = true;
+      dentro += '\n';
+      continue;
+    }
+    dentro += (t.startsWith('//') ? '' : linea) + '\n';
+  }
+  return dentro;
+};
+const mainCodigo = sinComentarios(mainProceso);
+const bloqueEmergentes = mainCodigo.slice(
+  mainCodigo.indexOf('const MAX_VENTANAS_EMERGENTES'),
+  mainCodigo.indexOf("app.on('web-contents-created'")
+);
+
+const EMERGENTES = [
+  ['la ventana la abre Electron, no el launcher', !/new BrowserWindow/.test(bloqueEmergentes)],
+  ['el manejador lo permite de verdad', /return \{ action: 'allow', overrideBrowserWindowOptions: opcionesVentanaEmergente\(\) \};/.test(mainCodigo)],
+  ['y el juego sigue denegando', /if \(isBrowserInstance \|\| !isGameUrl\(url\)\) openExternal\(url\);/.test(mainCodigo)],
+  ['nadie pregunta por una propiedad que no existe', !/contents\.session\.partition/.test(mainCodigo)],
+  ['el tope se comprueba antes de permitir', /if \(ventanasEmergentes\.size >= MAX_VENTANAS_EMERGENTES\) \{/.test(mainCodigo)],
+  ['y lo que no cabe sale fuera, no se pierde', /openExternal\(url\);\r?\n\s*return \{ action: 'deny' \};/.test(mainCodigo)],
+  ['las ventanas nuevas se preparan con su manejador', /contents\.on\('did-create-window'/.test(mainCodigo) && /prepararVentanaEmergente\(ventanaNueva/.test(mainCodigo)],
+  // Esta se rompio sin que se notara: una excepcion sin capturar en el proceso principal abre un
+  // dialogo que deja el launcher colgado esperando a que alguien pulse Aceptar.
+  ['y su manejador va en try/catch, para no poder colgar el launcher', /try \{\r?\n\s*prepararVentanaEmergente\(ventanaNueva[\s\S]{0,300}?catch \(error\)/.test(mainCodigo)],
+  ['con tope de profundidad en las segundas', /MAX_PROFUNDIDAD_EMERGENTE = 2/.test(mainCodigo) && /nivel < MAX_PROFUNDIDAD_EMERGENTE/.test(mainCodigo)],
+  ['el canal lleva el guard de la ventana principal', /ipcMain\.handle\('ventanas-emergentes:ajustar', \(event, habilitado\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo)],
+  ['el preload expone el canal', /setPopupsEnabled: \(habilitado\) => ipcRenderer\.invoke\('ventanas-emergentes:ajustar'/.test(preload)],
+  ['el interruptor esta en el modal de instancias', /id="browserInstancePopups" type="checkbox" checked/.test(html)],
+  ['con su explicacion', /misma sesi/.test(html)],
+  ['el renderer guarda el valor y lo valida', /localStorage\.setItem\(VENTANAS_EMERGENTES_KEY/.test(renderer) && /function normalizarVentanasEmergentes/.test(renderer)],
+  ['y se lo pasa al proceso principal', /window\.pokeGrid\.setPopupsEnabled\(ventanasEmergentes\.habilitado\)/.test(renderer)],
+  ['las instancias dejan preguntar al manejador', /setAttribute\('allowpopups', 'true'\);/.test(renderer)],
+  ['y solo ellas: el juego lo sigue teniendo a false', (renderer.split("setAttribute('allowpopups', 'true')").length - 1) === 1 && (renderer.split("setAttribute('allowpopups', 'false')").length - 1) === 1],
+  ['la webview de instancia pide nativeWindowOpen', /nativeWindowOpen=yes/.test(renderer)],
+  ['el interruptor ocupa las dos columnas del formulario', /\.browser-instance-form \.browser-instance-popups \{ grid-column: 1 \/ -1; \}/.test(styles)]
+];
+console.log('');
+for (const [que, ok] of EMERGENTES) {
+  if (!ok) fallos++;
+  console.log('  ' + (ok ? 'ok  ' : 'FALTA ') + que);
 }
 
 // --- 7. Y nada de lo que se quitó ----------------------------------------------

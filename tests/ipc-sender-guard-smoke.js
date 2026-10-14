@@ -51,7 +51,8 @@ const UI_CHANNELS = [
   'userscripts:guest-preload',
   'extensions:pick-folder',
   'extensions:status',
-  'extensions:apply'
+  'extensions:apply',
+  'ventanas-emergentes:ajustar'
 ];
 
 // Los que invocan los webviews del juego. Con guard de ventana principal dejarían de
