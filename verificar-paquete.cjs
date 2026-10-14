@@ -429,7 +429,7 @@ const ORRE = [
   ['la pieza NO se ejecuta a si misma', /return \{ confirmado: true, como: porPareja \? 'pareja' : 'texto' \};\r?\n  \}\)`;/.test(orrePieza)],
   ['y el guion la invoca una sola vez', /const r = \(\$\{orreTravelConfirmation\}\)\(\);/.test(orreGuion)],
   ['la inyecta una sola vez', (orreGuion.match(/buildOrreTravelConfirmationScript\(\)/g) || []).length === 1],
-  ['el permiso sigue mandando: solo en destino de Orre y con el permiso activo', /if \(isOrreTarget && allowOrreTravel\)/.test(orreGuion)]
+  ['el permiso sigue mandando: solo en destino de Orre y con el permiso activo', /if \(isOrreTarget && allowOrreTravel\)/.test(orreGuion)],
   ['y la espera se corta si el mapa se cerro, para no esperar 6,5 s a proposito', /!findMapWindow\(\) \|\| locationMatchesTarget\(\) \? \{ skipped: true \}/.test(orreGuion)]
 ];
 console.log('');
