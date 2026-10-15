@@ -1174,7 +1174,11 @@ function createWindow() {
     browserInstanceSessions.add(browserSession);
     particionesDeInstancia.set(browserSession, partition);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-    delete webPreferences.preload;
+    // Aquí se quitaba cualquier preload y se dejaba la instancia sin ninguno, porque carga sitios
+    // de terceros. Eso se mantiene, con una excepción y solo una: el preload de la rueda con Ctrl,
+    // que es del launcher y no de la página, vive en otro mundo por `contextIsolation` y no toca el
+    // DOM. Los webviews del juego de Poke Idle World no llegan aquí y siguen sin preload.
+    webPreferences.preload = PRELOAD_RUEDA_INSTANCIA;
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
     webPreferences.sandbox = true;
@@ -1490,6 +1494,16 @@ const ZOOM_PASO = 0.1;
 const ZOOM_PREDETERMINADO = 1;
 // partition -> factor. El dueño del nivel es aquí, no el renderer: los botones y la rueda tienen
 // que dar el mismo número, y si cada uno guardara el suyo se desviarían al alternar.
+// El preload de la rueda con Ctrl, montado una vez. Se usa en `will-attach-webview`.
+//
+// OJO con la forma: aquí va una RUTA DEL SISTEMA, no una URL `file://`. En `will-attach-webview`
+// Electron rechaza una URL con «preload script must have absolute path», dice solo eso en la consola
+// del proceso principal y sigue sin cargar el preload. Como el preload es el único que oye la rueda,
+// el síntoma es que el zoom con Ctrl deja de funcionar sin más, sin error en la ventana.
+const PRELOAD_RUEDA_INSTANCIA = path.join(__dirname, 'instancia-rueda-preload.js');
+
+// partition -> factor. El dueño del nivel es aquí, no el renderer: los botones y la rueda tienen
+// que dar el mismo número, y si cada uno guardara el suyo se desviarían al alternar.
 const zoomDeInstancia = new Map();
 // El atajo de pantalla completa. Vive aquí porque quien lo evalúa es el webview del juego.
 let atajoPantallaCompleta = { key: 'F11', ctrl: false, alt: false, shift: false, meta: false };
@@ -1567,13 +1581,12 @@ function vigilarVistaDeInstancia(contents, particion) {
     }
   });
 
-  contents.on('input-event', (_evento, entrada) => {
-    if (entrada.type !== 'mouseWheel') return;
-    if (!(entrada.modifiers || []).includes('control')) return;
-    const paso = Math.sign(Number(entrada.wheelDeltaY || 0)) * ZOOM_PASO;
-    if (!paso) return;
-    aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + paso, 'rueda');
-  });
+  // La rueda con Ctrl NO se atiende por aquí. `input-event` avisa de que hay rueda y con qué
+  // modificadores, pero el evento no trae el desplazamiento —se ha medido con una rueda real
+  // inyectada por la tubería de entrada del navegador: solo trae `type`, `modifiers` y
+  // `_modifiers`—, así que no dice si hay que acercar o alejar. Ese camino se iba siempre por el
+  // `return` del paso cero. Se atiende en `instancia-rueda-preload.js`, que está dentro de la
+  // página y sí ve el signo del `deltaY` del DOM.
 }
 
 const MAX_VENTANAS_EMERGENTES = 6;
@@ -1712,6 +1725,19 @@ ipcMain.handle('instancia:zoom', (event, id, factor) => {
 
 // La ventana del launcher a pantalla completa del sistema. Es lo que quita de verdad la barra de
 // tareas de Windows y el marco de la ventana; el CSS solo quita la barra del launcher.
+// SIN GUARD de ventana principal, a propósito: el emisor es el webview del juego, no el launcher,
+// así que no puede pasar por `assertMainWindowSender`. Se autoriza por la partición de su
+// sesión, que es lo único que se sabe de verdad de quien escribe, no lo que dice el mensaje.
+ipcMain.on('instancia:rueda', (event, datos) => {
+  const contents = event.sender;
+  if (!contents || contents.getType() !== 'webview') return;
+  const particion = particionesDeInstancia.get(contents.session) || '';
+  if (!particion.startsWith('persist:pokegrid-instance-')) return;
+  const pasos = Math.sign(Number(datos && datos.pasos) || 0);
+  if (!pasos) return;
+  aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + pasos * ZOOM_PASO, 'rueda');
+});
+
 ipcMain.handle('instancia:pantalla-completa', (event, activa) => {
   assertMainWindowSender(event);
   if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'La ventana ya no esta.' };

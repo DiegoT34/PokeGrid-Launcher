@@ -24,6 +24,10 @@ const electronApi = require('electron');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+// La rueda con Ctrl se prueba con un webview de verdad: hay que poder darle una página local
+// como URL y poder mirar su factor de zoom desde aquí.
 
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pokegrid-vista-instancia-'));
 process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
@@ -31,7 +35,7 @@ process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
 // El launcher de verdad, porque el atajo se compara en el proceso principal y el zoom lo aplica él:
 // con una ventana montada a mano no se tocaría el código que importa.
 require('../src/main.js');
-const { app, BrowserWindow } = electronApi;
+const { app, BrowserWindow, webContents } = electronApi;
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 const fallos = [];
@@ -212,8 +216,12 @@ app.whenReady().then(async () => {
       'y no se ha quedado ninguno inventado por el camino');
     comprobar(/contents\.on\('before-input-event'/.test(main),
       'las teclas se capturan en el webview, que es el único que las ve con el juego enfocado');
-    comprobar(/contents\.on\('input-event'/.test(main) && /mouseWheel/.test(main),
-      'y la rueda también');
+    // La rueda NO se atiende con `input-event`: se ha medido que ese evento no trae el
+    // desplazamiento, así que no dice si hay que acercar o alejar. Va desde un preload dentro
+    // de la instancia, que sí ve el signo del `deltaY` del DOM.
+    comprobar(/ipcMain\.on\('instancia:rueda'/.test(main)
+      && /webPreferences\.preload = PRELOAD_RUEDA_INSTANCIA/.test(main),
+      'y la rueda se atiende desde un preload dentro de la instancia, no con input-event');
     comprobar(/if \(particionInstancia\) vigilarVistaDeInstancia/.test(main),
       'solo en los webviews de instancia: la principal no se toca');
     comprobar(/ipcMain\.handle\('instancia:atajo', \(event, valor\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(main),
@@ -362,6 +370,162 @@ app.whenReady().then(async () => {
     ];
     console.log('');
     for (const [que, ok] of codigoPantallaCompleta) {
+      comprobar(ok, que);
+    }
+
+// --- 6. La rueda con Ctrl sobre una instancia ----------------------------------
+    console.log('\n--- la rueda con Ctrl hace el zoom de verdad ---');
+    // Lo que fallaba antes, y por qué. No era un error de tecleo: el zoom con Ctrl + rueda se
+    // escuchaba con `input-event` del webContents, y se ha medido qué llega por ahí. El evento trae
+    // `type`, `modifiers` y `_modifiers`. NADA MÁS. No hay desplazamiento, asi que no dice si hay que
+    // acercar o alejar: el codigo leia un `entrada.wheelDeltaY` que no existe, el paso salia cero y
+    // la funcion se iba siempre sin hacer nada. Ese camino no podia funcionar bien escrito.
+    //
+    // El camino bueno es el de dentro de la pagina: el evento `wheel` del DOM si lleva `deltaY` con
+    // su signo. Eso pide un preload en el webview de instancia, que hasta ahora no llevaba ninguno.
+    //
+    // Se prueba DE EXTREMO A EXTREMO: un webview de verdad, con su particion de instancia y su
+    // preload, y se mira el factor de zoom que queda.
+
+    const paginaRueda = pathToFileURL(path.join(__dirname, 'fixtures', 'instancia-rueda.html')).href;
+    const montada = await ventana.webContents.executeJavaScript(`(async () => {
+      const salida = {};
+      try {
+        const webview = document.createElement('webview');
+        webview.id = 'webview-de-prueba-rueda';
+        // La particion es lo unico que hace que main la trate como instancia: sin esto no hay ni
+        // preload ni manejador, y la prueba no probaria nada.
+        webview.setAttribute('partition', 'persist:pokegrid-instance-prueba-rueda');
+        // Con tamano: un webview sin dimensiones es un caso raro que no se parece a una instancia.
+        webview.style.cssText = 'display: block; width: 700px; height: 400px;';
+        webview.setAttribute('src', ${JSON.stringify(paginaRueda)});
+        document.body.appendChild(webview);
+        const listo = new Promise((resolver) => webview.addEventListener('dom-ready', resolver, { once: true }));
+        await Promise.race([listo, new Promise((r) => setTimeout(r, 25_000))]);
+        salida.tieneId = webview.getWebContentsId() > 0;
+        salida.id = webview.getWebContentsId();
+        salida.pagina = await webview.executeJavaScript('document.readyState');
+        salida.anchoAntes = await webview.executeJavaScript('window.innerWidth');
+      } catch (error) {
+        salida.error = String(error && error.message || error);
+      }
+      return salida;
+    })()`, true);
+    comprobar(!montada.error, 'el webview de prueba carga la pagina local', montada.error || '');
+    comprobar(montada.tieneId && montada.pagina === 'complete',
+      'y se le puede hablar desde el proceso principal',
+      `id: ${montada.id}, readyState: ${montada.pagina}`);
+
+    const contentsRueda = montada.id ? webContents.fromId(montada.id) : null;
+    comprobar(Boolean(contentsRueda), 'el proceso principal tiene el webContents de ese webview',
+      `id: ${montada.id}`);
+
+    // Lo que NO se puede comprobar aquí, y por qué se ha quitado.
+    //
+    // Se podría parecer con `sendInputEvent`, que mete una rueda por la tubería de entrada de
+    // verdad. Se ha medido y NO llega a un webview invitado: ni con tamaño, ni con la ventana
+    // visible, ni sin modificadores. A un contenido normal sí le llega, con su `ctrlKey` a true.
+    // O sea que esa comprobación medía una limitación del API de inyección y no la función, y
+    // podía dar rojo con todo el código bien.
+    //
+    // Lo que sí queda probado es lo de dentro, que es donde estaba el fallo: un `WheelEvent` del
+    // DOM con su `ctrlKey` y su `deltaY` es exactamente lo que el ratón de verdad produce dentro
+    // de la página. Que la rueda física llegue hasta el preload lo confirma el ratón del usuario.
+    // --- 6b. Direccion, pasos e interrupcion del desplazamiento ---------------------
+    // Con eventos del DOM, que es donde esta el signo con el que razona el preload.
+    const rueda = (deltaY, ctrlKey) => contentsRueda.executeJavaScript(
+      '(() => { const e = new WheelEvent("wheel", {'
+      + ` deltaY: ${deltaY}, ctrlKey: ${ctrlKey}, cancelable: true, bubbles: true });`
+      + ' window.dispatchEvent(e);'
+      + ' return e.defaultPrevented; })()'
+    );
+
+    // En el DOM, deltaY negativo es rueda hacia arriba, que es acercar. Si el signo saliera al reves, el
+    // detalle de la comprobacion lo diria y no habria que averiguarlo a mano.
+    const haciaArriba1 = await rueda(-120, true);
+    await dormir(400);
+    const trasUna = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(trasUna - 1.1) < 0.01,
+      'una muesca hacia arriba acerca un 10 %', `1 -> ${trasUna}`);
+    comprobar(haciaArriba1 === true,
+      'y se impide el desplazamiento de la pagina mientras se hace zoom',
+      `defaultPrevented: ${haciaArriba1}`);
+
+    await rueda(-120, true);
+    await dormir(400);
+    const trasDos = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(trasDos - 1.2) < 0.01, 'dos muescas hacia arriba, 20 %', `1 -> ${trasDos}`);
+
+    await rueda(120, true);
+    await rueda(120, true);
+    await dormir(500);
+    const trasVuelta = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(trasVuelta - 1) < 0.01, 'y hacia abajo vuelve al punto de partida',
+      `${trasDos} -> ${trasVuelta}`);
+
+    // Sin Ctrl la rueda es de la pagina: ni se toca el zoom ni se toca el desplazamiento.
+    const sinCtrl = await rueda(120, false);
+    await dormir(500);
+    const trasSinCtrl = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(trasSinCtrl - trasVuelta) < 0.01,
+      'una rueda sin Ctrl no toca el zoom', `${trasVuelta} -> ${trasSinCtrl}`);
+    comprobar(sinCtrl === false, 'y el desplazamiento lo lleva la pagina', `defaultPrevented: ${sinCtrl}`);
+
+    // Los topes, que son la mitad de lo que se siente al usar esto.
+    for (let vuelta = 0; vuelta < 10; vuelta++) {
+      await rueda(120, true);
+      await dormir(120);
+    }
+    await dormir(400);
+    const topeAbajo = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(topeAbajo - 0.25) < 0.01, 'con muchas muescas se para en el 25 %',
+      `factor: ${topeAbajo}`);
+
+    for (let vuelta = 0; vuelta < 32; vuelta++) {
+      await rueda(-120, true);
+      await dormir(90);
+    }
+    await dormir(500);
+    const topeArriba = contentsRueda.getZoomFactor();
+    comprobar(Math.abs(topeArriba - 3) < 0.01, 'y hacia arriba se para en el 300 %',
+      `factor: ${topeArriba}`);
+
+    // Y el ancho de la pagina cambia de verdad: que el factor no sea solo un numero guardado en
+    // algun sitio. Se mide con el zoom puesto y despues sin el. Antes se media DESPUES de volver
+    // al 100 %, o sea 1366 contra 1366: un verde que no comprobaba nada.
+    const anchoConZoom = await contentsRueda.executeJavaScript('window.innerWidth');
+    contentsRueda.setZoomFactor(1);
+    await dormir(400);
+    const anchoSinZoom = await contentsRueda.executeJavaScript('window.innerWidth');
+    comprobar(anchoConZoom < anchoSinZoom,
+      'y el contenido se ve de otro tamano, no solo cambia un numero guardado',
+      `con zoom: ${anchoConZoom}, sin zoom: ${anchoSinZoom}`);
+
+    // Limpieza: fuera el webview de prueba.
+    await ventana.webContents.executeJavaScript(`(() => {
+      document.querySelector('#webview-de-prueba-rueda')?.remove();
+      return true;
+    })()`);
+    await dormir(400);
+
+    // Y el papel de cada pieza, que es lo que no se ve desde fuera.
+    const preloadRueda = fs.readFileSync(path.join(__dirname, '..', 'src', 'instancia-rueda-preload.js'), 'utf8');
+    console.log('');
+    const piezasRueda = [
+      ['el preload manda el signo de la rueda, que es lo que `input-event` no daba',
+        /Math\.sign\(Number\(evento\.deltaY\)/.test(preloadRueda)],
+      ['e impide el desplazamiento de la pagina mientras se hace zoom',
+        /preventDefault\(\)/.test(preloadRueda)],
+      ['main pone ese preload solo en las instancias',
+        /instancia-rueda-preload/.test(main)],
+      ['y el canal de la rueda se autoriza por particion, no por ventana principal',
+        /ipcMain\.on\('instancia:rueda'/.test(main) && /getType\(\) !== 'webview'/.test(main)],
+      ['no queda el camino viejo de la rueda, que no podia funcionar',
+        !/entrada\.wheelDeltaY/.test(main) && !/contents\.on\('input-event'/.test(main)],
+      ['el preload no se cuelga en los webviews del juego de Poke Idle World',
+        /if \(!partition\.startsWith\('persist:pokegrid-instance-'\)\) return;/.test(main)]
+    ];
+    for (const [que, ok] of piezasRueda) {
       comprobar(ok, que);
     }
 

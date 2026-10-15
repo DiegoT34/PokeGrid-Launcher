@@ -84,7 +84,11 @@ const OTHER_CHANNELS = {
   'app:check-update': 'ventana principal, con el helper compartido',
   'app:peek-update': 'ventana principal, con el helper compartido, y de solo lectura',
   'app:cleanup-memory': 'sin guard a propósito, no expone nada sensible',
-  'app:proxy-results': 'Tarea 8, no se toca (R-05)'
+  'app:proxy-results': 'Tarea 8, no se toca (R-05)',
+  // El emisor es el webview del juego, no el launcher: el guard de ventana principal lo rechazaria
+  // siempre. Se autoriza por la particion de su sesion, que es lo unico que se sabe de verdad de
+  // quien escribe y no lo que dice el mensaje.
+  'instancia:rueda': 'lo manda un webview de instancia, autorizado por partición'
 };
 
 // --- A. Comportamiento real del guard, sin arrancar Electron ------------------------

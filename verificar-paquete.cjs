@@ -441,7 +441,9 @@ for (const [que, ok] of ORRE) {
 // --- 6 septies. La vista de las instancias: pantalla completa y zoom ---------------------
 const VISTA_INSTANCIAS = [
   ['las teclas se capturan en el webview, que es el unico que las ve con el juego enfocado', /contents\.on\('before-input-event'/.test(mainCodigo)],
-  ['y la rueda con el control pulsado', /contents\.on\('input-event'/.test(mainCodigo) && /mouseWheel/.test(mainCodigo) && /includes\('control'\)/.test(mainCodigo)],
+  ['la rueda con Ctrl se atiende desde un preload dentro de la instancia', /ipcMain\.on\('instancia:rueda'/.test(mainCodigo) && /webPreferences\.preload = PRELOAD_RUEDA_INSTANCIA/.test(mainCodigo) && /getType\(\) !== 'webview'/.test(mainCodigo)],
+  ['el preload va como RUTA y no como URL file://, o Electron no lo carga', /const PRELOAD_RUEDA_INSTANCIA = path\.join\(__dirname, 'instancia-rueda-preload\.js'\)/.test(mainCodigo) && !/PRELOAD_RUEDA_INSTANCIA = pathToFileURL/.test(mainCodigo)],
+  ['y el preload vive en el arbol y existe de verdad', fs.existsSync(path\.join\(TEMP, 'src', 'instancia-rueda-preload\.js'\))],
   ['solo en los webviews de instancia', /if \(particionInstancia\) vigilarVistaDeInstancia/.test(mainCodigo)],
   ['el zoom tiene tope', /ZOOM_MINIMO = 0\.25/.test(mainCodigo) && /ZOOM_MAXIMO = 3/.test(mainCodigo) && /ZOOM_PASO = 0\.1/.test(mainCodigo)],
   ['y el owner del nivel es el proceso principal', /function aplicarZoom\(contents, particion, factor, motivo\)/.test(mainCodigo) && /instancia:zoom-aplicado/.test(mainCodigo)],

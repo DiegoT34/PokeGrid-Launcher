@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Rueda de prueba</title>
+<style>
+  body { margin: 0; font: 16px/1.6 system-ui, sans-serif; background: #0d1418; color: #dfe9ee; }
+  main { padding: 24px; }
+  .bloque { height: 900px; padding: 24px; border-bottom: 1px solid #22343d; }
+  h1 { font-size: 20px; }
+  code { background: #16242c; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main id="contenido">
+  <div class="bloque">
+    <h1>Página de prueba de la rueda</h1>
+    <p>Sirve para que la instancia tenga algo que cargar sin depender de Internet. Mide lo bastante
+    alta para que se pueda desplazar, que es justo lo que la rueda con <code>Ctrl</code> no debe
+    hacer mientras hace el zoom.</p>
+  </div>
+  <div class="bloque"><p>Bloque 2</p></div>
+  <div class="bloque"><p>Bloque 3</p></div>
+</main>
+<script>
+  // La prueba mira esto desde fuera: que la página siga en su sitio después de la rueda, porque el
+  // zoom no debe desplazar nada.
+  window.__desplazado = () => window.scrollY;
+</script>
+</body>
+</html>
