@@ -877,6 +877,50 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   cursor: pointer;
 }
 .browser-instance-actions button:hover { border-color: #5ec7dd; color: #effcff; }
+
+/* La barra de direcciones. Solo existe en instancias de estilo navegador, asi que no hace falta
+   ningun selector para los juegos: lo que no existe no hay que esconderlo. El nombre y el estado
+   se esconden con la clase que pone el renderer, no por arte de magia: asi se ve en el DOM que la
+   franja lleva las dos cosas y solo una esta a la vista. */
+.browser-instance-panelbar.tiene-barra .browser-instance-identity { display: none; }
+.browser-instance-navegacion {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.browser-instance-navegacion button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #b9cbd6;
+  cursor: pointer;
+}
+.browser-instance-navegacion button:hover:not(:disabled) { color: #effcff; border-color: #3d5563; }
+.browser-instance-navegacion button:disabled { opacity: .3; cursor: default; }
+.browser-instance-navegacion svg { width: 14px; height: 14px; }
+.navegacion-direccion {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .05);
+  color: #e9f1f6;
+  font-size: 12px;
+}
+.navegacion-direccion:focus { outline: none; border-color: #5ec7dd; }
+.navegacion-direccion::placeholder { color: #6f8694; }
+
 /* El porcentaje de zoom es un boton: un clic devuelve la pantalla al 100 %. Sin borde, para que
    se lea como una etiqueta y no compita con los botones de al lado. */
 .browser-instance-actions .instance-zoom-label {

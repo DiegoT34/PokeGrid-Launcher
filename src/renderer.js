@@ -8027,6 +8027,10 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   collapse: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
+  // Atras y adelante de la barra de direcciones. Trazos, como los demas: un glifo suelto aqui
+  // haria ruido en el escurrido del verificador del paquete.
+  volver: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+  adelante: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   // Pantalla completa de una instancia. Los de zoom ya estaban en la tabla.
   fullscreen: '<path d="M3 9V5a2 2 0 0 1 2-2h4"/><path d="M21 9V5a2 2 0 0 0-2-2h-4"/><path d="M3 15v4a2 2 0 0 0 2 2h4"/><path d="M21 15v4a2 2 0 0 1-2 2h-4"/>',
   zoomIn: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/>',
@@ -8231,6 +8235,29 @@ function inicioDeInstancia(instance) {
     return BUSCADORES[instance.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
   }
   return instance.inicio || instance.url;
+}
+
+// Que es una direccion y que es una pregunta. El criterio es el de un navegador corriente: que
+// tenga esquema, o un punto y ningun espacio, y que `new URL()` la entienda. Un texto con
+// espacios casi nunca es una direccion, por muy amused que parezca.
+function pareceDireccion(texto) {
+  const limpio = String(texto || '').trim();
+  if (!limpio || /\s/.test(limpio)) return false;
+  if (/^https?:\/\//i.test(limpio)) return true;
+  if (!/^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(limpio)) return false;
+  try { return Boolean(new URL(limpio.includes('://') ? limpio : `https://${limpio}`)); }
+  catch { return false; }
+}
+
+// A donde va. Devuelve `''` cuando no hay nada escrito, para que quien llama no cargue una
+// pagina en blanco por pulsar Intro sin escribir. El `+` en vez del `%20` es para que la consulta
+// se lea como en la barra de un navegador.
+function resolverDestino(texto, buscadorBase) {
+  const limpio = String(texto || '').trim();
+  if (!limpio) return '';
+  if (pareceDireccion(limpio)) return limpio.includes('://') ? limpio : `https://${limpio}`;
+  const consulta = encodeURIComponent(limpio).replace(/%20/g, '+');
+  return `${buscadorBase || BUSCADORES[BUSCADOR_POR_DEFECTO]}${consulta}`;
 }
 
 function normalizeBrowserInstance(value, fallbackId = '') {
@@ -8609,7 +8636,83 @@ function activateBrowserInstance(instanceId, { persist = true } = {}) {
   applySidebarState(false);
   if (persist) localStorage.setItem(ACTIVE_BROWSER_INSTANCE_KEY, activeBrowserInstanceId);
 }
-function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
+// Atras y adelante se ponen grises cuando no hay a donde ir. Sin esto, un boton que no hace
+// nada parece un boton roto.
+function actualizarEstadoDeHistorial(panel) {
+  if (!panel || !panel.botonAtras) return;
+  let atras = false;
+  let adelante = false;
+  try {
+    // Estas dos LANZAN si el webview todavia no esta listo: se pintan al crear el panel, que es
+    // justo antes de que ocurra. Un `?.` no ayuda, porque el metodo existe y falla al llamarlo.
+    atras = Boolean(panel.webview?.canGoBack?.());
+    adelante = Boolean(panel.webview?.canGoForward?.());
+  } catch {
+    atras = false;
+    adelante = false;
+  }
+  panel.puedeAtras = atras;
+  panel.puedeAdelante = adelante;
+  panel.botonAtras.disabled = !atras;
+  panel.botonAdelante.disabled = !adelante;
+}
+
+// Lo que se ve en el campo: la pagina de donde viene el panel. Mientras el campo tiene el foco
+// no se le pisa lo que se esta escribiendo.
+function pintarBarraDeNavegacion(panel) {
+  if (!panel || !panel.campoDireccion) return;
+  if (document.activeElement !== panel.campoDireccion) {
+    panel.campoDireccion.value = webviewCurrentUrl(panel) || panel.destinoActual || '';
+  }
+  actualizarEstadoDeHistorial(panel);
+}
+
+// Al escribir una direccion, esa pasa a ser el inicio de la instancia y se guarda. Se declara
+// aqui a proposito: si la instancia tiene varios paneles, actualiza el inicio y TODOS sus
+// paneles originales abriran esa pagina la proxima vez. Los que se abrieron por enlace no
+// cambian, que no son pantallas propias sino una consequence de donde se pulso.
+function guardarInicioDeInstancia(instanceId, url) {
+  const instance = browserInstances.find((row) => row.id === instanceId);
+  if (!instance || !url) return;
+  instance.inicio = url;
+  saveBrowserInstances();
+}
+
+function navegar(panel, texto) {
+  if (!panel || panel.destroyed) return;
+  const instance = browserInstances.find((row) => row.id === panel.instanceId);
+  const motor = instance ? BUSCADORES[instance.buscador] : BUSCADORES[BUSCADOR_POR_DEFECTO];
+  const destino = resolverDestino(texto, motor);
+  if (!destino) return;
+  panel.destinoActual = destino;
+  panel.connectionFailures = 0;
+  loadConnectionPanel(panel, destino, { reason: 'Navegando' });
+  pintarBarraDeNavegacion(panel);
+}
+
+// El panel sobre el que esta el foco. Si el foco esta dentro de un panel, ese; si no, el unico
+// visible, que es el caso normal: hay una instancia abierta.
+function panelConFoco() {
+  const activo = document.activeElement?.closest?.('.browser-instance-panel');
+  if (activo) {
+    for (const view of browserInstanceViews.values()) {
+      const panel = view.panels.find((row) => row.element === activo);
+      if (panel) return panel;
+    }
+  }
+  const visibles = [];
+  for (const view of browserInstanceViews.values()) {
+    if (!view.workspace.classList.contains('is-active')) continue;
+    visibles.push(view.panels.find((row) => row.element.classList.contains('is-expanded')) || view.panels[0]);
+  }
+  return visibles.find(Boolean) || null;
+}
+
+// `urlDePartida` es la direccion con la que arranca ESTE panel, y por defecto la de la instancia:
+// el mosaico llama sin el quinto argumento. Para un panel que se abre por enlace, es la del enlace,
+// y asi el `setTimeout` del arranque carga esa y no la de la instancia, que haria que se cargara dos
+// veces y la primera se quedase parpadeando delante.
+function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = instance.url) {
   const element = document.createElement('article');
   element.className = 'browser-instance-panel';
   const panelbar = document.createElement('header');
@@ -8658,6 +8761,44 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   fullscreenButton.innerHTML = launcherUiIcon('fullscreen');
   fullscreenButton.title = 'Pantalla completa';
 
+  // La barra sustituye al nombre y al estado SOLO en instancias de estilo navegador. En los
+  // juegos se quedan como estaban, y la barra principal de Poke Idle World ni se mira.
+  let barra = null;
+  let campoDireccion = null;
+  let botonAtras = null;
+  let botonAdelante = null;
+  let botonRecargar = null;
+  if (instance.navegador) {
+    barra = document.createElement('nav');
+    barra.className = 'browser-instance-navegacion';
+    botonAtras = document.createElement('button');
+    botonAtras.type = 'button';
+    botonAtras.className = 'navegacion-atras';
+    botonAtras.innerHTML = launcherUiIcon('volver');
+    botonAtras.title = 'Atrás';
+    botonAtras.disabled = true;
+    botonAdelante = document.createElement('button');
+    botonAdelante.type = 'button';
+    botonAdelante.className = 'navegacion-adelante';
+    botonAdelante.innerHTML = launcherUiIcon('adelante');
+    botonAdelante.title = 'Adelante';
+    botonAdelante.disabled = true;
+    botonRecargar = document.createElement('button');
+    botonRecargar.type = 'button';
+    botonRecargar.className = 'navegacion-recargar';
+    botonRecargar.innerHTML = launcherUiIcon('refresh');
+    botonRecargar.title = 'Recargar esta pantalla';
+    campoDireccion = document.createElement('input');
+    campoDireccion.type = 'text';
+    campoDireccion.className = 'navegacion-direccion';
+    campoDireccion.placeholder = 'Escribe una dirección o busca';
+    campoDireccion.spellcheck = false;
+    campoDireccion.setAttribute('aria-label', 'Dirección de la pantalla');
+    barra.append(botonAtras, botonAdelante, botonRecargar, campoDireccion);
+    panelbar.classList.add('tiene-barra');
+    panelbar.insertBefore(barra, panelbar.firstChild);
+  }
+
   actions.append(
     homeButton,
     reloadButton,
@@ -8696,8 +8837,18 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     element,
     status,
     webview,
-    startUrl: instance.url,
-    lastUrl: instance.url,
+    // `urlDePartida` es la direccion con la que arranca ESTE panel. Para los originales es la
+    // de la instancia; para uno que se abre por enlace, la del enlace. Sin esta distincion, un
+    // panel de enlace cargaria dos veces: una la que programa el arranque y otra la del enlace.
+    startUrl: urlDePartida,
+    lastUrl: urlDePartida,
+    destinoActual: urlDePartida,
+    barra,
+    campoDireccion,
+    botonAtras,
+    botonAdelante,
+    puedeAtras: false,
+    puedeAdelante: false,
     connectionFailures: 0,
     recoveryTimer: 0,
     stallTimer: 0,
@@ -8710,16 +8861,54 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     },
     onNavigate: async (event) => {
       if (event?.type === 'did-navigate-in-page') await window.pokeGridUserScriptManager?.installIntoPanel(panel);
+      // La barra se repinta en CUALQUIER navegacion, no solo en las de dentro de la pagina:
+      // al ir a otra pagina cambia la direccion y cambian los botones de atras y adelante.
+      pintarBarraDeNavegacion(panel);
     }
   });
+  // El inicio va a donde toca la instancia: el buscador si es de estilo navegador, su direccion
+  // si no. Antes iba siempre a `instance.url`, que en una instancia de navegador es solo el
+  // enlace con el que se creo.
   homeButton.addEventListener('click', () => {
     panel.connectionFailures = 0;
-    loadConnectionPanel(panel, instance.url, { reason: 'Abriendo inicio' });
+    loadConnectionPanel(panel, inicioDeInstancia(instance), { reason: 'Abriendo inicio' });
   });
   reloadButton.addEventListener('click', () => {
     panel.connectionFailures = 0;
     loadConnectionPanel(panel, webviewCurrentUrl(panel), { reason: 'Recargando' });
   });
+  if (barra) {
+    botonRecargar.addEventListener('click', () => {
+      panel.connectionFailures = 0;
+      loadConnectionPanel(panel, webviewCurrentUrl(panel), { reason: 'Recargando' });
+    });
+    campoDireccion.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const destino = resolverDestino(campoDireccion.value, BUSCADORES[instance.buscador]);
+        if (destino) guardarInicioDeInstancia(instance.id, destino);
+        navegar(panel, campoDireccion.value);
+        panel.campoDireccion.blur();
+        return;
+      }
+      // Escape suelta el campo y vuelve a lo que hay cargado: como en cualquier navegador.
+      if (event.key === 'Escape') {
+        pintarBarraDeNavegacion(panel);
+        panel.campoDireccion.blur();
+      }
+    });
+    botonAtras.addEventListener('click', () => {
+      if (!panel.puedeAtras) return;
+      panel.webview.goBack();
+      pintarBarraDeNavegacion(panel);
+    });
+    botonAdelante.addEventListener('click', () => {
+      if (!panel.puedeAdelante) return;
+      panel.webview.goForward();
+      pintarBarraDeNavegacion(panel);
+    });
+    pintarBarraDeNavegacion(panel);
+  }
   zoomOutButton.addEventListener('click', () => moverZoom(panel, -1));
   zoomInButton.addEventListener('click', () => moverZoom(panel, 1));
   zoomLabel.addEventListener('click', () => resetearZoom(panel));
@@ -8734,7 +8923,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     expandButton.title = expand ? 'Volver al mosaico' : 'Agrandar panel';
   });
   if (!window.pokeGrid.previewMode) {
-    window.setTimeout(() => loadConnectionPanel(panel, instance.url, { reason: 'Inicio automático' }), launchDelay);
+    window.setTimeout(() => loadConnectionPanel(panel, urlDePartida, { reason: 'Inicio automático' }), launchDelay);
   }
   return panel;
 }
@@ -10804,6 +10993,18 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
     });
     instanceSettingsShortcutField?.addEventListener('blur', () => pintarAtajoEnLosAjustes());
     document.addEventListener('keydown', (event) => {
+      // Ctrl+L, como en cualquier navegador. Solo en paneles que tengan barra: en un juego no
+      // hay barra, y meter una combinacion global seria pisarle atajos a lo que este corriendo.
+      if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey
+          && (event.key === 'l' || event.key === 'L')) {
+        const panel = panelConFoco();
+        if (panel?.campoDireccion) {
+          event.preventDefault();
+          panel.campoDireccion.focus();
+          panel.campoDireccion.select();
+        }
+        return;
+      }
       if (event.key !== 'Escape') return;
       // Primero el panel de ajustes, que esta delante. Con el juego enfocado esto no llega
       // hasta aqui: la tecla la captura el webview y vuelve por otro camino.

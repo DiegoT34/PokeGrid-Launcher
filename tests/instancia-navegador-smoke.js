@@ -97,6 +97,101 @@ app.whenReady().then(async () => {
     comprobar(modelo.buscadorInexistente === 'ddg',
       'un buscador que no existe cae al de fábrica, no se rompe', modelo.buscadorInexistente);
     comprobar(modelo.motores.join(',') === 'ddg,google,bing', 'hay tres motores', modelo.motores.join(','));
+// --- 2. La barra de direcciones ------------------------------------------------
+    console.log('\n--- la barra de direcciones ---');
+    // Se llama a la creación de la instancia en vez de pasar por el modal porque el modal solo
+    // admite HTTPS y aquí hace falta una página local que exista.
+    const montado = await ventana.webContents.executeJavaScript(`(() => {
+      try {
+        createBrowserInstanceWorkspace({
+          id: 'inst-nav', name: 'Navegador', url: ${JSON.stringify(paginaNavegador)},
+          count: 1, navegador: true, buscador: 'ddg', inicio: '', apertura: 'auto'
+        }, 0);
+        createBrowserInstanceWorkspace({
+          id: 'inst-juego', name: 'Juego', url: ${JSON.stringify(paginaNavegador)},
+          count: 1, navegador: false, buscador: 'ddg', inicio: '', apertura: 'auto'
+        }, 1);
+        return { ok: true, error: '' };
+      } catch (error) {
+        return { ok: false, error: String(error && error.stack || error) };
+      }
+    })()`);
+    comprobar(montado.ok, 'las dos instancias de prueba se montan', montado.error || '');
+
+    const destinos = await ventana.webContents.executeJavaScript(`({
+      web: resolverDestino('https://ejemplo.invalid/x', BUSCADORES.ddg),
+      sinProtocolo: resolverDestino('poke.co', BUSCADORES.ddg),
+      conDominio: resolverDestino('hola.com.mx', BUSCADORES.ddg),
+      texto: resolverDestino('pokemon moves', BUSCADORES.ddg),
+      vacio: resolverDestino('   ', BUSCADORES.ddg),
+      conEspacios: resolverDestino('poke survivor game', BUSCADORES.ddg),
+      conPuerto: resolverDestino('localhost:3000', BUSCADORES.ddg)
+    })`);
+    comprobar(destinos.web === 'https://ejemplo.invalid/x',
+      'una dirección se respeta tal cual', destinos.web);
+    comprobar(destinos.sinProtocolo === 'https://poke.co',
+      'un dominio sin protocolo va con https delante', destinos.sinProtocolo);
+    comprobar(destinos.conDominio === 'https://hola.com.mx',
+      'y con dominio completo también', destinos.conDominio);
+    comprobar(destinos.texto === 'https://duckduckgo.com/?q=pokemon+moves',
+      'un texto se busca en el buscador, con el signo de más y no el %20', destinos.texto);
+    comprobar(destinos.vacio === '', 'nada escrito no lleva a ninguna parte', JSON.stringify(destinos.vacio));
+    comprobar(/q=/.test(destinos.conEspacios) && !/poke%20survivor/.test(destinos.conEspacios),
+      'varias palabras son una búsqueda, no una dirección', destinos.conEspacios);
+    comprobar(/q=/.test(destinos.conPuerto),
+      'algo con dos puntos y sin espacios es una búsqueda, no una dirección', destinos.conPuerto);
+
+    const barras = await ventana.webContents.executeJavaScript(`(() => {
+      const delNavegador = browserInstanceViews.get('inst-nav').panels[0];
+      const delJuego = browserInstanceViews.get('inst-juego').panels[0];
+      return {
+        barraEnNavegador: Boolean(delNavegador.barra),
+        barraEnJuego: Boolean(delJuego.barra),
+        hayAtras: Boolean(delNavegador.botonAtras),
+        hayAdelante: Boolean(delNavegador.botonAdelante),
+        hayRecargar: Boolean(delNavegador.barra.querySelector('.navegacion-recargar')),
+        hayCampo: Boolean(delNavegador.campoDireccion),
+        atrasGris: delNavegador.botonAtras.disabled,
+        adelanteGris: delNavegador.botonAdelante.disabled,
+        laBarraEstaEnLaFranja: delNavegador.barra.parentElement.classList.contains('browser-instance-panelbar')
+      };
+    })()`);
+    comprobar(barras.barraEnNavegador && barras.hayAtras && barras.hayAdelante && barras.hayRecargar && barras.hayCampo,
+      'la instancia de navegador tiene la barra completa', JSON.stringify(barras));
+    comprobar(barras.barraEnJuego === false,
+      'la de juego NO tiene barra: los juegos siguen con su nombre y su estado', JSON.stringify(barras));
+    comprobar(barras.laBarraEstaEnLaFranja,
+      'y la barra va en la franja del panel, donde se ha pedido', String(barras.laBarraEstaEnLaFranja));
+    comprobar(barras.atrasGris && barras.adelanteGris,
+      'atrás y adelante están grises sin historial', JSON.stringify(barras));
+
+    // Lo que escribes se queda apuntado, aunque la página no cargue: si no, habría que escribirlo
+    // otra vez para corregirlo, que es justo lo que hace un navegador.
+    const trasFallo = await ventana.webContents.executeJavaScript(`(() => {
+      const panel = browserInstanceViews.get('inst-nav').panels[0];
+      panel.campoDireccion.value = 'https://ejemplo.invalid/no-existe';
+      panel.campoDireccion.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      return panel.destinoActual;
+    })()`);
+    comprobar(trasFallo === 'https://ejemplo.invalid/no-existe',
+      'lo que escribes es lo que queda apuntado, aunque la página no cargue', trasFallo);
+
+    // Y se guarda como el inicio de la instancia. Se prueba con una instancia de verdad, en la lista
+    // de verdad: una que solo existe en el mapa de vistas no se guarda, y no debe.
+    const guardado = await ventana.webContents.executeJavaScript(`(() => {
+      const fila = {
+        id: 'inst-guardada', name: 'Guardada', url: 'https://ejemplo.invalid/', count: 1,
+        navegador: true, buscador: 'ddg', inicio: '', apertura: 'auto'
+      };
+      browserInstances.push(fila);
+      saveBrowserInstances();
+      guardarInicioDeInstancia('inst-guardada', 'https://ejemplo.invalid/nueva');
+      return JSON.parse(localStorage.getItem('pokegrid:browser-instances:v1') || '[]')
+        .find((row) => row.id === 'inst-guardada')?.inicio || 'no-guardada';
+    })()`);
+    comprobar(guardado === 'https://ejemplo.invalid/nueva',
+      'y se guarda como el inicio de la instancia', String(guardado));
+
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);
     fallos.push('excepción');
