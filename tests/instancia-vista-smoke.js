@@ -223,6 +223,148 @@ app.whenReady().then(async () => {
     const guards = fs.readFileSync(path.join(__dirname, 'ipc-sender-guard-smoke.js'), 'utf8');
     comprobar(/'instancia:atajo'/.test(guards) && /'instancia:zoom'/.test(guards),
       'los dos canales están clasificados en la prueba de guards');
+// --- 5. La pantalla completa DE VERDAD -----------------------------------------
+    console.log('\n--- la pantalla completa de verdad: sin barra de Windows ni marco ---');
+    // Lo que había era solo CSS: la instancia ocupaba la ventana del launcher, pero la barra de
+    // tareas de Windows y el marco seguían delante, que es exactamente lo que hace que eso no sea
+    // pantalla completa. Ahora la ventana del launcher va a pantalla completa DEL SISTEMA.
+    //
+    // La comprobación de que el sistema lo permite se hace primero y por separado: si el sistema
+    // no lo permite, todo lo demás fallaría por otra razón y no sabríamos cuál es cuál.
+
+    const sistema = await new Promise((resolve) => {
+      ventana.setFullScreen(true);
+      dormir(800);
+      const dentro = ventana.isFullScreen();
+      ventana.setFullScreen(false);
+      dormir(600);
+      resolve({ dentro, fuera: !ventana.isFullScreen() });
+    });
+    comprobar(sistema.dentro && sistema.fuera,
+      'el proceso principal puede poner y quitar la pantalla completa del sistema',
+      `entro: ${sistema.dentro}, salio: ${sistema.fuera}`);
+
+    // Un escuchador propio de la prueba: quien mira es el aviso que llega del proceso principal al
+    // renderer. Se guarda en una variable de la pagina para poder leerla desde aqui.
+    await ventana.webContents.executeJavaScript(`
+      window.__vistoFullScreenVentana = 'sin avisos';
+      window.pokeGrid.onWindowFullScreenChange((valor) => { window.__vistoFullScreenVentana = valor; });
+      true;
+    `);
+
+    // Una instancia de mentira: la de verdad necesita un juego cargado y tarda minutos. Con una
+    // vista falsa en el mapa se ejercita el mismo camino —la clase del cuerpo, el aviso a la
+    // ventana del sistema y la vuelta— sin arrancar nada.
+    const entrar = await ventana.webContents.executeJavaScript(`(() => {
+      const salida = {};
+      try {
+        const workspace = document.createElement('div');
+        workspace.className = 'browser-instance-workspace';
+        workspace.dataset.instanceId = 'instancia-de-prueba';
+        document.querySelector('#globalActions')?.parentNode?.appendChild(workspace);
+        browserInstanceViews.set('instancia-de-prueba', { workspace, panels: [] });
+        activeBrowserInstanceId = 'instancia-de-prueba';
+        salida.entra = alternarPantallaCompleta('instancia-de-prueba');
+        salida.clase = document.body.classList.contains('instancia-pantalla-completa');
+        salida.marca = workspace.dataset.pantallaCompleta || '';
+        salida.estado = instanciaEnPantallaCompleta;
+        salida.aviso = window.__vistoFullScreenVentana;
+      } catch (error) {
+        salida.error = String(error && error.message || error);
+      }
+      return salida;
+    })()`);
+    comprobar(!entrar.error, 'entrar en pantalla completa no revienta', entrar.error || '');
+    comprobar(entrar.entra === true && entrar.estado === 'instancia-de-prueba',
+      'la instancia queda marcada como la que está a pantalla completa', JSON.stringify(entrar));
+    comprobar(entrar.clase === true && entrar.marca === '1',
+      'y ocupa la ventana entera (la clase del cuerpo y la del mosaico)', JSON.stringify(entrar));
+    await dormir(900);
+    comprobar(ventana.isFullScreen() === true,
+      'y ADEMÁS la ventana del launcher va a pantalla completa del sistema, sin barra ni marco',
+      `isFullScreen: ${ventana.isFullScreen()}`);
+
+    // Escape con el foco en la ventana principal, que es cuando el juego no la tiene: antes solo
+    // se salía con la tecla capturada en el webview.
+    const conEscape = await ventana.webContents.executeJavaScript(`(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      return {
+        clase: document.body.classList.contains('instancia-pantalla-completa'),
+        estado: instanciaEnPantallaCompleta
+      };
+    })()`);
+    await dormir(900);
+    comprobar(conEscape.clase === false && conEscape.estado === '',
+      'Escape también sale cuando el foco está en el launcher', JSON.stringify(conEscape));
+    comprobar(ventana.isFullScreen() === false,
+      'y la ventana del sistema vuelve con ella', `isFullScreen: ${ventana.isFullScreen()}`);
+
+    // Y al revés: si la ventana sale por su cuenta —el usuario pulsa F11, o hace clic en el
+    // escritorio—, el renderer tiene que enterarse. Si no, se quedaría con la clase puesta y sin
+    // barra de herramientas, sin forma de volver.
+    const sincronizada = await (async () => {
+      await ventana.webContents.executeJavaScript(`(() => {
+        const workspace = browserInstanceViews.get('instancia-de-prueba')?.workspace;
+        alternarPantallaCompleta('instancia-de-prueba');
+        window.__vistoFullScreenVentana = 'sin avisos';
+        return Boolean(workspace);
+      })()`);
+      await dormir(900);
+      const dentro = ventana.isFullScreen();
+      ventana.setFullScreen(false);
+      await dormir(1200);
+      const avisos = await ventana.webContents.executeJavaScript(`(() => ({
+        aviso: window.__vistoFullScreenVentana,
+        clase: document.body.classList.contains('instancia-pantalla-completa'),
+        estado: instanciaEnPantallaCompleta
+      }))()`);
+      return { dentro, avisos };
+    })();
+    comprobar(sincronizada.dentro === true, 'se puede volver a entrar a pantalla completa',
+      `isFullScreen: ${sincronizada.dentro}`);
+    comprobar(sincronizada.avisos.aviso === false,
+      'el proceso principal avisa de que la ventana ha salido', JSON.stringify(sincronizada.avisos));
+    comprobar(sincronizada.avisos.clase === false && sincronizada.avisos.estado === '',
+      'y el renderer se queda sin la clase, con barra y todo a su sitio',
+      JSON.stringify(sincronizada.avisos));
+
+    // Limpieza: la instancia de mentira fuera y la pestaña activa donde estaba.
+    await ventana.webContents.executeJavaScript(`(() => {
+      const workspace = browserInstanceViews.get('instancia-de-prueba')?.workspace;
+      browserInstanceViews.delete('instancia-de-prueba');
+      workspace?.remove();
+      document.body.classList.remove('instancia-pantalla-completa');
+      activateBrowserInstance(PRIMARY_BROWSER_INSTANCE_ID);
+      return true;
+    })()`);
+    await dormir(400);
+
+    // Y el papel de cada pieza, que es lo que no se ve desde fuera.
+    const codigoPantallaCompleta = [
+      ['el canal para pedirla lleva el guard de la ventana principal',
+        /ipcMain\.handle\('instancia:pantalla-completa', \(event, activa\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(main)],
+      ['el proceso principal pone la ventana del sistema, no solo el CSS',
+        /mainWindow\.setFullScreen\(Boolean\(activa\)\)/.test(main)],
+      ['y avisa de los dos sentidos en los que puede salir por su cuenta',
+        /on\('enter-full-screen'/.test(main) && /on\('leave-full-screen'/.test(main)],
+      ['el preload expone el canal y el escuchador',
+        /setWindowFullScreen: \(activa\) => ipcRenderer\.invoke\('instancia:pantalla-completa'/.test(
+          fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8'))
+        && /onWindowFullScreenChange/.test(
+          fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8'))],
+      ['el renderer se sincroniza con lo que dice la ventana',
+        /function sincronizarPantallaCompletaDeLaVentana/.test(renderer)
+        && /onWindowFullScreenChange\?\./.test(renderer)],
+      ['y Escape sale también con el foco en el launcher',
+        /event\.key !== 'Escape'[\s\S]{0,400}salirDePantallaCompleta\(\)/.test(renderer)],
+      ['el canal está clasificado en la prueba de guards',
+        /'instancia:pantalla-completa'/.test(guards)]
+    ];
+    console.log('');
+    for (const [que, ok] of codigoPantallaCompleta) {
+      comprobar(ok, que);
+    }
+
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);
     fallos.push('excepción');

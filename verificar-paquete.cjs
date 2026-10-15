@@ -464,6 +464,13 @@ const VISTA_INSTANCIAS = [
   ['y el porcentaje de zoom es un boton', /\.browser-instance-actions \.instance-zoom-label/.test(styles)],
   ['el arranque va aislado, para que un fallo no se coma lo que viene despues', /try \{\r?\n\s*\/\/ La vista de las instancias/.test(renderer) && /window\.__arranqueError/.test(renderer)],
   ['y avisa de que llego, para que una prueba no se adelante a el', /window\.__arranqueVista = 'ok'/.test(renderer)],
+  ['la pantalla completa pone la ventana del SISTEMA, no solo el CSS', /mainWindow\.setFullScreen\(Boolean\(activa\)\)/.test(mainCodigo)],
+  ['y avisa de los dos sentidos en que puede salir por su cuenta', /on\('enter-full-screen'/.test(mainCodigo) && /on\('leave-full-screen'/.test(mainCodigo) && /instancia:pantalla-completa-cambio/.test(mainCodigo)],
+  ['el canal para pedirla lleva el guard de la ventana principal', /ipcMain\.handle\('instancia:pantalla-completa', \(event, activa\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo)],
+  ['el renderer se sincroniza con lo que dice la ventana', /function sincronizarPantallaCompletaDeLaVentana/.test(renderer) && /onWindowFullScreenChange\?\./.test(renderer)],
+  ['y no se lo pide de vuelta, que seria un bucle', /quitarPantallaCompleta\(\{ preguntar: false \}\)/.test(renderer)],
+  ['Escape sale con el foco en el launcher y con el del juego', /event\.key !== 'Escape'[\s\S]{0,400}salirDePantallaCompleta\(\)/.test(renderer) && /onInstanceEscapePressed\?\./.test(renderer)],
+  ['y entrar pone la instancia como la activa antes de pintar', /activeBrowserInstanceId = id;\r?\n\s*updateBrowserInstanceSelection\(\);/.test(renderer)],
 ];
 console.log('');
 for (const [que, ok] of VISTA_INSTANCIAS) {

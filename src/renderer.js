@@ -8922,21 +8922,58 @@ function workspaceEnPantallaCompleta() {
   return browserInstanceViews.get(instanciaEnPantallaCompleta)?.workspace || null;
 }
 
-function alternarPantallaCompleta(instanceId) {
-  const id = String(instanceId || activeBrowserInstanceId || '');
-  if (!browserInstanceViews.has(id)) return false;
-  instanciaEnPantallaCompleta = instanciaEnPantallaCompleta === id ? '' : id;
+// Las dos mitades de la pantalla completa: lo que se VE (la clase del cuerpo) y lo que ocupa la
+// PANTALLA (la ventana del sistema). Quedarse solo con la primera es como salió antes: la
+// instancia ocupaba la ventana del launcher con la barra de tareas de Windows encima.
+function pedirPantallaCompletaDeLaVentana(activa) {
+  if (typeof window.pokeGrid?.setWindowFullScreen !== 'function') return;
+  window.pokeGrid.setWindowFullScreen(Boolean(activa)).catch(() => {});
+}
+
+function pintarPantallaCompletaDeLaInstancia() {
   document.body.classList.toggle('instancia-pantalla-completa', Boolean(instanciaEnPantallaCompleta));
   const workspace = workspaceEnPantallaCompleta();
   if (workspace) workspace.dataset.pantallaCompleta = '1';
   document.querySelectorAll('.browser-instance-panel')
     .forEach((panel) => panel.classList.toggle('is-pantalla-completa', Boolean(workspace) && panel.closest('.browser-instance-workspace') === workspace));
-  refreshBrowserInstanceLayout(instanciaEnPantallaCompleta || activeBrowserInstanceId);
-  return Boolean(instanciaEnPantallaCompleta);
+}
+
+function alternarPantallaCompleta(instanceId) {
+  const id = String(instanceId || activeBrowserInstanceId || '');
+  if (!browserInstanceViews.has(id)) return false;
+  if (instanciaEnPantallaCompleta === id) {
+    quitarPantallaCompleta();
+    return false;
+  }
+  // La instancia pasa a ser la activa ANTES de pintar nada. Antes se colgaba el estado y luego se
+  // refrescaba, y el refresco dispara la comprobacion de coherencia: veia que la de pantalla
+  // completa no era la pestaña abierta y la echaba en el mismo instante en que entraba.
+  if (activeBrowserInstanceId !== id) {
+    activeBrowserInstanceId = id;
+    updateBrowserInstanceSelection();
+  }
+  instanciaEnPantallaCompleta = id;
+  pintarPantallaCompletaDeLaInstancia();
+  refreshBrowserInstanceLayout(instanciaEnPantallaCompleta);
+  pedirPantallaCompletaDeLaVentana(true);
+  return true;
+}
+
+// `preguntar` se apaga cuando quien sale es la propia ventana del sistema: preguntar ahí sería
+// un bucle, porque ya ha salido.
+function quitarPantallaCompleta({ preguntar = true } = {}) {
+  if (!instanciaEnPantallaCompleta) return false;
+  const id = instanciaEnPantallaCompleta;
+  instanciaEnPantallaCompleta = '';
+  pintarPantallaCompletaDeLaInstancia();
+  delete browserInstanceViews.get(id)?.workspace.dataset;
+  refreshBrowserInstanceLayout(activeBrowserInstanceId);
+  if (preguntar) pedirPantallaCompletaDeLaVentana(false);
+  return true;
 }
 
 function salirDePantallaCompleta() {
-  return instanciaEnPantallaCompleta ? alternarPantallaCompleta(instanciaEnPantallaCompleta) : false;
+  return quitarPantallaCompleta();
 }
 
 // Si el juego cambia de pestaña mientras está en pantalla completa, se sale: si no, se
@@ -8944,12 +8981,18 @@ function salirDePantallaCompleta() {
 function coherenciaDePantallaCompleta() {
   if (!instanciaEnPantallaCompleta) return;
   if (instanciaEnPantallaCompleta === activeBrowserInstanceId) return;
-  const id = instanciaEnPantallaCompleta;
-  instanciaEnPantallaCompleta = '';
-  document.body.classList.remove('instancia-pantalla-completa');
-  document.querySelectorAll('.browser-instance-panel.is-pantalla-completa').forEach((panel) => panel.classList.remove('is-pantalla-completa'));
-  delete browserInstanceViews.get(id)?.workspace.dataset;
-  refreshBrowserInstanceLayout(activeBrowserInstanceId);
+  quitarPantallaCompleta();
+}
+
+// La ventana puede salir de pantalla completa sin que nadie lo pida —F11 del teclado, o un clic en
+// el escritorio—, y esto es lo que el proceso principal avisa. Si no se recoge, el launcher se
+// queda con la clase puesta y sin barra de herramientas, sin forma evidente de volver.
+function sincronizarPantallaCompletaDeLaVentana(activa) {
+  if (activa) {
+    pintarPantallaCompletaDeLaInstancia();
+    return;
+  }
+  quitarPantallaCompleta({ preguntar: false });
 }
 
 // --- Los ajustes del panel ---------------------------------------------------------
@@ -10700,13 +10743,21 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
     });
     instanceSettingsShortcutField?.addEventListener('blur', () => pintarAtajoEnLosAjustes());
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !instanceSettingsBackdrop.hidden) cerrarAjustesDeInstancia();
+      if (event.key !== 'Escape') return;
+      // Primero el panel de ajustes, que esta delante. Con el juego enfocado esto no llega
+      // hasta aqui: la tecla la captura el webview y vuelve por otro camino.
+      if (!instanceSettingsBackdrop.hidden) {
+        cerrarAjustesDeInstancia();
+        return;
+      }
+      salirDePantallaCompleta();
     });
     window.pokeGrid?.onInstanceShortcutPressed?.(({ id }) => {
       const panel = panelDeWebContents(id);
       if (panel) alternarPantallaCompleta(panel.instanceId);
     });
     window.pokeGrid?.onInstanceEscapePressed?.(() => salirDePantallaCompleta());
+    window.pokeGrid?.onWindowFullScreenChange?.((activa) => sincronizarPantallaCompletaDeLaVentana(activa));
     window.pokeGrid?.onInstanceZoomApplied?.(({ id, factor }) => {
       const panel = panelDeWebContents(id);
       if (!panel) return;

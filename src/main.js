@@ -1152,6 +1152,21 @@ function createWindow() {
     }
   });
 
+  // Los dos sentidos en los que la ventana puede cambiar de pantalla completa sin que nadie se lo
+  // pida: el usuario pulsa F11 del teclado, o hace clic en el escritorio. Sin avisar, el renderer
+  // se queda con la clase de pantalla completa puesta y sin barra de herramientas encima, sin
+  // forma evidente de volver.
+  mainWindow.on('enter-full-screen', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('instancia:pantalla-completa-cambio', true);
+    }
+  });
+  mainWindow.on('leave-full-screen', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('instancia:pantalla-completa-cambio', false);
+    }
+  });
+
   mainWindow.webContents.on('will-attach-webview', (_event, webPreferences, params) => {
     const partition = String(params.partition || webPreferences.partition || '');
     if (!partition.startsWith('persist:pokegrid-instance-')) return;
@@ -1693,6 +1708,15 @@ ipcMain.handle('instancia:zoom', (event, id, factor) => {
   if (!particion.startsWith('persist:pokegrid-instance-')) return { ok: false, error: 'Esa pantalla no es una instancia.' };
   const nivel = aplicarZoom(contents, particion, factor, 'boton');
   return { ok: true, factor: nivel };
+});
+
+// La ventana del launcher a pantalla completa del sistema. Es lo que quita de verdad la barra de
+// tareas de Windows y el marco de la ventana; el CSS solo quita la barra del launcher.
+ipcMain.handle('instancia:pantalla-completa', (event, activa) => {
+  assertMainWindowSender(event);
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'La ventana ya no esta.' };
+  mainWindow.setFullScreen(Boolean(activa));
+  return { ok: true };
 });
 
 ipcMain.handle('ventanas-emergentes:ajustar', (event, habilitado) => {

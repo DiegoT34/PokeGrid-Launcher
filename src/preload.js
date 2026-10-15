@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setPopupsEnabled: (habilitado) => ipcRenderer.invoke('ventanas-emergentes:ajustar', Boolean(habilitado)),
   setInstanceShortcut: (atajo) => ipcRenderer.invoke('instancia:atajo', atajo),
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
+  setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
   cleanupMemory: () => ipcRenderer.invoke('app:cleanup-memory'),
   loadProxyResults: () => ipcRenderer.invoke('app:proxy-results'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
@@ -37,6 +38,11 @@ contextBridge.exposeInMainWorld('pokeGrid', {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('instancia:zoom-aplicado', handler);
     return () => ipcRenderer.removeListener('instancia:zoom-aplicado', handler);
+  },
+  onWindowFullScreenChange: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:pantalla-completa-cambio', handler);
+    return () => ipcRenderer.removeListener('instancia:pantalla-completa-cambio', handler);
   },
   openPokepedia: () => ipcRenderer.invoke('pokepedia:open'),
   loadImageDataUrl: (url) => ipcRenderer.invoke('assets:image-data-url', url),
