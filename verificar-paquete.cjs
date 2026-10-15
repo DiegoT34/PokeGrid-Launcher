@@ -108,7 +108,7 @@ const TEXTOS = [
   ['el cristal del diálogo', /\.modal\.farm-modal \{[\s\S]*?backdrop-filter:\s*blur/, styles],
   ['el ancho del diálogo', /width:\s*min\(1320px, 100%\)/, styles],
   ['el hueco del líder', /--pf-hundido/, styles],
-  ['el brillo saliente del número de cuenta', /--pf-sobresaliente/, styles]
+  ['el brillo saliente del número de cuenta', /--pf-sobresaliente/, styles],
 ];
 console.log('');
 let fallos = 0;
@@ -137,7 +137,7 @@ const VIRTUAL = [
   ['al filtrar suelta los nodos y el conjunto', /farmPokemonGrid\.replaceChildren\(\);\s*\r?\n\s*farmPickerEnElDom\.clear\(\);/, renderer],
   ['y vuelve al principio', /farmPokemonGrid\.scrollTop = 0;/, renderer],
   ['--tarjeta declarada UNA vez', null, styles],
-  ['--hueco declarado UNA vez', null, styles]
+  ['--hueco declarado UNA vez', null, styles],
 ];
 for (const par of VIRTUAL) {
   const [que, re, texto] = par;
@@ -216,7 +216,7 @@ const FRANJA = /inset\s+4px\s+0\s+0/;
 const ESTADOS = [
   ['.farm-pokemon-smart-option.is-recommended', 'la recomendada'],
   ['.farm-pokemon-smart-option.is-dangerous', 'la peligrosa'],
-  ['.farm-pokemon-smart-option:hover', 'el ratón por encima']
+  ['.farm-pokemon-smart-option:hover', 'el ratón por encima'],
 ];
 for (const [parte, nombre] of ESTADOS) {
   const r = css.ultimaRegla(styles, parte);
@@ -270,7 +270,7 @@ const PERF = [
   // El reloj de un segundo no puede fabricar un formateador por vuelta. Medido, cuesta 0,55 ms
   // cada vez y se reutiliza por 0,006: a una por segundo son 2 s de CPU por hora para producir
   // siempre el mismo objeto.
-  ['el reloj de un segundo no fabrica un formateador por vuelta', !/new Intl\.DateTimeFormat/.test(cuerpoDeFuncion(renderer, 'updatePanelLiveClocks'))]
+  ['el reloj de un segundo no fabrica un formateador por vuelta', !/new Intl\.DateTimeFormat/.test(cuerpoDeFuncion(renderer, 'updatePanelLiveClocks'))],
 ];
 for (const [que, ok] of PERF) {
   if (!ok) fallos++;
@@ -306,7 +306,7 @@ const LIMPIEZA = [
   ['el ajuste se guarda', /localStorage\.setItem\(HUNT_LECTURA_KEY/.test(renderer)],
   ['y los controles se sincronizan al arrancar', /aplicarRitmoHunt\(\);\s*\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*renderHuntSettings\(\);/.test(renderer)],
   // Un formateador de fecha no puede fabricarse dentro de un bucle o de un reloj.
-  ['ningún Intl.DateTimeFormat fuera de una constante', renderer.split('\n').filter((u) => /new Intl\.DateTimeFormat/.test(u)).every((u) => /^\s*const [A-Z_]+ = new Intl\.DateTimeFormat/.test(u))]
+  ['ningún Intl.DateTimeFormat fuera de una constante', renderer.split('\n').filter((u) => /new Intl\.DateTimeFormat/.test(u)).every((u) => /^\s*const [A-Z_]+ = new Intl\.DateTimeFormat/.test(u))],
 ];
 for (const [que, ok] of LIMPIEZA) {
   if (!ok) fallos++;
@@ -336,7 +336,7 @@ const CAPTURE = [
   // scripts de capturas, porque el panel usa el segundo y al principio solo se tocó el primero.
   ['el IV se busca en los dos sitios, en el script del panel', /meta\.match\(\/iv[\s\S]{0,200}?levelText\.match\(\/iv/.test(renderer)],
   ['y en el de las notificaciones', /meta\.match\(\/iv[\s\S]{0,200}?nivelTexto\.match\(\/iv/.test(renderer)],
-  ['y el nivel no se saca del primer número', !/const rowLevel = Number\(levelText\.match\(\/\\d\+\/\)\?\.\[0\]\) \|\| null;/.test(renderer) && !/const level = clean\(row\.querySelector\('\.clog-lvl'\)\?\.textContent\);/.test(renderer)]
+  ['y el nivel no se saca del primer número', !/const rowLevel = Number\(levelText\.match\(\/\\d\+\/\)\?\.\[0\]\) \|\| null;/.test(renderer) && !/const level = clean\(row\.querySelector\('\.clog-lvl'\)\?\.textContent\);/.test(renderer)],
 ];
 console.log('');
 for (const [que, ok] of CAPTURE) {
@@ -396,7 +396,7 @@ const EMERGENTES = [
   ['las instancias dejan preguntar al manejador', /setAttribute\('allowpopups', 'true'\);/.test(renderer)],
   ['y solo ellas: el juego lo sigue teniendo a false', (renderer.split("setAttribute('allowpopups', 'true')").length - 1) === 1 && (renderer.split("setAttribute('allowpopups', 'false')").length - 1) === 1],
   ['la webview de instancia pide nativeWindowOpen', /nativeWindowOpen=yes/.test(renderer)],
-  ['el interruptor ocupa las dos columnas del formulario', /\.browser-instance-form \.browser-instance-popups \{ grid-column: 1 \/ -1; \}/.test(styles)]
+  ['el interruptor ocupa las dos columnas del formulario', /\.browser-instance-form \.browser-instance-popups \{ grid-column: 1 \/ -1; \}/.test(styles)],
 ];
 console.log('');
 for (const [que, ok] of EMERGENTES) {
@@ -430,7 +430,7 @@ const ORRE = [
   ['y el guion la invoca una sola vez', /const r = \(\$\{orreTravelConfirmation\}\)\(\);/.test(orreGuion)],
   ['la inyecta una sola vez', (orreGuion.match(/buildOrreTravelConfirmationScript\(\)/g) || []).length === 1],
   ['el permiso sigue mandando: solo en destino de Orre y con el permiso activo', /if \(isOrreTarget && allowOrreTravel\)/.test(orreGuion)],
-  ['y la espera se corta si el mapa se cerro, para no esperar 6,5 s a proposito', /!findMapWindow\(\) \|\| locationMatchesTarget\(\) \? \{ skipped: true \}/.test(orreGuion)]
+  ['y la espera se corta si el mapa se cerro, para no esperar 6,5 s a proposito', /!findMapWindow\(\) \|\| locationMatchesTarget\(\) \? \{ skipped: true \}/.test(orreGuion)],
 ];
 console.log('');
 for (const [que, ok] of ORRE) {
@@ -459,11 +459,11 @@ const VISTA_INSTANCIAS = [
   ['y el panel explica que la principal no se toca', /id="instanceSettingsBackdrop"/.test(html) && /se queda como est/.test(html)],
   ['la pantalla completa oculta la barra y el lateral de verdad', /body\.instancia-pantalla-completa #appbar/.test(styles) && /body\.instancia-pantalla-completa #globalActions/.test(styles)],
   ['y no hay identificadores inventados por el camino', !/#topbar/.test(styles) && !/#sidebar/.test(styles)],
-  ['los paneles del juego de Poke Idle World no entran', !/body\.instancia-pantalla-completa \.panel\b/.test(styles) && /if \(particionInstancia\) vigilarVistaDeInstancia/.test(mainCodigo)]
-  ['la barra de la instancia se ve en pantalla completa, para poder salir', /instancia-pantalla-completa \.browser-instance-panelbar/.test(styles)]
-  ['y el porcentaje de zoom es un boton', /\.browser-instance-actions \.instance-zoom-label/.test(styles)]
-  ['el arranque va aislado, para que un fallo no se coma lo que viene despues', /try \{\r?\n\s*\/\/ La vista de las instancias/.test(renderer) && /window\.__arranqueError/.test(renderer)]
-  ['y avisa de que llego, para que una prueba no se adelante a el', /window\.__arranqueVista = 'ok'/.test(renderer)]
+  ['los paneles del juego de Poke Idle World no entran', !/body\.instancia-pantalla-completa \.panel\b/.test(styles) && /if \(particionInstancia\) vigilarVistaDeInstancia/.test(mainCodigo)],
+  ['la barra de la instancia se ve en pantalla completa, para poder salir', /instancia-pantalla-completa \.browser-instance-panelbar/.test(styles)],
+  ['y el porcentaje de zoom es un boton', /\.browser-instance-actions \.instance-zoom-label/.test(styles)],
+  ['el arranque va aislado, para que un fallo no se coma lo que viene despues', /try \{\r?\n\s*\/\/ La vista de las instancias/.test(renderer) && /window\.__arranqueError/.test(renderer)],
+  ['y avisa de que llego, para que una prueba no se adelante a el', /window\.__arranqueVista = 'ok'/.test(renderer)],
 ];
 console.log('');
 for (const [que, ok] of VISTA_INSTANCIAS) {
