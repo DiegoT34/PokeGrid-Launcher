@@ -378,7 +378,7 @@ const bloqueEmergentes = mainCodigo.slice(
 const EMERGENTES = [
   ['la ventana la abre Electron, no el launcher', !/new BrowserWindow/.test(bloqueEmergentes)],
   ['el manejador lo permite de verdad', /return \{ action: 'allow', overrideBrowserWindowOptions: opcionesVentanaEmergente\(\) \};/.test(mainCodigo)],
-  ['y el juego sigue denegando', /if \(isBrowserInstance \|\| !isGameUrl\(url\)\) openExternal\(url\);/.test(mainCodigo)],
+  ['y el juego sigue denegando', /if \(!isBrowserInstance\) \{[\s\S]{0,200}if \(!isGameUrl\(url\)\) openExternal\(url\);[\s\S]{0,120}return \{ action: 'deny' \};/.test(mainCodigo)],
   ['nadie pregunta por una propiedad que no existe', !/contents\.session\.partition/.test(mainCodigo)],
   ['el tope se comprueba antes de permitir', /if \(ventanasEmergentes\.size >= MAX_VENTANAS_EMERGENTES\) \{/.test(mainCodigo)],
   ['y lo que no cabe sale fuera, no se pierde', /openExternal\(url\);\r?\n\s*return \{ action: 'deny' \};/.test(mainCodigo)],
