@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Página de prueba</title></head>
+<body style="font:16px system-ui;background:#0d1418;color:#dfe9ee;padding:24px">
+  <h1>Página de prueba</h1>
+  <a id="pestana" href="https://ejemplo.invalid/pestana" target="_blank">Abrir en pestaña nueva</a>
+  <button id="login" type="button">Abrir ventana de inicio de sesión</button>
+  <button id="correo" type="button">Abrir un correo</button>
+  <script>
+    document.getElementById('login').addEventListener('click', () => {
+      window.open('https://ejemplo.invalid/login', 'login', 'width=520,height=700');
+    });
+    document.getElementById('correo').addEventListener('click', () => {
+      window.location.href = 'mailto:correo@example.invalid';
+    });
+  </script>
+</body>
+</html>

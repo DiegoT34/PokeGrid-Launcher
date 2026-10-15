@@ -56,6 +56,11 @@ const browserInstanceMessage = document.querySelector('#browserInstanceMessage')
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
 const browserInstancePopups = document.querySelector('#browserInstancePopups');
+const browserInstanceStart = document.querySelector('#browserInstanceStart');
+const browserInstanceBuscador = document.querySelector('#browserInstanceBuscador');
+const browserInstanceBuscadorField = document.querySelector('#browserInstanceBuscadorField');
+const browserInstanceApertura = document.querySelector('#browserInstanceApertura');
+const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
 const instanceSettingsShortcut = document.querySelector('#instanceSettingsShortcut');
@@ -8191,6 +8196,43 @@ function makeBrowserInstanceId() {
   const token = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `browser-${token.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 80)}`;
 }
+// Los motores de busqueda de las instancias de estilo navegador. El de fabrica es DuckDuckGo:
+// no mete el dialogo de consentimiento que se come media pantalla, y en un panel pequeno eso es
+// inservible.
+const BUSCADORES = Object.freeze({
+  ddg: 'https://duckduckgo.com/?q=',
+  google: 'https://www.google.com/search?q=',
+  bing: 'https://www.bing.com/search?q='
+});
+const BUSCADOR_POR_DEFECTO = 'ddg';
+const APERTURA_POR_DEFECTO = 'auto';
+const MODOS_DE_APERTURA = Object.freeze(['auto', 'panel', 'ventana']);
+
+// Lo que no viene en una instancia guardada antes de esto se rellena aqui. No se reescribe
+// `localStorage`: los valores por defecto se aplican al leer, y lo que se guarde despues ya
+// viene completo. Una instancia vieja se ve igual que antes.
+function normalizarOpcionesDeInstancia(valor) {
+  const opciones = valor && typeof valor === 'object' ? valor : {};
+  const navegador = Boolean(opciones.navegador);
+  const buscador = Object.prototype.hasOwnProperty.call(BUSCADORES, opciones.buscador)
+    ? opciones.buscador
+    : BUSCADOR_POR_DEFECTO;
+  const apertura = MODOS_DE_APERTURA.includes(opciones.apertura)
+    ? opciones.apertura
+    : APERTURA_POR_DEFECTO;
+  const inicio = String(opciones.inicio || '').slice(0, 1000);
+  return { navegador, buscador, apertura, inicio };
+}
+
+// La pagina de partida. El modo navegador arranca en el buscador —por eso el campo de enlace
+// deja de ser obligatorio— y el resto arranca en su direccion.
+function inicioDeInstancia(instance) {
+  if (instance.navegador) {
+    return BUSCADORES[instance.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
+  }
+  return instance.inicio || instance.url;
+}
+
 function normalizeBrowserInstance(value, fallbackId = '') {
   try {
     const id = String(value?.id || fallbackId || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
@@ -8198,7 +8240,7 @@ function normalizeBrowserInstance(value, fallbackId = '') {
     const name = String(value?.name || 'Otro juego').trim().slice(0, 48) || 'Otro juego';
     const url = normalizeBrowserInstanceUrl(value?.url);
     const count = Math.max(1, Math.min(6, Math.round(Number(value?.count) || 1)));
-    return { id, name, url, count };
+    return { id, name, url, count, ...normalizarOpcionesDeInstancia(value) };
   } catch {
     return null;
   }
@@ -9066,12 +9108,25 @@ function cerrarAjustesDeInstancia() {
   setInstanceSettingsMessage('');
 }
 
+// Mostrar u ocultar el motor segun como vaya a empezar. Con buscador, el campo de enlace deja de
+// ser obligatorio —y si no se le quita el `required`, el formulario no deja continuar sin un
+// enlace que no se va a usar—, y con URL se esconde para que no estorbe.
+function sincronizarInicioElegido() {
+  const conBuscador = browserInstanceStart.value === 'buscador';
+  browserInstanceBuscadorField.hidden = !conBuscador;
+  browserInstanceUrl.required = !conBuscador;
+  browserInstanceUrlField.hidden = conBuscador;
+}
+
 function openBrowserInstanceModal() {
 
   browserInstanceMessage.textContent = '';
   browserInstanceName.value = '';
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
+  browserInstanceStart.value = 'url';
+  browserInstanceBuscador.value = BUSCADOR_POR_DEFECTO;
+  browserInstanceApertura.value = APERTURA_POR_DEFECTO;
   browserInstanceBackdrop.hidden = false;
   browserInstanceName.focus();
 }
@@ -10172,6 +10227,8 @@ document.querySelector('#cancelButton').addEventListener('click', closeAccountsM
 addBrowserInstanceButton.addEventListener('click', openBrowserInstanceModal);
 closeBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 cancelBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
+browserInstanceStart?.addEventListener('change', sincronizarInicioElegido);
+sincronizarInicioElegido();
 browserInstancePopups?.addEventListener('change', () => {
   setVentanasEmergentes(browserInstancePopups.checked);
 });
@@ -10185,7 +10242,11 @@ browserInstanceForm.addEventListener('submit', (event) => {
       id: makeBrowserInstanceId(),
       name: browserInstanceName.value,
       url: browserInstanceUrl.value,
-      count: browserInstanceCount.value
+      count: browserInstanceCount.value,
+      navegador: browserInstanceStart.value === 'buscador',
+      buscador: browserInstanceBuscador.value,
+      apertura: browserInstanceApertura.value,
+      inicio: browserInstanceStart.value === 'buscador' ? '' : browserInstanceUrl.value
     });
     if (!instance) throw new Error('No se pudo crear la instancia con esos datos.');
     browserInstances.push(instance);
