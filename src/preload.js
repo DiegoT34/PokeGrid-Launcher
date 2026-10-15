@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   unlinkAccountsSource: () => ipcRenderer.invoke('accounts:unlink-source'),
   restoreAccountsBackup: () => ipcRenderer.invoke('accounts:restore-backup'),
   setPopupsEnabled: (habilitado) => ipcRenderer.invoke('ventanas-emergentes:ajustar', Boolean(habilitado)),
+  setInstanceShortcut: (atajo) => ipcRenderer.invoke('instancia:atajo', atajo),
+  setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   cleanupMemory: () => ipcRenderer.invoke('app:cleanup-memory'),
   loadProxyResults: () => ipcRenderer.invoke('app:proxy-results'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
@@ -20,6 +22,21 @@ contextBridge.exposeInMainWorld('pokeGrid', {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('app:update-progress', handler);
     return () => ipcRenderer.removeListener('app:update-progress', handler);
+  },
+  onInstanceShortcutPressed: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:alternar-pantalla-completa', handler);
+    return () => ipcRenderer.removeListener('instancia:alternar-pantalla-completa', handler);
+  },
+  onInstanceEscapePressed: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:salir-pantalla-completa', handler);
+    return () => ipcRenderer.removeListener('instancia:salir-pantalla-completa', handler);
+  },
+  onInstanceZoomApplied: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:zoom-aplicado', handler);
+    return () => ipcRenderer.removeListener('instancia:zoom-aplicado', handler);
   },
   openPokepedia: () => ipcRenderer.invoke('pokepedia:open'),
   loadImageDataUrl: (url) => ipcRenderer.invoke('assets:image-data-url', url),

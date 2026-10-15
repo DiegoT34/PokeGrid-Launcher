@@ -29,6 +29,7 @@
       <div id="instanceTabbar" class="instance-tabbar" aria-label="Instancias del navegador">
         <div id="instanceTabs" class="instance-tabs" role="tablist" aria-label="Juegos abiertos"></div>
         <button id="addBrowserInstanceButton" class="instance-add-button" type="button" aria-label="Agregar instancia de navegador" title="Agregar otro juego">+</button>
+        <button id="instanceSettingsButton" class="instance-settings-button" type="button" aria-label="Ajustes de las instancias" title="Ajustes de las instancias"></button>
       </div>
 
       <button id="topbarCollapseButton" class="topbar-collapse-button" type="button" aria-expanded="true" aria-label="Ocultar barra superior" title="Ocultar barra superior">&#8963;</button>
@@ -64,6 +65,33 @@
     </section>
 
     <main id="grid" class="grid instance-workspace is-active" data-instance-id="poke-idle-world" role="tabpanel" aria-label="Paneles de Poke Idle World"></main>
+
+    <!-- Ajustes de las instancias. Es el primero de esta superficie: cuando haga falta meter
+         mas cosas de aqui, el sitio ya esta. -->
+    <div id="instanceSettingsBackdrop" class="modal-backdrop instance-settings-backdrop" hidden>
+      <section class="modal instance-settings-modal" role="dialog" aria-modal="true" aria-labelledby="instanceSettingsTitle">
+        <header class="modal-heading">
+          <div>
+            <span class="eyebrow">INSTANCIAS DEL NAVEGADOR</span>
+            <h1 id="instanceSettingsTitle">Ajustes de las instancias</h1>
+          </div>
+          <button id="closeInstanceSettingsButton" class="icon-button" type="button" aria-label="Cerrar">&times;</button>
+        </header>
+        <p class="modal-copy">Solo afectan a las instancias que crees aparte. La pantalla principal de Poke Idle World se queda como est&aacute;.</p>
+        <div class="instance-settings-field">
+          <span class="instance-settings-label">ATAJO DE PANTALLA COMPLETA</span>
+          <button id="instanceSettingsShortcutField" class="instance-settings-capture" type="button">
+            <span id="instanceSettingsShortcut" class="instance-settings-value">F11</span>
+          </button>
+          <small class="instance-settings-help">Pulsa el bot&oacute;n y luego la combinaci&oacute;n. Sirve en la instancia que tengas abierta; con el juego de Poke Idle World no hace nada. Escape tambi&eacute;n sale.</small>
+        </div>
+        <div class="instance-settings-field">
+          <span class="instance-settings-label">ZOOM</span>
+          <small class="instance-settings-help">Con los botones <b>&minus;</b> y <b>+</b> de la barra de cada pantalla, o con <b>Ctrl</b> y la rueda del rat&oacute;n encima. Cada juego recuerda el suyo. Toca el porcentaje para volver al 100&nbsp;%.</small>
+        </div>
+        <p id="instanceSettingsMessage" class="modal-message" role="status"></p>
+      </section>
+    </div>
 
     <div id="browserInstanceBackdrop" class="modal-backdrop browser-instance-backdrop" hidden>
       <section class="modal browser-instance-modal" role="dialog" aria-modal="true" aria-labelledby="browserInstanceTitle">

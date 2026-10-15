@@ -6,6 +6,8 @@ const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const FARM_CONFIG_KEY = 'pokegrid:farm-config:v1';
 const FARM_ORRE_PERMISSION_KEY = 'pokegrid:farm-orre-permission:v1';
+const INSTANCE_SHORTCUT_KEY = 'pokegrid:instance-shortcut:v1';
+const INSTANCE_ZOOM_KEY = 'pokegrid:instance-zoom:v1';
 const NOTIFICATION_KEY = 'pokegrid:notifications:v1';
 const CAPTURE_GOAL_KEY = 'pokegrid:capture-goals:v1';
 const GRID_VIEW_KEY = 'pokegrid:grid-view:v1';
@@ -54,6 +56,12 @@ const browserInstanceMessage = document.querySelector('#browserInstanceMessage')
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
 const browserInstancePopups = document.querySelector('#browserInstancePopups');
+const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
+const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
+const instanceSettingsShortcut = document.querySelector('#instanceSettingsShortcut');
+const instanceSettingsShortcutField = document.querySelector('#instanceSettingsShortcutField');
+const instanceSettingsMessage = document.querySelector('#instanceSettingsMessage');
+const instanceSettingsClose = document.querySelector('#closeInstanceSettingsButton');
 const viewModeButton = document.querySelector('#viewModeButton');
 const viewModeMenu = document.querySelector('#viewModeMenu');
 const viewModeAccounts = document.querySelector('#viewModeAccounts');
@@ -8014,6 +8022,8 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   collapse: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
+  // Pantalla completa de una instancia. Los de zoom ya estaban en la tabla.
+  fullscreen: '<path d="M3 9V5a2 2 0 0 1 2-2h4"/><path d="M21 9V5a2 2 0 0 0-2-2h-4"/><path d="M3 15v4a2 2 0 0 0 2 2h4"/><path d="M21 15v4a2 2 0 0 1-2 2h-4"/>',
   zoomIn: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/>',
   zoomOut: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
   user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
@@ -8505,7 +8515,31 @@ function updateBrowserInstanceSelection() {
     shell.querySelector('.instance-tab')?.setAttribute('aria-selected', String(active));
   });
 }
+// El proceso principal solo sabe de webContents. Este mapa traduce de uno a la pantalla que le
+// corresponde, y se rellena al crear cada webview, que es cuando ya tiene id.
+const panelesPorWebContentsId = new Map();
+function panelDeWebContents(id) {
+  return panelesPorWebContentsId.get(Number(id)) || null;
+}
+function refrescarMapaDeWebviews(instanceId) {
+  const view = browserInstanceViews.get(instanceId);
+  if (!view) return;
+  view.panels.forEach((panel) => {
+    const id = panel.webview?.getWebContentsId?.();
+    if (id) {
+      panelesPorWebContentsId.set(id, panel);
+      // El zoom guardado se aplica al cargar: si no, una instancia que se reabriera con el zoom de
+      // la última sesión salía al 100 % hasta que el usuario tocara los botones.
+      const guardado = zoomDeInstancia(panel.instanceId);
+      if (guardado !== ZOOM_PREDETERMINADO) aplicarZoomDePantalla(panel, guardado, 'restaurado');
+    }
+  });
+}
 function refreshBrowserInstanceLayout(instanceId) {
+  // Antes de nada: si se estaba viendo una instancia en pantalla completa y el usuario cambia de
+  // pestaña, se sale. Si no, se quedaría una instancia a pantalla completa escondida detrás de otra,
+  // sin forma evidente de salir.
+  coherenciaDePantallaCompleta();
   const view = browserInstanceViews.get(instanceId);
   if (!view || instanceId === PRIMARY_BROWSER_INSTANCE_ID) return;
   requestAnimationFrame(() => {
@@ -8560,7 +8594,37 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   expandButton.type = 'button';
   expandButton.innerHTML = launcherUiIcon('expand');
   expandButton.title = 'Agrandar panel';
-  actions.append(homeButton, reloadButton, expandButton);
+
+  // El zoom y la pantalla completa, solo aquí: los paneles del juego no los llevan.
+  const zoomOutButton = document.createElement('button');
+  zoomOutButton.type = 'button';
+  zoomOutButton.className = 'instance-zoom-out';
+  zoomOutButton.innerHTML = launcherUiIcon('zoomOut');
+  zoomOutButton.title = 'Alejar el contenido';
+  const zoomLabel = document.createElement('button');
+  zoomLabel.type = 'button';
+  zoomLabel.className = 'instance-zoom-label';
+  zoomLabel.title = 'Restablecer el zoom al 100 %';
+  const zoomInButton = document.createElement('button');
+  zoomInButton.type = 'button';
+  zoomInButton.className = 'instance-zoom-in';
+  zoomInButton.innerHTML = launcherUiIcon('zoomIn');
+  zoomInButton.title = 'Acercar el contenido';
+  const fullscreenButton = document.createElement('button');
+  fullscreenButton.type = 'button';
+  fullscreenButton.className = 'instance-fullscreen';
+  fullscreenButton.innerHTML = launcherUiIcon('fullscreen');
+  fullscreenButton.title = 'Pantalla completa';
+
+  actions.append(
+    homeButton,
+    reloadButton,
+    zoomOutButton,
+    zoomLabel,
+    zoomInButton,
+    expandButton,
+    fullscreenButton
+  );
   panelbar.append(identity, actions);
   const host = document.createElement('div');
   host.className = 'browser-instance-webview-host';
@@ -8583,6 +8647,8 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
   workspace.appendChild(element);
   const panel = {
     instanceId: instance.id,
+    zoomLabel,
+    zoomFactor: zoomDeInstancia(instance.id),
     instanceName: instance.name,
     instanceIndex: index,
     element,
@@ -8612,6 +8678,11 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay) {
     panel.connectionFailures = 0;
     loadConnectionPanel(panel, webviewCurrentUrl(panel), { reason: 'Recargando' });
   });
+  zoomOutButton.addEventListener('click', () => moverZoom(panel, -1));
+  zoomInButton.addEventListener('click', () => moverZoom(panel, 1));
+  zoomLabel.addEventListener('click', () => resetearZoom(panel));
+  fullscreenButton.addEventListener('click', () => alternarPantallaCompleta(instance.id));
+  pintarZoomDePantalla(panel);
   expandButton.addEventListener('click', () => {
     const expand = !element.classList.contains('is-expanded');
     workspace.querySelectorAll('.browser-instance-panel').forEach((candidate) => candidate.classList.remove('is-expanded'));
@@ -8636,6 +8707,7 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   browserInstanceBackdrop.parentNode.insertBefore(workspace, browserInstanceBackdrop);
   const panelsForInstance = Array.from({ length: instance.count }, (_, index) =>
     createBrowserInstancePanel(instance, workspace, index, 5_000 + ordinal * 4_500 + index * 850));
+  refreshBrowserInstanceLayout(instance.id);
   const view = { instance, workspace, panels: panelsForInstance };
   browserInstanceViews.set(instance.id, view);
   syncUserScriptPanels();
@@ -8703,7 +8775,256 @@ function setVentanasEmergentes(habilitado) {
   aplicarVentanasEmergentes();
 }
 
+// La vista de las instancias: pantalla completa y zoom.
+//
+// El atajo llega desde el proceso principal, que es el único que ve las teclas cuando el juego
+// tiene el foco; aquí solo se guarda, se pinta en los ajustes y se le pasa de vuelta. El zoom
+// es al revés: aquí se piden los cambios y quien los aplica es el proceso principal, para que los
+// botones y la rueda den siempre el mismo número.
+//
+// La pantalla completa es una clase en el body: la instancia activa ocupa la ventana entera y se
+// ocultan la barra, las pestañas y el lateral. Los paneles del juego no entran en esto.
+const ZOOM_MINIMO = 0.25;
+const ZOOM_MAXIMO = 3;
+const ZOOM_PASO = 0.1;
+const ZOOM_PREDETERMINADO = 1;
+const ATAJO_PREDETERMINADO = Object.freeze({ key: 'F11', ctrl: false, alt: false, shift: false, meta: false });
+
+// El nombre de la tecla como lo escribe el evento del proceso principal. Se comparan enteras,
+// así que da igual el idioma del teclado.
+const NOMBRES_DE_TECLA = {
+  ' ': 'Espacio',
+  Escape: 'Esc',
+  ArrowUp: 'Arriba',
+  ArrowDown: 'Abajo',
+  ArrowLeft: 'Izquierda',
+  ArrowRight: 'Derecha',
+  Enter: 'Intro',
+  Tab: 'Tab',
+  Backspace: 'Retroceso',
+  Delete: 'Suprimir',
+  Home: 'Inicio',
+  End: 'Fin',
+  PageUp: 'Re Pág',
+  PageDown: 'Av Pág',
+};
+
+function nombreDeTecla(key) {
+  const texto = String(key || '');
+  return NOMBRES_DE_TECLA[texto] || texto.toUpperCase();
+}
+
+function descripcionDeAtajo(atajo) {
+  if (!atajo || !atajo.key) return 'Sin atajo';
+  const partes = [];
+  if (atajo.ctrl) partes.push('Ctrl');
+  if (atajo.alt) partes.push('Alt');
+  if (atajo.shift) partes.push('Mayús');
+  if (atajo.meta) partes.push('Meta');
+  partes.push(nombreDeTecla(atajo.key));
+  return partes.join(' + ');
+}
+
+function normalizarAtajoPantalla(valor) {
+  const atajo = valor && typeof valor === 'object' ? valor : {};
+  const key = String(atajo.key || '').slice(0, 40);
+  if (!key) return { ...ATAJO_PREDETERMINADO };
+  return {
+    key,
+    ctrl: Boolean(atajo.ctrl),
+    alt: Boolean(atajo.alt),
+    shift: Boolean(atajo.shift),
+    meta: Boolean(atajo.meta)
+  };
+}
+
+function cargarAtajoPantalla() {
+  try {
+    return normalizarAtajoPantalla(JSON.parse(localStorage.getItem(INSTANCE_SHORTCUT_KEY) || 'null'));
+  } catch {
+    return { ...ATAJO_PREDETERMINADO };
+  }
+}
+let atajoPantallaCompleta = cargarAtajoPantalla();
+
+function cargarZoomInstancias() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(INSTANCE_ZOOM_KEY) || '{}');
+    if (!guardado || typeof guardado !== 'object') return {};
+    return guardado;
+  } catch {
+    return {};
+  }
+}
+// instanceId -> factor. Cada juego recuerda el suyo, que es lo que hace falta: si uno va con
+// letra grande no tiene por qué arrastrar a los demás.
+let zoomInstancias = cargarZoomInstancias();
+
+function guardarZoomInstancias() {
+  try { localStorage.setItem(INSTANCE_ZOOM_KEY, JSON.stringify(zoomInstancias)); } catch {}
+}
+
+function acotarZoom(factor) {
+  const numero = Number(factor);
+  if (!Number.isFinite(numero) || numero <= 0) return ZOOM_PREDETERMINADO;
+  return Math.min(ZOOM_MAXIMO, Math.max(ZOOM_MINIMO, Math.round(numero * 100) / 100));
+}
+
+function zoomDeInstancia(instanceId) {
+  return acotarZoom(zoomInstancias[instanceId] || ZOOM_PREDETERMINADO);
+}
+
+function describirZoom(factor) {
+  return Math.round(acotarZoom(factor) * 100) + ' %';
+}
+
+// El proceso principal manda en el nivel. Lo que se pinta es lo que él dice, no lo que se pidió.
+function aplicarZoomDePantalla(panel, factor, motivo) {
+  if (!panel || !panel.webview || typeof window.pokeGrid?.setInstanceZoom !== 'function') return;
+  const id = panel.webview.getWebContentsId?.();
+  if (!id) return;
+  window.pokeGrid.setInstanceZoom(id, factor)
+    .then((resultado) => { if (!resultado?.ok) return; })
+    .catch(() => {});
+}
+
+function moverZoom(panel, pasos) {
+  if (!panel) return;
+  const factor = acotarZoom(zoomDeInstancia(panel.instanceId) + pasos * ZOOM_PASO);
+  zoomInstancias[panel.instanceId] = factor;
+  guardarZoomInstancias();
+  pintarZoomDePantalla(panel);
+  aplicarZoomDePantalla(panel, factor, 'boton');
+}
+
+function resetearZoom(panel) {
+  if (!panel) return;
+  zoomInstancias[panel.instanceId] = ZOOM_PREDETERMINADO;
+  guardarZoomInstancias();
+  pintarZoomDePantalla(panel);
+  aplicarZoomDePantalla(panel, ZOOM_PREDETERMINADO, 'boton');
+}
+
+function pintarZoomDePantalla(panel) {
+  if (!panel?.zoomLabel) return;
+  panel.zoomLabel.textContent = describirZoom(zoomDeInstancia(panel.instanceId));
+}
+
+// --- La pantalla completa ---------------------------------------------------------
+//
+// La instancia activa es la que ocupa la ventana. Si dentro de ella hay un panel agrandado, ese
+// es el que se ve; si no, se ve el mosaico entero. Es lo mismo que hay en la pestaña, pero sin
+// barra alrededor.
+let instanciaEnPantallaCompleta = '';
+
+function workspaceEnPantallaCompleta() {
+  if (!instanciaEnPantallaCompleta) return null;
+  return browserInstanceViews.get(instanciaEnPantallaCompleta)?.workspace || null;
+}
+
+function alternarPantallaCompleta(instanceId) {
+  const id = String(instanceId || activeBrowserInstanceId || '');
+  if (!browserInstanceViews.has(id)) return false;
+  instanciaEnPantallaCompleta = instanciaEnPantallaCompleta === id ? '' : id;
+  document.body.classList.toggle('instancia-pantalla-completa', Boolean(instanciaEnPantallaCompleta));
+  const workspace = workspaceEnPantallaCompleta();
+  if (workspace) workspace.dataset.pantallaCompleta = '1';
+  document.querySelectorAll('.browser-instance-panel')
+    .forEach((panel) => panel.classList.toggle('is-pantalla-completa', Boolean(workspace) && panel.closest('.browser-instance-workspace') === workspace));
+  refreshBrowserInstanceLayout(instanciaEnPantallaCompleta || activeBrowserInstanceId);
+  return Boolean(instanciaEnPantallaCompleta);
+}
+
+function salirDePantallaCompleta() {
+  return instanciaEnPantallaCompleta ? alternarPantallaCompleta(instanciaEnPantallaCompleta) : false;
+}
+
+// Si el juego cambia de pestaña mientras está en pantalla completa, se sale: si no, se
+// quedaría una instancia a pantalla completa escondida detrás de otra.
+function coherenciaDePantallaCompleta() {
+  if (!instanciaEnPantallaCompleta) return;
+  if (instanciaEnPantallaCompleta === activeBrowserInstanceId) return;
+  const id = instanciaEnPantallaCompleta;
+  instanciaEnPantallaCompleta = '';
+  document.body.classList.remove('instancia-pantalla-completa');
+  document.querySelectorAll('.browser-instance-panel.is-pantalla-completa').forEach((panel) => panel.classList.remove('is-pantalla-completa'));
+  delete browserInstanceViews.get(id)?.workspace.dataset;
+  refreshBrowserInstanceLayout(activeBrowserInstanceId);
+}
+
+// --- Los ajustes del panel ---------------------------------------------------------
+function enviarAtajoAlProcesoPrincipal() {
+  if (typeof window.pokeGrid?.setInstanceShortcut === 'function') {
+    window.pokeGrid.setInstanceShortcut(atajoPantallaCompleta).catch(() => {});
+  }
+  pintarAtajoEnLosAjustes();
+}
+
+// Se pinta SIEMPRE en el span de dentro del campo, nunca en el campo: escribir en el campo
+// borraría el span del documento y lo que se pintara después se quedaría en un nodo suelto, sin
+// verse. Por eso el texto de «esperando» también va aquí y no aparte.
+function pintarAtajoEnLosAjustes(esperando = false) {
+  if (!instanceSettingsShortcut) return;
+  instanceSettingsShortcut.textContent = esperando
+    ? 'Pulsa una tecla…'
+    : descripcionDeAtajo(atajoPantallaCompleta);
+}
+
+// El campo de la captura: «pulsas una tecla» en vez de tener que elegirla de una lista.
+function escucharAtajoEnLosAjustes() {
+  if (!instanceSettingsShortcutField) return;
+  let esperando = false;
+  instanceSettingsShortcutField.addEventListener('click', () => {
+    esperando = true;
+    instanceSettingsShortcutField.classList.add('is-esperando');
+    pintarAtajoEnLosAjustes(true);
+    instanceSettingsShortcutField.focus();
+  });
+  instanceSettingsShortcutField.addEventListener('keydown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!esperando) return;
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      esperando = false;
+      instanceSettingsShortcutField.classList.remove('is-esperando');
+      pintarAtajoEnLosAjustes(false);
+      return;
+    }
+    atajoPantallaCompleta = normalizarAtajoPantalla({
+      key: event.key,
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      meta: event.metaKey
+    });
+    esperando = false;
+    instanceSettingsShortcutField.classList.remove('is-esperando');
+    try { localStorage.setItem(INSTANCE_SHORTCUT_KEY, JSON.stringify(atajoPantallaCompleta)); } catch {}
+    enviarAtajoAlProcesoPrincipal();
+    setInstanceSettingsMessage('Atajo guardado: ' + descripcionDeAtajo(atajoPantallaCompleta) + '. Se aplica a la instancia que tengas abierta.', 'ok');
+  });
+}
+
+function setInstanceSettingsMessage(texto, tono = '') {
+  if (!instanceSettingsMessage) return;
+  instanceSettingsMessage.textContent = texto;
+  instanceSettingsMessage.className = 'modal-message' + (tono ? ' is-' + tono : '');
+}
+
+function abrirAjustesDeInstancia() {
+  pintarAtajoEnLosAjustes();
+  setInstanceSettingsMessage('');
+  instanceSettingsBackdrop.hidden = false;
+  instanceSettingsClose.focus();
+}
+
+function cerrarAjustesDeInstancia() {
+  instanceSettingsBackdrop.hidden = true;
+  setInstanceSettingsMessage('');
+}
+
 function openBrowserInstanceModal() {
+
   browserInstanceMessage.textContent = '';
   browserInstanceName.value = '';
   browserInstanceUrl.value = '';
@@ -10368,6 +10689,44 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   renderHuntSettings();
   renderCaptureModoSettings();
   aplicarVentanasEmergentes();
+  // Aislado a proposito: un fallo al montar la vista de las instancias no puede impedir que se
+  // ejecute lo que viene despues en el arranque. Antes, un fallo aqui se comia el icono y el clic
+  // del boton y no decia nada.
+  try {
+    // La vista de las instancias: el atajo se le pasa al proceso principal —que es quien ve las teclas
+    // cuando el juego tiene el foco— y se escuchan sus avisos de pantalla completa y de zoom.
+    instanceSettingsBackdrop?.addEventListener('click', (event) => {
+      if (event.target === instanceSettingsBackdrop) cerrarAjustesDeInstancia();
+    });
+    instanceSettingsShortcutField?.addEventListener('blur', () => pintarAtajoEnLosAjustes());
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !instanceSettingsBackdrop.hidden) cerrarAjustesDeInstancia();
+    });
+    window.pokeGrid?.onInstanceShortcutPressed?.(({ id }) => {
+      const panel = panelDeWebContents(id);
+      if (panel) alternarPantallaCompleta(panel.instanceId);
+    });
+    window.pokeGrid?.onInstanceEscapePressed?.(() => salirDePantallaCompleta());
+    window.pokeGrid?.onInstanceZoomApplied?.(({ id, factor }) => {
+      const panel = panelDeWebContents(id);
+      if (!panel) return;
+      zoomInstancias[panel.instanceId] = factor;
+      guardarZoomInstancias();
+      pintarZoomDePantalla(panel);
+    });
+    if (instanceSettingsButton) instanceSettingsButton.innerHTML = launcherUiIcon('settings');
+    instanceSettingsButton?.addEventListener('click', () => abrirAjustesDeInstancia());
+    instanceSettingsClose?.addEventListener('click', () => cerrarAjustesDeInstancia());
+    escucharAtajoEnLosAjustes();
+    enviarAtajoAlProcesoPrincipal();
+    // Marca de arranque: si desde fuera esto no existe, el bloque de arriba revienta antes de
+    // terminar y las ultimas lineas —el icono y el clic— se quedan sin hacer.
+    window.__arranqueVista = 'ok';
+  } catch (error) {
+    window.__arranqueVista = 'FALLO';
+    window.__arranqueError = String(error && error.stack || error && error.message || error);
+    console.error('No se pudo preparar la vista de las instancias: ' + (error && error.message || error));
+  }
   window.setInterval(updatePanelLiveClocks, 1000);
   window.setInterval(pollAccountProfiles, 4000);
   // El archivo .txt vinculado ya no se sondea: se sincroniza con el botón, a

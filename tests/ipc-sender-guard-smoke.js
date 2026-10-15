@@ -52,7 +52,9 @@ const UI_CHANNELS = [
   'extensions:pick-folder',
   'extensions:status',
   'extensions:apply',
-  'ventanas-emergentes:ajustar'
+  'ventanas-emergentes:ajustar',
+  'instancia:atajo',
+  'instancia:zoom'
 ];
 
 // Los que invocan los webviews del juego. Con guard de ventana principal dejarían de

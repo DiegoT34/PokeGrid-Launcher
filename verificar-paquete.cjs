@@ -438,6 +438,39 @@ for (const [que, ok] of ORRE) {
   console.log('  ' + (ok ? 'ok  ' : 'FALTA ') + que);
 }
 
+// --- 6 septies. La vista de las instancias: pantalla completa y zoom ---------------------
+const VISTA_INSTANCIAS = [
+  ['las teclas se capturan en el webview, que es el unico que las ve con el juego enfocado', /contents\.on\('before-input-event'/.test(mainCodigo)],
+  ['y la rueda con el control pulsado', /contents\.on\('input-event'/.test(mainCodigo) && /mouseWheel/.test(mainCodigo) && /includes\('control'\)/.test(mainCodigo)],
+  ['solo en los webviews de instancia', /if \(particionInstancia\) vigilarVistaDeInstancia/.test(mainCodigo)],
+  ['el zoom tiene tope', /ZOOM_MINIMO = 0\.25/.test(mainCodigo) && /ZOOM_MAXIMO = 3/.test(mainCodigo) && /ZOOM_PASO = 0\.1/.test(mainCodigo)],
+  ['y el owner del nivel es el proceso principal', /function aplicarZoom\(contents, particion, factor, motivo\)/.test(mainCodigo) && /instancia:zoom-aplicado/.test(mainCodigo)],
+  ['el atajo compara TODOS los modificadores', /presiona\('control'\) === atajo\.ctrl/.test(mainCodigo) && /presiona\('shift'\) === atajo\.shift/.test(mainCodigo)],
+  ['los dos canales llevan el guard de la ventana principal', /ipcMain\.handle\('instancia:atajo', \(event, valor\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo) && /ipcMain\.handle\('instancia:zoom', \(event, id, factor\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo)],
+  ['el zoom no acepta una pantalla que no sea instancia', /if \(!particion\.startsWith\('persist:pokegrid-instance-'\)\) return \{ ok: false/.test(mainCodigo)],
+  ['el atajo se guarda en el renderer y se le pasa al proceso', /localStorage\.setItem\(INSTANCE_SHORTCUT_KEY/.test(renderer) && /window\.pokeGrid\.setInstanceShortcut\(atajoPantallaCompleta\)/.test(renderer)],
+  ['y el zoom se guarda por instancia', /zoomInstancias\[panel\.instanceId\] = factor/.test(renderer) && /JSON\.stringify\(zoomInstancias\)/.test(renderer)],
+  ['nadie escribe en el campo de captura entero', !/instanceSettingsShortcutField\.textContent/.test(renderer)],
+  ['el texto se pinta en el span de dentro, no en el boton', /instanceSettingsShortcut\.textContent = esperando/.test(renderer)],
+  ['la pantalla completa alterna y se guarda la coherencia', /instanciaEnPantallaCompleta = instanciaEnPantallaCompleta === id \? '' : id/.test(renderer) && /function coherenciaDePantallaCompleta/.test(renderer)],
+  ['y sale sola si se cambia de pestaña', /coherenciaDePantallaCompleta\(\);\r?\n\s*const view = browserInstanceViews\.get\(instanceId\)/.test(renderer)],
+  ['los botones de zoom y pantalla completa estan solo en las instancias', /instance-zoom-out/.test(renderer) && /instance-fullscreen/.test(renderer)],
+  ['el boton de ajustes esta en la barra', /id="instanceSettingsButton"/.test(html)],
+  ['y el panel explica que la principal no se toca', /id="instanceSettingsBackdrop"/.test(html) && /se queda como est/.test(html)],
+  ['la pantalla completa oculta la barra y el lateral de verdad', /body\.instancia-pantalla-completa #appbar/.test(styles) && /body\.instancia-pantalla-completa #globalActions/.test(styles)],
+  ['y no hay identificadores inventados por el camino', !/#topbar/.test(styles) && !/#sidebar/.test(styles)],
+  ['los paneles del juego de Poke Idle World no entran', !/body\.instancia-pantalla-completa \.panel\b/.test(styles) && /if \(particionInstancia\) vigilarVistaDeInstancia/.test(mainCodigo)]
+  ['la barra de la instancia se ve en pantalla completa, para poder salir', /instancia-pantalla-completa \.browser-instance-panelbar/.test(styles)]
+  ['y el porcentaje de zoom es un boton', /\.browser-instance-actions \.instance-zoom-label/.test(styles)]
+  ['el arranque va aislado, para que un fallo no se coma lo que viene despues', /try \{\r?\n\s*\/\/ La vista de las instancias/.test(renderer) && /window\.__arranqueError/.test(renderer)]
+  ['y avisa de que llego, para que una prueba no se adelante a el', /window\.__arranqueVista = 'ok'/.test(renderer)]
+];
+console.log('');
+for (const [que, ok] of VISTA_INSTANCIAS) {
+  if (!ok) fallos++;
+  console.log('  ' + (ok ? 'ok  ' : 'FALTA ') + que);
+}
+
 // --- 7. Y nada de lo que se quitó ----------------------------------------------
 // El barrido del `renderer.js` va entero: no debe quedar ningún glifo suelto.
 //

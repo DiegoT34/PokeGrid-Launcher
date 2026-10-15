@@ -877,6 +877,113 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   cursor: pointer;
 }
 .browser-instance-actions button:hover { border-color: #5ec7dd; color: #effcff; }
+/* El porcentaje de zoom es un boton: un clic devuelve la pantalla al 100 %. Sin borde, para que
+   se lea como una etiqueta y no compita con los botones de al lado. */
+.browser-instance-actions .instance-zoom-label {
+  min-width: 46px;
+  padding: 0 4px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 10px;
+  letter-spacing: .02em;
+  color: #b9cbd6;
+  cursor: pointer;
+}
+.browser-instance-actions .instance-zoom-label:hover { color: #effcff; text-decoration: underline; }
+/* La pantalla completa se marca mientras est&aacute; puesta, que si no no hay forma de saber
+   si el boton entra o sale. */
+.browser-instance-actions .instance-fullscreen.is-pantalla-completa {
+  border-color: #5ec7dd;
+  color: #effcff;
+}
+
+/* La pantalla completa de una instancia: ocupa la ventana entera y se van la barra, las
+   pestañas y el lateral. Los paneles del juego no entran en esto —no llevan la clase y no se
+   tocan—. */
+body.instancia-pantalla-completa { overflow: hidden; }
+/* La barra de arriba es #appbar y el lateral es #globalActions: el mismo nav del menú. Los dos
+   nombres se miraron antes de escribir esto, porque inventar un identificador hace que la regla
+   no selector nada y la pantalla completa parezca funcionar a medias. */
+body.instancia-pantalla-completa #appbar,
+body.instancia-pantalla-completa #globalActions,
+body.instancia-pantalla-completa .browser-instance-backdrop { display: none !important; }
+body.instancia-pantalla-completa .browser-instance-workspace {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  padding: 0;
+}
+body.instancia-pantalla-completa .browser-instance-panel.is-pantalla-completa,
+body.instancia-pantalla-completa .browser-instance-workspace[data-pantalla-completa] .browser-instance-panel {
+  border: 0;
+  border-radius: 0;
+}
+/* El boton de pantalla completa y el zoom se tienen que ver EN pantalla completa: si el juego
+   se lleva el raton, el unico camino para volver a salir es el atajo o Escape. */
+body.instancia-pantalla-completa .browser-instance-panelbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  max-width: 60%;
+  padding: 4px;
+  border: 0;
+  border-radius: 0 0 0 10px;
+  background: rgba(8, 16, 22, .55);
+  backdrop-filter: blur(4px);
+  opacity: .18;
+  transition: opacity .18s ease;
+}
+body.instancia-pantalla-completa .browser-instance-panelbar:hover,
+body.instancia-pantalla-completa .browser-instance-panelbar:focus-within { opacity: 1; }
+body.instancia-pantalla-completa .browser-instance-identity { display: none; }
+
+/* El boton de la barra que abre los ajustes de las instancias. */
+.instance-settings-button {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9fb4c0;
+  cursor: pointer;
+}
+.instance-settings-button:hover { color: #effcff; }
+.instance-settings-button svg { width: 15px; height: 15px; }
+
+/* El panel de ajustes. */
+.instance-settings-backdrop { z-index: 280; }
+.instance-settings-modal { width: min(560px, 96vw); }
+.instance-settings-field { display: grid; gap: 6px; margin-top: 14px; }
+.instance-settings-label {
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: #8fa6b3;
+}
+.instance-settings-capture {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .04);
+  color: #e9f1f6;
+  font-size: 13px;
+  cursor: pointer;
+}
+.instance-settings-capture:hover { border-color: #5ec7dd; }
+.instance-settings-capture:focus-visible { outline: 2px solid #54d4e2; outline-offset: 2px; }
+.instance-settings-capture.is-esperando { border-color: #efbf26; color: #efbf26; }
+.instance-settings-value { font-weight: 600; }
+.instance-settings-help { font-size: 11px; line-height: 1.5; color: #8fa6b3; }
+.instance-settings-help b { color: #cfe0ea; font-weight: 600; }
 .browser-instance-webview-host {
   position: relative;
   min-width: 0;

@@ -1468,6 +1468,99 @@ if (!app.requestSingleInstanceLock()) {
 // proceso principal se quedaba dentro del constructor—, y de paso se perdía `window.opener`,
 // que es justo lo que necesitan los inicios de sesión. Así la ventana nace en la sesión de quien
 // la pidió, sin pasarle la partición, y la página nueva puede hablar con la que la abrió.
+// --- La vista de las instancias: pantalla completa y zoom --------------------------------
+const ZOOM_MINIMO = 0.25;
+const ZOOM_MAXIMO = 3;
+const ZOOM_PASO = 0.1;
+const ZOOM_PREDETERMINADO = 1;
+// partition -> factor. El dueño del nivel es aquí, no el renderer: los botones y la rueda tienen
+// que dar el mismo número, y si cada uno guardara el suyo se desviarían al alternar.
+const zoomDeInstancia = new Map();
+// El atajo de pantalla completa. Vive aquí porque quien lo evalúa es el webview del juego.
+let atajoPantallaCompleta = { key: 'F11', ctrl: false, alt: false, shift: false, meta: false };
+
+// Lo que venga del renderer pasa por aquí: un atajo raro guardado a mano no puede dejar el
+// atajo de las teclas en un estado raro.
+function normalizarAtajo(valor) {
+  const atajo = valor && typeof valor === 'object' ? valor : {};
+  const key = String(atajo.key || 'F11').slice(0, 40);
+  return {
+    key,
+    ctrl: Boolean(atajo.ctrl),
+    alt: Boolean(atajo.alt),
+    shift: Boolean(atajo.shift),
+    meta: Boolean(atajo.meta)
+  };
+}
+
+// Se comparan TODOS los modificadores, no solo los que el atajo lleva: si el atajo es F11 a secas
+// y el usuario pulsa Ctrl+F11, no es el atajo. Comparar solo los activos dejaría pasar combinaciones
+// distintas que se solaparían con otras.
+function coincideConElAtajo(entrada, atajo) {
+  if (!entrada || entrada.type !== 'keyDown') return false;
+  const presiona = (modificador) => Boolean((entrada.modifiers || []).includes(modificador));
+  return String(entrada.key || '') === atajo.key
+    && presiona('control') === atajo.ctrl
+    && presiona('alt') === atajo.alt
+    && presiona('shift') === atajo.shift
+    && presiona('meta') === atajo.meta;
+}
+
+function zoomAcotado(factor) {
+  const numero = Number(factor);
+  if (!Number.isFinite(numero) || numero <= 0) return ZOOM_PREDETERMINADO;
+  return Math.min(ZOOM_MAXIMO, Math.max(ZOOM_MINIMO, Math.round(numero * 100) / 100));
+}
+
+function factorDeInstancia(contents, particion) {
+  const guardado = zoomDeInstancia.get(particion);
+  return Number.isFinite(guardado) ? guardado : (Number(contents.getZoomFactor?.()) || ZOOM_PREDETERMINADO);
+}
+
+function aplicarZoom(contents, particion, factor, motivo) {
+  const nivel = zoomAcotado(factor);
+  zoomDeInstancia.set(particion, nivel);
+  contents.setZoomFactor(nivel);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('instancia:zoom-aplicado', { id: contents.id, factor: nivel, motivo: motivo || 'manual' });
+  }
+  return nivel;
+}
+
+// Avisar al renderer de una tecla de un webview. Devuelve false si no hay ventana principal, que
+// es lo único que puede happen durante el arranque.
+function avisarAtajo(canal, contents) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.webContents.send(canal, { id: contents.id });
+  return true;
+}
+
+// Las teclas y la rueda de una instancia. Se enganchan al webContents, no al DOM del webview:
+// cuando el juego tiene el foco, el DOM del anfitrión no ve nada.
+function vigilarVistaDeInstancia(contents, particion) {
+  contents.on('before-input-event', (_evento, entrada) => {
+    if (entrada.isAutoRepeat) return;
+    if (coincideConElAtajo(entrada, atajoPantallaCompleta)) {
+      avisarAtajo('instancia:alternar-pantalla-completa', contents);
+      return;
+    }
+    // Escape sale de la pantalla completa, como decidio el usuario. OJO: esto no se puede
+    // interceptar, asi que Escape tambien lo recibe el juego, que abrira su propio menu. Es la
+    // unica parte del atajo que se escapa a los dos lados, y se avisa en la entrega.
+    if (entrada.key === 'Escape' || entrada.code === 'Escape') {
+      avisarAtajo('instancia:salir-pantalla-completa', contents);
+    }
+  });
+
+  contents.on('input-event', (_evento, entrada) => {
+    if (entrada.type !== 'mouseWheel') return;
+    if (!(entrada.modifiers || []).includes('control')) return;
+    const paso = Math.sign(Number(entrada.wheelDeltaY || 0)) * ZOOM_PASO;
+    if (!paso) return;
+    aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + paso, 'rueda');
+  });
+}
+
 const MAX_VENTANAS_EMERGENTES = 6;
 const MAX_PROFUNDIDAD_EMERGENTE = 2;
 const ventanasEmergentes = new Set();
@@ -1560,6 +1653,11 @@ app.on('web-contents-created', (_event, contents) => {
     });
   }
 
+  // Pantalla completa y zoom, solo si este webview es de una instancia. Los del juego de Poke
+  // Idle World pasan de largo: la principal se queda como estaba.
+  const particionInstancia = isBrowserInstance ? (particionesDeInstancia.get(contents.session) || '') : '';
+  if (particionInstancia) vigilarVistaDeInstancia(contents, particionInstancia);
+
   const guardNavigation = (event, url) => {
     if (isBrowserInstance) {
       try {
@@ -1577,6 +1675,26 @@ app.on('web-contents-created', (_event, contents) => {
 
 // El interruptor del modal de instancias. Lo decide el renderer —que guarda el valor— y aqui solo
 // se anota para el manejador de aperturas, que es quien lo necesita.
+// El atajo de pantalla completa. Lo decide el renderer —que lo guarda— y aqui solo se anota para
+// el webview, que es quien tiene que compararlo con las teclas que llegan.
+ipcMain.handle('instancia:atajo', (event, valor) => {
+  assertMainWindowSender(event);
+  atajoPantallaCompleta = normalizarAtajo(valor);
+  return { ok: true, atajo: atajoPantallaCompleta };
+});
+
+// El zoom de una instancia, desde los botones de su barra. El id es el del webContents, que el
+// renderer saca con getWebContentsId().
+ipcMain.handle('instancia:zoom', (event, id, factor) => {
+  assertMainWindowSender(event);
+  const contents = webContents.fromId(Number(id));
+  if (!contents || contents.getType() !== 'webview') return { ok: false, error: 'Esa pantalla ya no está.' };
+  const particion = particionesDeInstancia.get(contents.session) || '';
+  if (!particion.startsWith('persist:pokegrid-instance-')) return { ok: false, error: 'Esa pantalla no es una instancia.' };
+  const nivel = aplicarZoom(contents, particion, factor, 'boton');
+  return { ok: true, factor: nivel };
+});
+
 ipcMain.handle('ventanas-emergentes:ajustar', (event, habilitado) => {
   assertMainWindowSender(event);
   ventanasEmergentesHabilitadas = Boolean(habilitado);
