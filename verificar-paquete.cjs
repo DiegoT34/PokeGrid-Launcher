@@ -478,7 +478,7 @@ const VISTA_INSTANCIAS = [
   ['y lo que no se conoce cae a ventana, que es lo que se hacia siempre', /aperturaDeParticion\.get\(particion\) \|\| 'ventana'/.test(mainCodigo)],
   ['el aviso se ve en la franja, no solo en una variable', /panel\.botonAviso\.textContent = texto;/.test(renderer) && /\.browser-instance-aviso \{/.test(styles)],
   ['y una instancia de navegador puede no tener enlace', /if \(!opciones\.navegador\) throw error;/.test(renderer)],
-  ['el inicio guardado se lee al arrancar', /return instance\.inicio \|\| BUSCADORES\[instance\.buscador\]/.test(renderer) && /urlDePartida = inicioDeInstancia\(instance\)/.test(renderer)]
+  ['el inicio guardado se lee al arrancar', /return instance\.inicio \|\| BUSCADORES\[instance\.buscador\]/.test(renderer) && /urlDePartida = inicioDeInstancia\(instance\)/.test(renderer)],
   ['una ventana con medidas sigue yendo aparte', /function pideVentanaConMedidas/.test(mainCodigo) && /did-create-window/.test(mainCodigo)],
   ['y hay reglas de mosaico para de siete a doce', /data-view-count="12"/.test(styles)],
   ['el tope no toca los originales', /TOPE_PANELES_INSTANCIA = 12/.test(renderer) && /panel\.origen === 'enlace'/.test(renderer)],
