@@ -1797,7 +1797,7 @@ ipcMain.on('instancia:rueda', (event, datos) => {
 // Respuesta a la pregunta de apertura. Con guard de la ventana principal a proposito: solo la
 // ventana del launcher contesta a estas preguntas, y el dato se valida al usarse, que es donde
 // importa.
-ipcMain.on('instancia:responder-apertura', (event, datos) => {
+ipcMain.handle('instancia:responder-apertura', (event, datos) => {
   if (!isMainWindowSender(event)) return;
   const id = Number(datos && datos.id);
   const responder = preguntasDeApertura.get(id);

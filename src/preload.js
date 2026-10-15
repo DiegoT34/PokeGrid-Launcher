@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setInstanceShortcut: (atajo) => ipcRenderer.invoke('instancia:atajo', atajo),
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
-  responderApertura: (id, modo) => ipcRenderer.send('instancia:responder-apertura', { id, modo }),
+  responderApertura: (id, modo) => ipcRenderer.invoke('instancia:responder-apertura', { id, modo }),
   onPreguntarApertura: (listener) => {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('instancia:preguntar-apertura', handler);

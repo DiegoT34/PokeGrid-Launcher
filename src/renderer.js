@@ -11129,7 +11129,7 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
       window.pokeGrid.responderApertura(
         id,
         panel ? modoDeAperturaDeInstancia(panel.instanceId) : 'ventana'
-      );
+      ).catch(() => {});
     });
     window.pokeGrid?.onPeticionPestana?.(({ webContentsId, url }) => {
       const panel = panelDeWebContents(webContentsId);
