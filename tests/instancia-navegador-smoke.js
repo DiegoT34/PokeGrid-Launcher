@@ -38,6 +38,35 @@ const comprobar = (ok, que, detalle) => {
   console.log(`  ${ok ? 'ok  ' : 'FALLA'} ${que}${detalle ? `  ${detalle}` : ''}`);
 };
 
+// Los paneles se crean con un retardo a proposito, para que no arranquen todos a la vez. Antes de
+// poder hablar con uno hay que esperar a que este listo: `getWebContentsId()` vale a partir del
+// `dom-ready`, y llamar antes a un webview sin preparar lanza.
+//
+// La ventana se recibe como parametro y no se coge de fuera: esta funcion vive fuera del bloque donde
+// se declara la ventana, y leerla de ahi era un ReferenceError.
+const esperarPanelListo = async (ventana, instanceId, indice = 0) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < 30_000) {
+    const listo = await ventana.webContents.executeJavaScript(
+      `(() => { try {
+        const panel = browserInstanceViews.get(${JSON.stringify(instanceId)}).panels[${indice}];
+        return Boolean(panel && panel.webview.getWebContentsId() > 0);
+      } catch { return false; } })()`
+    ).catch(() => false);
+    if (!listo) { await dormir(250); continue; }
+    // Montado no es lo mismo que cargado: el `dom-ready` salta también cuando la carga ha fallado,
+    // y preguntar a una página que no está ahí lanza un error que no dice de dónde viene. Se comprueba
+    // que la página de verdad esté puesta, buscando algo que tiene.
+    const cargada = await ventana.webContents.executeJavaScript(
+      `browserInstanceViews.get(${JSON.stringify(instanceId)}).panels[${indice}].webview`
+      + '.executeJavaScript("Boolean(document.querySelector(\'#pestana\'))")'
+    ).catch(() => false);
+    if (cargada === true) return true;
+    await dormir(250);
+  }
+  return false;
+};
+
 app.whenReady().then(async () => {
   let ventana = null;
   try {
@@ -191,6 +220,105 @@ app.whenReady().then(async () => {
     })()`);
     comprobar(guardado === 'https://ejemplo.invalid/nueva',
       'y se guarda como el inicio de la instancia', String(guardado));
+
+// --- 3. Los enlaces -----------------------------------------------------------------
+    console.log('\n--- los enlaces ---');
+    // La página de prueba pide las tres cosas que se pueden pedir: una pestaña nueva, una ventana
+    // con medidas propias —inicio de sesión— y un destino que no es web. Las tres tienen que seguir
+    // distinto: la primera abre un panel en la instancia, la segunda una ventana aparte, la tercera
+    // el sistema. Antes de esto las tres acababan en el mismo sitio, que es justo lo que cambia.
+    const idPanel = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels[0].webview.getWebContentsId()'
+    );
+    comprobar(await esperarPanelListo(ventana, 'inst-nav'),
+      'el panel de la instancia de navegador está listo para hablar con él');
+    comprobar(await esperarPanelListo(ventana, 'inst-juego'),
+      'y el de la de juego también');
+
+    await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels[0].webview.executeJavaScript("document.querySelector(\'#pestana\').click(); true")'
+    );
+    await dormir(1800);
+
+    const reparto = await ventana.webContents.executeJavaScript(`(() => {
+      const view = browserInstanceViews.get('inst-nav');
+      return { paneles: view.panels.length, origenes: view.panels.map((p) => p.origen || 'sin-origen') };
+    })()`);
+    comprobar(reparto.paneles === 2, 'un enlace a pestaña nueva abre un panel en la instancia',
+      `paneles: ${reparto.paneles}`);
+    comprobar(reparto.origenes.includes('enlace'),
+      'y ese panel es de enlace, no original', reparto.origenes.join(','));
+
+    // Lo que de verdad importa: el panel nuevo hereda la sesion del panel del que salio el enlace. Sin
+// eso, abrirlo aqui no serviria de nada —habria que volver a iniciar sesion en cada pagina—.
+const idsDePaneles = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels.map((p) => p.webview.getWebContentsId())'
+    );
+    const sesiones = idsDePaneles.map((id) => webContents.fromId(id)).filter(Boolean);
+    const mismaSesion = sesiones.length === 2 && sesiones.every((c) => c.session === sesiones[0].session);
+    comprobar(mismaSesion, 'y hereda la sesión del panel del que salió el enlace, que es lo que lo hace útil',
+      `${sesiones.length} paneles, misma sesión: ${mismaSesion}`);
+
+    // El panel de enlace carga la URL del enlace, no la de la instancia: si cargara las dos, la
+    // primera se quedaría parpadeando delante de la segunda.
+    const destinoDelEnlace = await ventana.webContents.executeJavaScript(`(() => {
+      const panel = browserInstanceViews.get('inst-nav').panels.find((p) => p.origen === 'enlace');
+      return panel ? panel.startUrl : 'no-hay-panel';
+    })()`);
+    comprobar(destinoDelEnlace === 'https://ejemplo.invalid/pestana',
+      'y carga la dirección del enlace, no la de la instancia', destinoDelEnlace);
+
+    // La barra es solo del modo navegador, pero el REPARTO no: un enlace de una instancia de juego
+    // también abre un panel, porque el reparto no depende de la barra.
+    const desdeJuego = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-juego").panels.length'
+    );
+    await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-juego").panels[0].webview.executeJavaScript("document.querySelector(\'#pestana\').click(); true")'
+    );
+    await dormir(1800);
+    const despuesJuego = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-juego").panels.length'
+    );
+    comprobar(despuesJuego === desdeJuego + 1,
+      'un enlace desde una instancia de juego también abre un panel allí',
+      `antes: ${desdeJuego}, despues: ${despuesJuego}`);
+
+    // Un destino que no es web no puede abrirlo una webview: eso va al sistema, como hasta ahora.
+    const conCorreo = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels.length'
+    );
+    await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels[0].webview.executeJavaScript("document.querySelector(\'#correo\').click(); true")'
+    );
+    await dormir(1800);
+    const despuesCorreo = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels.length'
+    );
+    comprobar(despuesCorreo === conCorreo,
+      'un destino que no es web no abre panel: se va al sistema',
+      `antes: ${conCorreo}, despues: ${despuesCorreo}`);
+
+    // Y lo que el usuario corrigió: una ventana de inicio de sesión NO debe abrir un panel, tiene que
+// seguir saliendo aparte. Aquí se comprueba la DECISIÓN, no la ventana: Chromium bloquea las
+// ventanas emergentes desde una página `file://`, que es la que usa esta prueba, así que la ventana
+// no llega a crearse aunque el manejador la autorice. Que la ventana se abra de verdad lo comprueba
+// `ventanas-emergentes-smoke.js`, con direcciones https de verdad.
+const antesDeLogin = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels.length'
+    );
+    for (let vuelta = 0; vuelta < 3; vuelta += 1) {
+      await ventana.webContents.executeJavaScript(
+        'browserInstanceViews.get("inst-nav").panels[0].webview.executeJavaScript("document.querySelector(\'#login\').click(); true")'
+      );
+      await dormir(700);
+    }
+    const despuesDeLogin = await ventana.webContents.executeJavaScript(
+      'browserInstanceViews.get("inst-nav").panels.length'
+    );
+    comprobar(despuesDeLogin === antesDeLogin,
+      'una ventana con medidas propias NO abre panel: sale aparte, como hasta ahora',
+      `antes: ${antesDeLogin}, despues: ${despuesDeLogin}`);
 
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);

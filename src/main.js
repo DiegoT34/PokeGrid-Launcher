@@ -1609,6 +1609,47 @@ function urlPermitidaEnVentana(rawUrl) {
 
 // Las medidas de la ventana. Se las pide Electron al abrirla, en vez de fijarlas después, para
 // que aparezca ya con su sitio y no dé un salto al abrir nada.
+// Una ventana con medidas propias es un inicio de sesion, una pasarela de pago: eso tiene que
+// seguir saliendo aparte, que es lo que lo hace funcionar. Un enlace normal con
+// `target="_blank"` no trae nada en `features`, y por eso se distinguen tan bien. Se cuenta
+// como ventana cuando trae `width` o `height`, y como pestaña en cualquier otro caso.
+function pideVentanaConMedidas(features) {
+  return /(^|[\s,;])(width|height)\s*=/i.test(String(features || ''));
+}
+
+// Las preguntas que el proceso principal le hace al renderer. Cada una es una vuelta del IPC con
+// su respuesta y con su reloj: si el renderer no contesta —que es lo que pasa si la ventana del
+// launcher se esta cerrando, o si el renderer se ha quedado colgado— la pregunta caduca y se cae
+// al comportamiento de antes, que ya funcionaba.
+const preguntasDeApertura = new Map();
+const PREGUNTA_ABIERTURA_MS = 1200;
+
+function preguntarModoDeApertura(contents) {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve('ventana');
+  return new Promise((resolver) => {
+    const numeros = [...preguntasDeApertura.keys()];
+    const id = (numeros.length ? Math.max(...numeros) : 0) + 1;
+    const reloj = setTimeout(() => {
+      preguntasDeApertura.delete(id);
+      resolver('ventana');
+    }, PREGUNTA_ABIERTURA_MS);
+    preguntasDeApertura.set(id, (modo) => {
+      clearTimeout(reloj);
+      preguntasDeApertura.delete(id);
+      resolver(modo);
+    });
+    mainWindow.webContents.send('instancia:preguntar-apertura', { id, webContentsId: contents.id });
+  });
+}
+
+// Avisar de que una instancia quiere abrir algo en un panel. Devuelve false si no hay ventana
+// principal, que solo pasa durante el arranque.
+function avisarPeticionDePestana(contents, url) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.webContents.send('instancia:peticion-pestana', { webContentsId: contents.id, url });
+  return true;
+}
+
 function opcionesVentanaEmergente() {
   return { width: 960, height: 720, minWidth: 420, minHeight: 320, title: 'Ventana de la pagina', autoHideMenuBar: true };
 }
@@ -1645,21 +1686,36 @@ app.on('web-contents-created', (_event, contents) => {
 
   const isBrowserInstance = browserInstanceSessions.has(contents.session);
 
-  contents.setWindowOpenHandler(({ url }) => {
-    // Las instancias de navegador pueden abrir ventanas emergentes con su misma sesión, si el
-    // usuario lo deja activado. Se deja que Electron las abra. El tope está para que una página
-    // que abre anuncios en bucle no se coma el escritorio, y lo que no cabe no se pierde: sale
-    // fuera, en el navegador del sistema, que es lo que pasaba antes.
-    if (isBrowserInstance && ventanasEmergentesHabilitadas && urlPermitidaEnVentana(url)) {
+  // Es `async` por una razon: `setWindowOpenHandler` admite respuesta asincrona, y hace falta
+  // para preguntarle al renderer el modo de apertura de esa instancia. Ese es el unico sitio
+  // donde se puede preguntar sin bloquear.
+  contents.setWindowOpenHandler(async ({ url, features }) => {
+    // El juego se queda como estaba: lo que no es suyo va al sistema y listo.
+    if (!isBrowserInstance) {
+      if (!isGameUrl(url)) openExternal(url);
+      return { action: 'deny' };
+    }
+    const modo = await preguntarModoDeApertura(contents);
+    const conMedidas = pideVentanaConMedidas(features);
+    // A un panel: el modo lo dice, o el automatico y el enlace no trae medidas propias. Con
+    // medidas propias casi nunca: si el modo dice panel, alla va, y si no, es una ventana de
+    // inicio de sesion y sale aparte.
+    const vaAPanel = modo === 'panel' || (modo === 'auto' && !conMedidas);
+    if (vaAPanel && urlPermitidaEnVentana(url)) {
+      avisarPeticionDePestana(contents, url);
+      return { action: 'deny' };
+    }
+    // Y lo de antes, sin tocar: ventana aparte si el usuario lo deja activado. El tope esta para
+    // que una pagina que abre anuncios en bucle no se coma el escritorio, y lo que no cabe no se
+    // pierde: sale fuera, en el navegador del sistema.
+    if (ventanasEmergentesHabilitadas && urlPermitidaEnVentana(url)) {
       if (ventanasEmergentes.size >= MAX_VENTANAS_EMERGENTES) {
         openExternal(url);
         return { action: 'deny' };
       }
       return { action: 'allow', overrideBrowserWindowOptions: opcionesVentanaEmergente() };
     }
-    // Todo lo demás igual que antes: en las instancias, al navegador del sistema; en el juego,
-    // denegado.
-    if (isBrowserInstance || !isGameUrl(url)) openExternal(url);
+    openExternal(url);
     return { action: 'deny' };
   });
 
@@ -1736,6 +1792,16 @@ ipcMain.on('instancia:rueda', (event, datos) => {
   const pasos = Math.sign(Number(datos && datos.pasos) || 0);
   if (!pasos) return;
   aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + pasos * ZOOM_PASO, 'rueda');
+});
+
+// Respuesta a la pregunta de apertura. Con guard de la ventana principal a proposito: solo la
+// ventana del launcher contesta a estas preguntas, y el dato se valida al usarse, que es donde
+// importa.
+ipcMain.on('instancia:responder-apertura', (event, datos) => {
+  if (!isMainWindowSender(event)) return;
+  const id = Number(datos && datos.id);
+  const responder = preguntasDeApertura.get(id);
+  if (responder) responder(String((datos && datos.modo) || 'ventana'));
 });
 
 ipcMain.handle('instancia:pantalla-completa', (event, activa) => {

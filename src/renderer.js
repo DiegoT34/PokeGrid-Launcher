@@ -8585,23 +8585,36 @@ function updateBrowserInstanceSelection() {
   });
 }
 // El proceso principal solo sabe de webContents. Este mapa traduce de uno a la pantalla que le
-// corresponde, y se rellena al crear cada webview, que es cuando ya tiene id.
+// corresponde.
+//
+// Se rellena en el `dom-ready` de cada webview, y no al crear el panel: antes de ese momento
+// `getWebContentsId()` LANZA («must be attached and the dom-ready event emitted»), no vale cero. Y
+// tampoco vale al rellenar el mapa despues de crear la instancia, porque hay que hacerlo DESPUES de
+// registrarla en `browserInstanceViews` o la vista todavia no existe ahi. Se quedaba vacio, y con
+// el mapa vacio ni el reparto de aperturas ni el atajo de pantalla completa llegan a ningun panel.
 const panelesPorWebContentsId = new Map();
 function panelDeWebContents(id) {
   return panelesPorWebContentsId.get(Number(id)) || null;
+}
+function registrarPanelEnMapa(panel) {
+  try {
+    const id = panel.webview?.getWebContentsId?.();
+    if (!id) return false;
+    panelesPorWebContentsId.set(id, panel);
+    return true;
+  } catch {
+    return false;
+  }
 }
 function refrescarMapaDeWebviews(instanceId) {
   const view = browserInstanceViews.get(instanceId);
   if (!view) return;
   view.panels.forEach((panel) => {
-    const id = panel.webview?.getWebContentsId?.();
-    if (id) {
-      panelesPorWebContentsId.set(id, panel);
-      // El zoom guardado se aplica al cargar: si no, una instancia que se reabriera con el zoom de
-      // la última sesión salía al 100 % hasta que el usuario tocara los botones.
-      const guardado = zoomDeInstancia(panel.instanceId);
-      if (guardado !== ZOOM_PREDETERMINADO) aplicarZoomDePantalla(panel, guardado, 'restaurado');
-    }
+    if (!registrarPanelEnMapa(panel)) return;
+    // El zoom guardado se aplica al cargar: si no, una instancia que se reabriera con el zoom de
+    // la última sesión salía al 100 % hasta que el usuario tocara los botones.
+    const guardado = zoomDeInstancia(panel.instanceId);
+    if (guardado !== ZOOM_PREDETERMINADO) aplicarZoomDePantalla(panel, guardado, 'restaurado');
   });
 }
 function refreshBrowserInstanceLayout(instanceId) {
@@ -8680,7 +8693,7 @@ function guardarInicioDeInstancia(instanceId, url) {
 
 function navegar(panel, texto) {
   if (!panel || panel.destroyed) return;
-  const instance = browserInstances.find((row) => row.id === panel.instanceId);
+  const instance = instanciaDePanel(panel.instanceId);
   const motor = instance ? BUSCADORES[instance.buscador] : BUSCADORES[BUSCADOR_POR_DEFECTO];
   const destino = resolverDestino(texto, motor);
   if (!destino) return;
@@ -8712,7 +8725,58 @@ function panelConFoco() {
 // el mosaico llama sin el quinto argumento. Para un panel que se abre por enlace, es la del enlace,
 // y asi el `setTimeout` del arranque carga esa y no la de la instancia, que haria que se cargara dos
 // veces y la primera se quedase parpadeando delante.
-function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = instance.url) {
+// La instancia a la que pertenece una pantalla. Se busca primero en la VISTA y despues en la lista
+// de guardadas, y en ese orden por un motivo: la vista es lo que esta en pantalla ahora mismo, y la
+// lista puede ir un paso por detras. Buscar solo en la lista hacia que un panel recien creado —o uno
+// de una instancia que se acaba de cargar— no encontraba a nadie y se caia la peticion de abrir.
+function instanciaDePanel(instanceId) {
+  return browserInstanceViews.get(instanceId)?.instance
+    || browserInstances.find((row) => row.id === instanceId)
+    || null;
+}
+
+function modoDeAperturaDeInstancia(instanceId) {
+  return instanciaDePanel(instanceId)?.apertura || APERTURA_POR_DEFECTO;
+}
+
+// Un aviso en la franja del panel. Se queda tambien en `window.__avisoInstancia` para que la
+// prueba pueda leerlo: lo que ve una persona no se puede leer desde fuera.
+function avisarEnPanel(panel, texto) {
+  if (!panel?.element) return;
+  panel.element.dataset.aviso = texto;
+  window.__avisoInstancia = texto;
+}
+
+// Marca los paneles que creo la instancia al arrancar. Los que se abren por enlace llevan
+// `origen: 'enlace'`, y esa es la diferencia de la que depende el reciclado: un original es una
+// cuenta del usuario y no se toca nunca.
+function marcarPanelesOriginales(panels) {
+  for (const panel of panels) if (!panel.origen) panel.origen = 'inicial';
+}
+
+// Abre la direccion en un panel NUEVO de esa instancia, con su misma sesion. Devuelve el panel,
+// o null si no se pudo —que pasa cuando la instancia ya no tiene donde ponerlo—.
+function crearPanelDeEnlace(instance, url, panelOrigen) {
+  const view = browserInstanceViews.get(instance.id);
+  if (!view) return null;
+  // La particion se hereda del panel del que sale el enlace: es su sesion la que hay que continuar.
+  const particion = panelOrigen?.webview?.getAttribute?.('partition') || '';
+  const panel = createBrowserInstancePanel(instance, view.workspace, view.panels.length, 0, url, particion);
+  // Sin esta línea el panel existe en el DOM pero no cuenta: `view.panels` es el array que se
+  // recorre para saber cuántos hay y cuáles son reciclables, y un panel que no esté dentro no se ve
+  // por ninguna parte. Quedaría en el DOM y luego nadie lo encontraría.
+  view.panels.push(panel);
+  panel.origen = 'enlace';
+  view.workspace.dataset.viewCount = String(view.panels.length);
+  refreshBrowserInstanceLayout(instance.id);
+  return panel;
+}
+
+// `particionDePartida` la hereda el panel que se abre por un enlace del panel de al lado. Cada pantalla
+// creada por el usuario tiene su propia particion —son cuentas distintas, con sus cookies— pero un
+// enlace sale de una sesion concreta y continuar en otra perderia la sesion, que es justo lo que hace
+// util abrirlo aqui dentro.
+function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = instance.url, particionDePartida = '') {
   const element = document.createElement('article');
   element.className = 'browser-instance-panel';
   const panelbar = document.createElement('header');
@@ -8814,7 +8878,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   const webview = document.createElement('webview');
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
-  webview.setAttribute('partition', browserInstancePartition(instance.id, index));
+  webview.setAttribute('partition', particionDePartida || browserInstancePartition(instance.id, index));
   webview.setAttribute('src', 'about:blank');
   // 'true' NO abre ventanas: solo hace que la peticion de apertura llegue al manejador del proceso
   // principal, que es quien decide —y deniega, salvo las emergentes que el usuario ha permitido—.
@@ -8857,6 +8921,13 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   };
   attachResilientWebview(panel, {
     onReady: async () => {
+      // Aquí es cuando el webview ya tiene id. Antes no lo tiene, y sin esto el mapa se queda
+      // vacío y nada que venga del proceso principal encuentra su panel.
+      registrarPanelEnMapa(panel);
+      // El zoom guardado se aplica al cargar: si no, una instancia que se reabriera con el zoom de
+      // la última sesión salía al 100 % hasta que el usuario tocara los botones.
+      const zoomGuardado = zoomDeInstancia(panel.instanceId);
+      if (zoomGuardado !== ZOOM_PREDETERMINADO) aplicarZoomDePantalla(panel, zoomGuardado, 'restaurado');
       await window.pokeGridUserScriptManager?.installIntoPanel(panel);
     },
     onNavigate: async (event) => {
@@ -8939,8 +9010,13 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   const panelsForInstance = Array.from({ length: instance.count }, (_, index) =>
     createBrowserInstancePanel(instance, workspace, index, 5_000 + ordinal * 4_500 + index * 850));
   refreshBrowserInstanceLayout(instance.id);
+  marcarPanelesOriginales(panelsForInstance);
   const view = { instance, workspace, panels: panelsForInstance };
   browserInstanceViews.set(instance.id, view);
+  // DESPUES de registrarla: antes, la vista no existe todavia en `browserInstanceViews` y esta
+  // llamada no hacia nada. Aun asi puede que los webview no estén listos, y el registro de verdad
+  // ocurre en su `dom-ready`.
+  refrescarMapaDeWebviews(instance.id);
   syncUserScriptPanels();
   return view;
 }
@@ -11020,6 +11096,23 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
     });
     window.pokeGrid?.onInstanceEscapePressed?.(() => salirDePantallaCompleta());
     window.pokeGrid?.onWindowFullScreenChange?.((activa) => sincronizarPantallaCompletaDeLaVentana(activa));
+    // El reparto de aperturas. El proceso principal pregunta y aqui se contesta; y cuando una
+    // instancia quiere abrir algo en un panel, se abre aqui, que es donde estan sus paneles.
+    window.pokeGrid?.onPreguntarApertura?.(({ id, webContentsId }) => {
+      const panel = panelDeWebContents(webContentsId);
+      window.pokeGrid.responderApertura(
+        id,
+        panel ? modoDeAperturaDeInstancia(panel.instanceId) : 'ventana'
+      );
+    });
+    window.pokeGrid?.onPeticionPestana?.(({ webContentsId, url }) => {
+      const panel = panelDeWebContents(webContentsId);
+      if (!panel) return;
+      const instance = instanciaDePanel(panel.instanceId);
+      if (!instance) return;
+      const creado = crearPanelDeEnlace(instance, url, panel);
+      if (!creado) avisarEnPanel(panel, 'No se ha podido abrir: la instancia no admite más pantallas.');
+    });
     window.pokeGrid?.onInstanceZoomApplied?.(({ id, factor }) => {
       const panel = panelDeWebContents(id);
       if (!panel) return;

@@ -14,6 +14,17 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setInstanceShortcut: (atajo) => ipcRenderer.invoke('instancia:atajo', atajo),
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
+  responderApertura: (id, modo) => ipcRenderer.send('instancia:responder-apertura', { id, modo }),
+  onPreguntarApertura: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:preguntar-apertura', handler);
+    return () => ipcRenderer.removeListener('instancia:preguntar-apertura', handler);
+  },
+  onPeticionPestana: (listener) => {
+    const handler = (_event, value) => listener(value);
+    ipcRenderer.on('instancia:peticion-pestana', handler);
+    return () => ipcRenderer.removeListener('instancia:peticion-pestana', handler);
+  },
   cleanupMemory: () => ipcRenderer.invoke('app:cleanup-memory'),
   loadProxyResults: () => ipcRenderer.invoke('app:proxy-results'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
