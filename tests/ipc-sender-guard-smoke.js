@@ -56,7 +56,7 @@ const UI_CHANNELS = [
   'instancia:atajo',
   'instancia:zoom',
   'instancia:pantalla-completa',
-  'instancia:responder-apertura'
+  'instancia:apertura'
 ];
 
 // Los que invocan los webviews del juego. Con guard de ventana principal dejarían de

@@ -8228,11 +8228,13 @@ function normalizarOpcionesDeInstancia(valor) {
   return { navegador, buscador, apertura, inicio };
 }
 
-// La pagina de partida. El modo navegador arranca en el buscador —por eso el campo de enlace
-// deja de ser obligatorio— y el resto arranca en su direccion.
+// La pagina de partida. Una instancia de navegador arranca en el buscador —por eso el campo de
+// enlace deja de ser obligatorio— o en la ultima direccion que se escribio en su barra, que es
+// para lo que se guarda `inicio`. Sin esto, escribir una direccion y reiniciar el launcher no
+// hacia nada.
 function inicioDeInstancia(instance) {
   if (instance.navegador) {
-    return BUSCADORES[instance.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
+    return instance.inicio || BUSCADORES[instance.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
   }
   return instance.inicio || instance.url;
 }
@@ -8265,9 +8267,19 @@ function normalizeBrowserInstance(value, fallbackId = '') {
     const id = String(value?.id || fallbackId || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
     if (!id || id === PRIMARY_BROWSER_INSTANCE_ID) return null;
     const name = String(value?.name || 'Otro juego').trim().slice(0, 48) || 'Otro juego';
-    const url = normalizeBrowserInstanceUrl(value?.url);
     const count = Math.max(1, Math.min(6, Math.round(Number(value?.count) || 1)));
-    return { id, name, url, count, ...normalizarOpcionesDeInstancia(value) };
+    const opciones = normalizarOpcionesDeInstancia(value);
+    // Con estilo navegador se puede arrancar en el buscador, y entonces no hay enlace. El esquema
+    // exige una url, asi que se pone la del buscador: es la pagina de partida igualmente, y
+    // un dato de mas no molesta a nadie.
+    let url = '';
+    try {
+      url = normalizeBrowserInstanceUrl(value?.url);
+    } catch (error) {
+      if (!opciones.navegador) throw error;
+      url = BUSCADORES[opciones.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
+    }
+    return { id, name, url, count, ...opciones };
   } catch {
     return null;
   }
@@ -8739,12 +8751,36 @@ function modoDeAperturaDeInstancia(instanceId) {
   return instanciaDePanel(instanceId)?.apertura || APERTURA_POR_DEFECTO;
 }
 
-// Un aviso en la franja del panel. Se queda tambien en `window.__avisoInstancia` para que la
-// prueba pueda leerlo: lo que ve una persona no se puede leer desde fuera.
+// Un aviso en la franja del panel. Va en un boton de verdad, porque un aviso que solo existe en
+// una variable es un aviso que no ve nadie: el enlace se pierde y el panel queda mudo sin
+// explicación. Se queda tambien en `window.__avisoInstancia` para que la prueba lo pueda leer.
 function avisarEnPanel(panel, texto) {
   if (!panel?.element) return;
   panel.element.dataset.aviso = texto;
   window.__avisoInstancia = texto;
+  if (!panel.botonAviso) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'browser-instance-aviso';
+    boton.title = 'Aviso de esta pantalla';
+    boton.addEventListener('click', () => {
+      window.alert(boton.dataset.texto || '');
+    });
+    panel.element.querySelector('.browser-instance-panelbar')?.appendChild(boton);
+    panel.botonAviso = boton;
+  }
+  panel.botonAviso.dataset.texto = texto;
+  panel.botonAviso.textContent = texto;
+  panel.botonAviso.hidden = false;
+}
+
+// Quitar el aviso: se va solo en cuanto el panel vuelve a navegación. Un aviso pegado para
+// siempre se vuelve un aviso que nadie mira.
+function quitarAvisoDePanel(panel) {
+  if (!panel?.botonAviso) return;
+  panel.botonAviso.hidden = true;
+  panel.element.dataset.aviso = '';
+  window.__avisoInstancia = '';
 }
 
 // Marca los paneles que creo la instancia al arrancar. Los que se abren por enlace llevan
@@ -8802,7 +8838,10 @@ function crearPanelDeEnlace(instance, url, panelOrigen) {
 // creada por el usuario tiene su propia particion —son cuentas distintas, con sus cookies— pero un
 // enlace sale de una sesion concreta y continuar en otra perderia la sesion, que es justo lo que hace
 // util abrirlo aqui dentro.
-function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = instance.url, particionDePartida = '') {
+// `urlDePartida` es la direccion con la que arranca ESTE panel, y por defecto la de su instancia:
+// el buscador si es de estilo navegador —que es lo que se pidio al crearla—, o la ultima
+// direccion escrita en su barra.
+function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = inicioDeInstancia(instance), particionDePartida = '') {
   const element = document.createElement('article');
   element.className = 'browser-instance-panel';
   const panelbar = document.createElement('header');
@@ -8904,7 +8943,13 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   const webview = document.createElement('webview');
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
-  webview.setAttribute('partition', particionDePartida || browserInstancePartition(instance.id, index));
+  const particionDelPanel = particionDePartida || browserInstancePartition(instance.id, index);
+webview.setAttribute('partition', particionDelPanel);
+// El modo de apertura se manda ANTES de que la webview cargue nada. El proceso principal lo
+// necesita de antemano: el manejador de apertura tiene que responder en el momento y no puede
+// preguntar a nadie, porque Electron trata una respuesta asincrona como un `deny` —y sin ventana
+// emergente se quedan muertos los inicios de sesion y las pasarelas, sin avisar de nada—.
+window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || APERTURA_POR_DEFECTO)
   webview.setAttribute('src', 'about:blank');
   // 'true' NO abre ventanas: solo hace que la peticion de apertura llegue al manejador del proceso
   // principal, que es quien decide —y deniega, salvo las emergentes que el usuario ha permitido—.
@@ -8961,6 +9006,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
       // La barra se repinta en CUALQUIER navegacion, no solo en las de dentro de la pagina:
       // al ir a otra pagina cambia la direccion y cambian los botones de atras y adelante.
       pintarBarraDeNavegacion(panel);
+      quitarAvisoDePanel(panel);
     }
   });
   // El inicio va a donde toca la instancia: el buscador si es de estilo navegador, su direccion
@@ -11122,15 +11168,9 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
     });
     window.pokeGrid?.onInstanceEscapePressed?.(() => salirDePantallaCompleta());
     window.pokeGrid?.onWindowFullScreenChange?.((activa) => sincronizarPantallaCompletaDeLaVentana(activa));
-    // El reparto de aperturas. El proceso principal pregunta y aqui se contesta; y cuando una
-    // instancia quiere abrir algo en un panel, se abre aqui, que es donde estan sus paneles.
-    window.pokeGrid?.onPreguntarApertura?.(({ id, webContentsId }) => {
-      const panel = panelDeWebContents(webContentsId);
-      window.pokeGrid.responderApertura(
-        id,
-        panel ? modoDeAperturaDeInstancia(panel.instanceId) : 'ventana'
-      ).catch(() => {});
-    });
+    // Cuando una instancia quiere abrir algo en un panel, se abre aqui, que es donde estan sus
+    // paneles. El modo de apertura ya lo sabe el proceso principal: se lo mando cada pantalla al
+    // crearla, porque su manejador tiene que responder en el momento y no puede preguntar.
     window.pokeGrid?.onPeticionPestana?.(({ webContentsId, url }) => {
       const panel = panelDeWebContents(webContentsId);
       if (!panel) return;

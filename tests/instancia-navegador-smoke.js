@@ -130,12 +130,21 @@ app.whenReady().then(async () => {
     console.log('\n--- la barra de direcciones ---');
     // Se llama a la creación de la instancia en vez de pasar por el modal porque el modal solo
     // admite HTTPS y aquí hace falta una página local que exista.
+    //
+    // `inst-nav` lleva la página local como inicio guardado. Una instancia de navegador arranca en el
+    // buscador —eso se comprueba aparte, en `inst-buscador`—, y de esta prueba necesita una página de
+    // verdad a la que poder pedirle que abra enlaces. Las dos cosas a la vez.
     const montado = await ventana.webContents.executeJavaScript(`(() => {
       try {
         createBrowserInstanceWorkspace({
           id: 'inst-nav', name: 'Navegador', url: ${JSON.stringify(paginaNavegador)},
-          count: 1, navegador: true, buscador: 'ddg', inicio: '', apertura: 'auto'
+          count: 1, navegador: true, buscador: 'ddg',
+          inicio: ${JSON.stringify(paginaNavegador)}, apertura: 'auto'
         }, 0);
+        createBrowserInstanceWorkspace({
+          id: 'inst-buscador', name: 'Buscador', url: ${JSON.stringify(paginaNavegador)},
+          count: 1, navegador: true, buscador: 'google', inicio: '', apertura: 'auto'
+        }, 2);
         createBrowserInstanceWorkspace({
           id: 'inst-juego', name: 'Juego', url: ${JSON.stringify(paginaNavegador)},
           count: 1, navegador: false, buscador: 'ddg', inicio: '', apertura: 'auto'
@@ -385,6 +394,73 @@ const antesDeLogin = await ventana.webContents.executeJavaScript(
       `paneles: ${sinReciclable.paneles}, creo: ${sinReciclable.creo}`);
     comprobar(Boolean(sinReciclable.aviso),
       'y avisa de por qué, que si no parece que el enlace se haya perdido', sinReciclable.aviso);
+
+// --- 5. Lo que encontró la revisión de rama ---------------------------------------
+    console.log('\n--- lo que encontró la revisión ---');
+    // Estas cuatro comprobaciones no estaban: la revisión encontró que la entrega cumplía en el papel
+    // y no en la realidad. Se añaden para que no puedan volver a cumplirse solo en el papel.
+    const correcciones = await ventana.webContents.executeJavaScript(`(() => {
+      const salida = {};
+      // 1. Una instancia de navegador se podía crear... por debajo. Por el modal, no: sin enlace,
+      // la validación lo tiraba y el formulario acababa diciendo que no se pudo crear. Y la función
+      // titular de esta entrega era justo esa.
+      const sinEnlace = normalizeBrowserInstance({
+        id: 'sin-enlace', name: 'Sin enlace', url: '', count: 1, navegador: true, buscador: 'google'
+      });
+      // Y una normal sin enlace sigue sin poder crearse: eso no ha cambiado.
+      const normalSinEnlace = normalizeBrowserInstance({
+        id: 'normal-sin-enlace', name: 'Normal', url: '', count: 1
+      });
+      salida.creaSinEnlace = Boolean(sinEnlace);
+      salida.urlPuesta = sinEnlace ? sinEnlace.url : '';
+      salida.normalSigueSinPoder = normalSinEnlace === null;
+
+      // 2. Una instancia de navegador arrancaba en la URL con la que se creó, no en el buscador.
+      salida.arrancaEnElBuscador = browserInstanceViews.get('inst-buscador').panels[0].startUrl;
+      // 3. Y la dirección escrita en la barra no se leía al arrancar, que es para lo que se guardaba.
+      const conInicio = createBrowserInstanceWorkspace({
+        id: 'inst-inicio', name: 'Con inicio', url: 'https://ejemplo.invalid/',
+        count: 1, navegador: true, buscador: 'ddg',
+        inicio: 'https://ejemplo.invalid/guardado', apertura: 'auto'
+      }, 3);
+      salida.arrancaEnElInicioGuardado = conInicio.panels[0].startUrl;
+
+      // 4. El aviso de «no caben más pantallas» solo existía en una variable que leía la prueba. Una
+      // persona no veía nada, y el enlace se perdía en silencio.
+      const panelAviso = browserInstanceViews.get('inst-nav').panels[0];
+      avisarEnPanel(panelAviso, 'Aviso de prueba');
+      salida.avisoEnElDom = Boolean(panelAviso.botonAviso && !panelAviso.botonAviso.hidden
+        && panelAviso.botonAviso.textContent === 'Aviso de prueba');
+      quitarAvisoDePanel(panelAviso);
+      salida.avisoSeQuita = Boolean(panelAviso.botonAviso && panelAviso.botonAviso.hidden);
+      return salida;
+    })()`);
+    comprobar(correcciones.creaSinEnlace && correcciones.urlPuesta === 'https://www.google.com/search?q=',
+      'una instancia de navegador se crea sin enlace, que es lo que hace el modo buscador',
+      `url: ${correcciones.urlPuesta}`);
+    comprobar(correcciones.normalSigueSinPoder,
+      'pero una instancia normal sigue sin poder crearse sin enlace', String(correcciones.normalSigueSinPoder));
+    comprobar(correcciones.arrancaEnElBuscador === 'https://www.google.com/search?q=',
+      'y arranca en el buscador, no en la URL con la que se creó', correcciones.arrancaEnElBuscador);
+    comprobar(correcciones.arrancaEnElInicioGuardado === 'https://ejemplo.invalid/guardado',
+      'y una instancia con inicio guardado arranca ahí, que es para lo que se guarda',
+      correcciones.arrancaEnElInicioGuardado);
+    comprobar(correcciones.avisoEnElDom,
+      'el aviso se ve en la franja, no solo en una variable que lee la prueba');
+    comprobar(correcciones.avisoSeQuita,
+      'y se quita en cuanto el panel vuelve a navegar, para que no se quede pegado');
+
+    // Y que el reparto de aperturas ya no pregunta nada: el manejador tiene que responder en el
+    // momento, porque Electron trata una respuesta asíncrona como un `deny` y se quedan muertas
+    // todas las ventanas emergentes. El modo se guarda antes, al crear cada pantalla.
+    const sinPreguntas = await ventana.webContents.executeJavaScript(`(() => ({
+      tienePregunta: typeof preguntarModoDeApertura !== 'undefined',
+      mandaElModo: typeof window.pokeGrid.setInstanceApertura === 'function'
+    }))()`);
+    comprobar(sinPreguntas.tienePregunta === false,
+      'el proceso principal ya no pregunta nada al abrir un enlace');
+    comprobar(sinPreguntas.mandaElModo === true,
+      'porque el modo se le manda al crear cada pantalla');
 
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);

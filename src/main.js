@@ -1617,29 +1617,20 @@ function pideVentanaConMedidas(features) {
   return /(^|[\s,;])(width|height)\s*=/i.test(String(features || ''));
 }
 
-// Las preguntas que el proceso principal le hace al renderer. Cada una es una vuelta del IPC con
-// su respuesta y con su reloj: si el renderer no contesta —que es lo que pasa si la ventana del
-// launcher se esta cerrando, o si el renderer se ha quedado colgado— la pregunta caduca y se cae
-// al comportamiento de antes, que ya funcionaba.
-const preguntasDeApertura = new Map();
-const PREGUNTA_ABIERTURA_MS = 1200;
+// El modo de apertura de cada instancia, por particion. Lo manda el renderer al crear la
+// pantalla y se guarda aqui, en vez de preguntarlo en el momento de abrir:
+//
+// `setWindowOpenHandler` tiene que responder DE INMEDIATO y Electron NO acepta una respuesta
+// asincrona. Con el manejador en `async`, Electron registra un error y trata la respuesta como
+// `deny`, con lo que no se abria NINGUNA ventana emergente: los inicios de sesion y las
+// pasarelas se quedaban muertos y sin decir nada. Preguntar en el instante no es posible, asi que
+// se guarda antes. Lo que no se conoce vale 'ventana', que es lo que se hacia siempre.
+const aperturaDeParticion = new Map();
+const MODOS_DE_APERTURA = ['auto', 'panel', 'ventana'];
 
-function preguntarModoDeApertura(contents) {
-  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve('ventana');
-  return new Promise((resolver) => {
-    const numeros = [...preguntasDeApertura.keys()];
-    const id = (numeros.length ? Math.max(...numeros) : 0) + 1;
-    const reloj = setTimeout(() => {
-      preguntasDeApertura.delete(id);
-      resolver('ventana');
-    }, PREGUNTA_ABIERTURA_MS);
-    preguntasDeApertura.set(id, (modo) => {
-      clearTimeout(reloj);
-      preguntasDeApertura.delete(id);
-      resolver(modo);
-    });
-    mainWindow.webContents.send('instancia:preguntar-apertura', { id, webContentsId: contents.id });
-  });
+function modoDeAperturaDeParticion(contents) {
+  const particion = particionesDeInstancia.get(contents.session) || '';
+  return aperturaDeParticion.get(particion) || 'ventana';
 }
 
 // Avisar de que una instancia quiere abrir algo en un panel. Devuelve false si no hay ventana
@@ -1686,16 +1677,15 @@ app.on('web-contents-created', (_event, contents) => {
 
   const isBrowserInstance = browserInstanceSessions.has(contents.session);
 
-  // Es `async` por una razon: `setWindowOpenHandler` admite respuesta asincrona, y hace falta
-  // para preguntarle al renderer el modo de apertura de esa instancia. Ese es el unico sitio
-  // donde se puede preguntar sin bloquear.
-  contents.setWindowOpenHandler(async ({ url, features }) => {
+  // SINCRONO a proposito, y no por descuido: Electron rechaza una promesa aqui y la trata como
+  // `deny`. Por eso el modo de apertura lo sabe de antemano, sin preguntar.
+  contents.setWindowOpenHandler(({ url, features }) => {
     // El juego se queda como estaba: lo que no es suyo va al sistema y listo.
     if (!isBrowserInstance) {
       if (!isGameUrl(url)) openExternal(url);
       return { action: 'deny' };
     }
-    const modo = await preguntarModoDeApertura(contents);
+    const modo = modoDeAperturaDeParticion(contents);
     const conMedidas = pideVentanaConMedidas(features);
     // A un panel: el modo lo dice, o el automatico y el enlace no trae medidas propias. Con
     // medidas propias casi nunca: si el modo dice panel, alla va, y si no, es una ventana de
@@ -1794,14 +1784,22 @@ ipcMain.on('instancia:rueda', (event, datos) => {
   aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + pasos * ZOOM_PASO, 'rueda');
 });
 
-// Respuesta a la pregunta de apertura. Con guard de la ventana principal a proposito: solo la
-// ventana del launcher contesta a estas preguntas, y el dato se valida al usarse, que es donde
-// importa.
-ipcMain.handle('instancia:responder-apertura', (event, datos) => {
-  if (!isMainWindowSender(event)) return;
-  const id = Number(datos && datos.id);
-  const responder = preguntasDeApertura.get(id);
-  if (responder) responder(String((datos && datos.modo) || 'ventana'));
+
+// El modo de apertura de una pantalla, que se guarda para poder responder de inmediato cuando
+// esa peticion llegue. Se valida la particion con el mismo criterio que el resto: si no es de una
+// instancia, no se guarda nada.
+ipcMain.handle('instancia:apertura', (event, datos) => {
+  assertMainWindowSender(event);
+  const particion = String((datos && datos.particion) || '');
+  if (!particion.startsWith('persist:pokegrid-instance-')) {
+    return { ok: false, error: 'Esa pantalla no es una instancia.' };
+  }
+  const modo = String((datos && datos.modo) || '');
+  if (!MODOS_DE_APERTURA.includes(modo)) {
+    return { ok: false, error: 'Modo de apertura desconocido.' };
+  }
+  aperturaDeParticion.set(particion, modo);
+  return { ok: true, modo };
 });
 
 ipcMain.handle('instancia:pantalla-completa', (event, activa) => {

@@ -927,6 +927,26 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 .navegacion-direccion:focus { outline: none; border-color: #5ec7dd; }
 .navegacion-direccion::placeholder { color: #6f8694; }
+/* El aviso de una pantalla —«no caben mas pantallas»— va en la franja, porque un aviso que solo
+   existe en una variable no lo ve nadie. El boton es ancho, se recorta al panel, y al pulsarlo
+   sale el texto entero: en un mosaico de doce el mensaje completo no cabe ni con letras de 8. */
+.browser-instance-aviso {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid #8a5a1f;
+  border-radius: 6px;
+  background: rgba(180, 110, 25, .18);
+  color: #f2c78a;
+  font-size: 11px;
+  cursor: pointer;
+}
+.browser-instance-aviso:hover { background: rgba(180, 110, 25, .3); color: #ffe0b0; }
 
 /* El porcentaje de zoom es un boton: un clic devuelve la pantalla al 100 %. Sin borde, para que
    se lea como una etiqueta y no compita con los botones de al lado. */
