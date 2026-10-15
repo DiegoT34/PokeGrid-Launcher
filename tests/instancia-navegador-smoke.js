@@ -320,6 +320,72 @@ const antesDeLogin = await ventana.webContents.executeJavaScript(
       'una ventana con medidas propias NO abre panel: sale aparte, como hasta ahora',
       `antes: ${antesDeLogin}, despues: ${despuesDeLogin}`);
 
+// --- 4. El tope de paneles --------------------------------------------------------
+    console.log('\n--- el tope de doce paneles ---');
+    // Se llena UNA instancia hasta el tope y se pasa de ahí. Con dos se abrirían veinticuatro
+    // webviews de golpe y la prueba se comeria la memoria del equipo sin ganar nada: lo que importa
+    // es la cuenta y el reciclado, no tener muchas pantallas.
+    const reciclado = await ventana.webContents.executeJavaScript(`(() => {
+      const view = browserInstanceViews.get('inst-nav');
+      const url = 'https://ejemplo.invalid/repetida';
+      const origen = view.panels[0];
+      // Se llena de paneles de enlace hasta el tope.
+      while (view.panels.length < TOPE_PANELES_INSTANCIA) {
+        crearPanelDeEnlace(view.instance, url, view.panels[0]);
+      }
+      const lleno = view.panels.length;
+      const primerEnlace = view.panels.find((panel) => panel.origen === 'enlace');
+      // Y se pasa: tienen que reciclarse, no crecer.
+      crearPanelDeEnlace(view.instance, url, view.panels[0]);
+      crearPanelDeEnlace(view.instance, url, view.panels[0]);
+      return {
+        tope: TOPE_PANELES_INSTANCIA,
+        lleno,
+        despues: view.panels.length,
+        originales: view.panels.filter((panel) => panel.origen !== 'enlace').length,
+        elOriginalSigue: view.panels.includes(origen),
+        elViejoSeRecicla: view.panels.includes(primerEnlace) && primerEnlace.lastUrl === url,
+        viewCount: view.workspace.dataset.viewCount
+      };
+    })()`);
+    comprobar(reciclado.tope === 12,
+      'y el tope son doce', String(reciclado.tope));
+    comprobar(reciclado.lleno === reciclado.tope,
+      'la instancia llega al tope', String(reciclado.lleno));
+    comprobar(reciclado.despues === reciclado.tope,
+      'y al pasarse NO crece: se queda ahí', String(reciclado.despues));
+    comprobar(reciclado.originales === 1 && reciclado.elOriginalSigue === true,
+      'y el panel original nunca se recicla: es una cuenta del usuario',
+      `originales: ${reciclado.originales}, sigue en la lista: ${reciclado.elOriginalSigue}`);
+    comprobar(reciclado.elViejoSeRecicla,
+      'al reciclar, el panel de enlace más viejo se reutiliza y va a la dirección nueva, en vez de duplicarlo',
+      `sigue en la lista y apunta a: ${reciclado.viewCount}`);
+    comprobar(reciclado.viewCount === String(reciclado.tope),
+      'y el mosaico se redimensiona con la cuenta', reciclado.viewCount);
+
+    // El borde del borde: los doce son originales y no hay nada que reciclar. No debe abrir, no debe
+    // romper nada y debe decir por qué.
+    const sinReciclable = await ventana.webContents.executeJavaScript(`(() => {
+      const view = browserInstanceViews.get('inst-nav');
+      const origenes = view.panels.map((panel) => panel.origen);
+      view.panels.forEach((panel) => { panel.origen = 'inicial'; });
+      window.__avisoInstancia = '';
+      const url = 'https://ejemplo.invalid/una-mas';
+      const resultado = crearPanelDeEnlace(view.instance, url, view.panels[0]);
+      const salida = {
+        paneles: view.panels.length,
+        creo: Boolean(resultado),
+        aviso: window.__avisoInstancia || ''
+      };
+      view.panels.forEach((panel, indice) => { panel.origen = origenes[indice]; });
+      return salida;
+    })()`);
+    comprobar(sinReciclable.creo === false && sinReciclable.paneles === reciclado.tope,
+      'si los doce son originales, no abre ni rompe nada',
+      `paneles: ${sinReciclable.paneles}, creo: ${sinReciclable.creo}`);
+    comprobar(Boolean(sinReciclable.aviso),
+      'y avisa de por qué, que si no parece que el enlace se haya perdido', sinReciclable.aviso);
+
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);
     fallos.push('excepción');

@@ -8756,9 +8756,35 @@ function marcarPanelesOriginales(panels) {
 
 // Abre la direccion en un panel NUEVO de esa instancia, con su misma sesion. Devuelve el panel,
 // o null si no se pudo —que pasa cuando la instancia ya no tiene donde ponerlo—.
+// El tope de pantallas por instancia. Cada panel es una webview, y una webview no es gratis:
+// con doce por instancia y doce instancias se podrian pedir 144 a la vez. Es el numero que se
+// acordo, y si el equipo va JUSTO lo que se baja es este numero, no el reciclado.
+const TOPE_PANELES_INSTANCIA = 12;
+
+// El panel de enlace mas viejo de la instancia, que es el que se recicla. Los originales no
+// entran nunca —son cuentas del usuario— y si no queda ninguno, el enlace no se abre.
+function panelEnlaceMasViejo(instanceId) {
+  const view = browserInstanceViews.get(instanceId);
+  if (!view) return null;
+  return view.panels.find((panel) => panel.origen === 'enlace') || null;
+}
+
 function crearPanelDeEnlace(instance, url, panelOrigen) {
   const view = browserInstanceViews.get(instance.id);
   if (!view) return null;
+  // Al tope, o se recicla o no se abre. Reciclar es volver a llevar un panel a otra pagina:
+  // conserva su posicion y su sesion, que es mejor que cerrar uno y abrir otro.
+  if (view.panels.length >= TOPE_PANELES_INSTANCIA) {
+    const reciclable = panelEnlaceMasViejo(instance.id);
+    if (!reciclable) {
+      avisarEnPanel(view.panels[view.panels.length - 1],
+        'No caben mas pantallas en esta instancia: el enlace no se ha abierto.');
+      return null;
+    }
+    reciclable.connectionFailures = 0;
+    loadConnectionPanel(reciclable, url, { reason: 'Enlace reciclado' });
+    return reciclable;
+  }
   // La particion se hereda del panel del que sale el enlace: es su sesion la que hay que continuar.
   const particion = panelOrigen?.webview?.getAttribute?.('partition') || '';
   const panel = createBrowserInstancePanel(instance, view.workspace, view.panels.length, 0, url, particion);
