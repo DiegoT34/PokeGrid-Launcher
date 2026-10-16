@@ -1589,6 +1589,46 @@ function vigilarVistaDeInstancia(contents, particion) {
   // página y sí ve el signo del `deltaY` del DOM.
 }
 
+// Que es una imagen que el navegador sabe pintar y no ocupa mas de 256 KB. Los SVG quedan fuera a
+// proposito: un icono es un icono, y un SVG de una web es un documento entero con scripts dentro.
+const ICONO_MAXIMO_BYTES = 256 * 1024;
+const TIPOS_DE_IMAGEN = new Set([
+  'image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/gif', 'image/jpeg', 'image/webp'
+]);
+
+function esIconoAdmisible(contentType, bytes) {
+  return TIPOS_DE_IMAGEN.has(String(contentType || '').split(';')[0].trim().toLowerCase())
+    && Number.isInteger(bytes) && bytes > 0 && bytes <= ICONO_MAXIMO_BYTES;
+}
+
+// La cache es en memoria y se tira al cerrar. En la proxima ejecucion se descargan otra vez, que
+// es lo que hace cualquier navegador con la primera visita a cada web. En disco seria mas rapido y
+// no vale el complication de tener que invalidarla.
+const cacheDeIconos = new Map();
+
+// Descargar el icono de una web. Va por `net.fetch`, que ya viene importado en la linea 1 y es de
+// Electron: descargar en el renderer choca con la CSP de la pagina del launcher, cuyo img-src no
+// deja meter imagenes remotas. Por eso esto devuelve `data:` y no una direccion.
+async function iconoComoDataUrl(url) {
+  const yaEsta = cacheDeIconos.get(url);
+  if (yaEsta) return yaEsta;
+  let respuesta;
+  try {
+    respuesta = await net.fetch(url, { headers: { Accept: 'image/*' } });
+  } catch {
+    return '';
+  }
+  if (!respuesta.ok) return '';
+  const tipo = respuesta.headers.get('content-type') || '';
+  const cuerpo = await respuesta.arrayBuffer().catch(() => null);
+  if (!cuerpo) return '';
+  if (!esIconoAdmisible(tipo, cuerpo.byteLength)) return '';
+  const limpio = tipo.split(';')[0].trim();
+  const dataUrl = `data:${limpio};base64,${Buffer.from(cuerpo).toString('base64')}`;
+  cacheDeIconos.set(url, dataUrl);
+  return dataUrl;
+}
+
 const MAX_VENTANAS_EMERGENTES = 6;
 const MAX_PROFUNDIDAD_EMERGENTE = 2;
 const ventanasEmergentes = new Set();
@@ -1793,6 +1833,15 @@ ipcMain.on('instancia:rueda', (event, datos) => {
 // El modo de apertura de una pantalla, que se guarda para poder responder de inmediato cuando
 // esa peticion llegue. Se valida la particion con el mismo criterio que el resto: si no es de una
 // instancia, no se guarda nada.
+ipcMain.handle('instancia:icono', async (event, url) => {
+  assertMainWindowSender(event);
+  const limpio = String(url || '').slice(0, 2000);
+  // Solo https: un icono de http en una pagina https queda bloqueado, y no vale la pena bajarlo.
+  if (!/^https:\/\//i.test(limpio)) return { ok: false, error: 'El icono tiene que ser https.' };
+  const dataUrl = await iconoComoDataUrl(limpio);
+  return dataUrl ? { ok: true, dataUrl } : { ok: false, error: 'Esa web no tiene icono.' };
+});
+
 ipcMain.handle('instancia:apertura', (event, datos) => {
   assertMainWindowSender(event);
   const particion = String((datos && datos.particion) || '');

@@ -8557,6 +8557,52 @@ function allConnectionPanels() {
 function syncUserScriptPanels() {
   window.pokeGridUserScriptManager?.setPanels(allConnectionPanels());
 }
+// El icono de cada instancia. Vive en un mapa aparte porque las pestanas se redibujan enteras cada
+// vez que se activa una, y el icono no se puede volver a descargar en cada redibujo.
+const iconosDeInstancia = new Map();
+
+function pintarIconoDeInstancia(instanceId, hueco) {
+  const destino = hueco || document.querySelector(`[data-instancia-icono="${instanceId}"]`);
+  if (!destino) return;
+  const dataUrl = iconosDeInstancia.get(instanceId) || '';
+  destino.replaceChildren();
+  if (dataUrl) {
+    const imagen = document.createElement('img');
+    imagen.className = 'instance-tab-favicon';
+    imagen.src = dataUrl;
+    imagen.alt = '';
+    destino.appendChild(imagen);
+    return;
+  }
+  // Sin icono se pone un globo y no un <img> roto: un icono que no se ve es peor que no tener
+  // icono, porque ocupa el sitio y no dice nada.
+  const globo = document.createElement('span');
+  globo.className = 'instance-tab-icon-globo';
+  globo.setAttribute('aria-hidden', 'true');
+  globo.textContent = '○';
+  destino.appendChild(globo);
+}
+
+// Del webview al icono de la pestaña. El aviso lo manda el preload de la instancia; aquí se pide
+// la imagen al proceso principal y se guarda en el mapa para las siguientes.
+function pedirIconoDeWebview(panel) {
+  if (!panel?.webview) return;
+  const instanceId = panel.instanceId;
+  if (iconosDeInstancia.has(instanceId)) return;
+  if (typeof window.pokeGrid?.descargarIcono !== 'function') return;
+  const alRecibir = (evento) => {
+    if (evento.channel !== 'instancia:favicon') return;
+    const url = evento.args?.[0]?.url;
+    if (!url) return;
+    window.pokeGrid.descargarIcono(url).then((respuesta) => {
+      if (!respuesta?.ok || !respuesta.dataUrl) return;
+      iconosDeInstancia.set(instanceId, respuesta.dataUrl);
+      pintarIconoDeInstancia(instanceId);
+    }).catch(() => {});
+  };
+  panel.webview.addEventListener('ipc-message', alRecibir);
+}
+
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
@@ -8573,8 +8619,12 @@ function renderBrowserInstanceTabs() {
     button.setAttribute('role', 'tab');
     button.dataset.instanceId = instance.id;
     const icon = document.createElement('span');
+    icon.className = 'instance-tab-icon';
+    icon.dataset.instanciaIcono = instance.id;
     icon.setAttribute('aria-hidden', 'true');
-    icon.innerHTML = launcherUiIcon(instance.primary ? 'live' : 'ring');
+    // La principal conserva su icono propio: no es una web, es la pantalla del juego.
+    if (instance.primary) icon.innerHTML = launcherUiIcon('live');
+    else pintarIconoDeInstancia(instance.id, icon);
     const label = document.createElement('b');
     label.textContent = instance.name;
     const count = document.createElement('small');
@@ -8629,6 +8679,11 @@ function registrarPanelEnMapa(panel) {
     const id = panel.webview?.getWebContentsId?.();
     if (!id) return false;
     panelesPorWebContentsId.set(id, panel);
+    // El icono se pide aqui y no al crear el panel, porque es aqui cuando la webview ya tiene
+    // id y cuando el preload puede haber leido el <link>. Y solo para las pantallas originales:
+    // una de enlace se recicla, y el icono de un enlace que se abrio un momento no describe la
+    // instancia.
+    if (panel.origen !== 'enlace') pedirIconoDeWebview(panel);
     return true;
   } catch {
     return false;

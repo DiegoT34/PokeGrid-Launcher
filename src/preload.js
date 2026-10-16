@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
   setInstanceApertura: (particion, modo) => ipcRenderer.invoke('instancia:apertura', { particion, modo }),
+  descargarIcono: (url) => ipcRenderer.invoke('instancia:icono', String(url || '')),
   onPeticionPestana: (listener) => {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('instancia:peticion-pestana', handler);

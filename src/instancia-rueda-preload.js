@@ -36,3 +36,31 @@ window.addEventListener('wheel', (evento) => {
 
   ipcRenderer.send('instancia:rueda', { pasos });
 }, { capture: true, passive: false });
+
+// El icono de la pagina, que se avisa al renderer con `sendToHost` y no por un canal de electron.
+// La razon es que el que pinta es el renderer, que es quien tiene la barra de pestanas: un
+// `ipcRenderer.send` iria al proceso principal y tendria que volver a salir hacia el renderer.
+//
+// Se manda el que dice el <link>, NO el del dominio: casi todas las webs apuntan su icono a un
+// CDN distinto —Discord lo sirve desde cdn.discordapp.com—, y descargar el del dominio en su
+// lugar es el fallo clasico.
+function avisarDelIcono() {
+  const declarado = document.querySelector('link[rel~="icon"]')
+    || document.querySelector('link[rel="shortcut icon"]')
+    || document.querySelector('link[rel="apple-touch-icon"]');
+  const url = declarado?.getAttribute('href') || '';
+  if (!url) return;
+  let absoluta = url;
+  try {
+    absoluta = new URL(url, document.baseURI).href;
+  } catch {
+    return;
+  }
+  ipcRenderer.sendToHost('instancia:favicon', { url: absoluta });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', avisarDelIcono, { once: true });
+} else {
+  avisarDelIcono();
+}
