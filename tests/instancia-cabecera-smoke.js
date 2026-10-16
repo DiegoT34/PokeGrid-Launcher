@@ -89,6 +89,21 @@ app.whenReady().then(async () => {
 
       salida.conDos = medirCon(2);
       salida.conCinco = medirCon(5);
+      salida.conVeinte = medirCon(20);
+      // Y con veinte, la mas estrecha de todas. Es la medida que distingue «crecen y no se
+      // aplastan» de «crecen y se encogen»: si flex-shrink no fuera 0, veinte pestañas se
+      // repartirian 900 px y cada una se quedaria en ~43 px, ilegible. La prueba anterior solo
+      // comparaba dos contra cinco, y con tan pocas y nombres tan cortos NUNCA se desborda, asi
+      // que el encogimiento no llegaba a actuar y los dos valores salian casi iguales: daba verde
+      // sin distinguir la regresion que dice vigilar.
+      //
+      // Y OJO: esto va DENTRO de una plantilla, asi que no puede llevar acentos graves. Ni en el
+      // codigo ni en el comentario. Es la sexta vez hoy.
+      const shellsVeinte = [...document.querySelectorAll('.instance-tab-shell')];
+      salida.masEstrechaConVeinte = Math.round(
+        Math.min(...shellsVeinte.map((s) => s.getBoundingClientRect().width))
+      );
+      salida.desbordaYSeDesplaza = instanceTabs.scrollWidth > instanceTabs.clientWidth;
 
       // Se deja como estaba, que el resto de la prueba no depende de este medida.
       browserInstances.length = 0;
@@ -112,6 +127,12 @@ app.whenReady().then(async () => {
       comprobar(ancho.conDos > ancho.conCinco,
         'con pocas pestañas cada una es más ancha: el espacio sobrante se reparte',
         `2 pestañas: ${ancho.conDos} px, 5 pestañas: ${ancho.conCinco} px`);
+      comprobar(ancho.masEstrechaConVeinte >= 70,
+        'y con veinte no se aplastan: se desplazan, que es lo que las flechas vienen a hacer',
+        `la más estrecha con 20: ${ancho.masEstrechaConVeinte} px`);
+      comprobar(ancho.desbordaYSeDesplaza,
+        'y la lista desborda y se puede desplazar en vez de encogerse',
+        `desborda: ${ancho.desbordaYSeDesplaza}`);
     }
 
     // =================================================================================
@@ -227,25 +248,37 @@ app.whenReady().then(async () => {
 
     // =================================================================================
     console.log('\\n--- 4. el logo del juego en la pestaña principal ---');
+    // POR QUE ESTO NO VA POR EL AVISO DEL PRELOAD
+    //
+    // La primera version de esta prueba llamaba a avisoDeIcono() pasandole 'poke-idle-world' a mano
+    // y daba verde. Y era un verde falso: el camino real para esa id NO EXISTE. `pedirIconoDeWebview`
+    // tiene una sola llamada, dentro de createBrowserInstancePanel, y los paneles del juego los crea
+    // createPanel. Y aunque se llamara, `will-attach-webview` sale en main.js si la particion no
+    // empieza por `persist:pokegrid-instance-`, asi que los webviews del juego nunca llevan el
+    // preload que manda el aviso. El propio comentario de al lado lo dice.
+    //
+    // O sea: pasarle la id a mano probaba la costura y tapaba el cable cortado. Lo correcto es que
+    // la pestaña principal no dependa del aviso: el logo del juego ya viaja dentro del launcher, en
+    // assets, y es el mismo que la cabecera enseña al lado. Sin red, sin preload en las sesiones del
+    // juego —que es donde peor sienta un cambio— y no puede fallar.
     const principal = await ventana.webContents.executeJavaScript(`(() => {
-      const ICONO_A = ${JSON.stringify(ICONO_A)};
       const salida = {};
       try {
         browserInstances.length = 0;
         renderBrowserInstanceTabs();
         const hueco = () => document.querySelector('[data-instancia-icono="poke-idle-world"]');
-        const conMarca = () => Boolean(hueco()?.querySelector('svg'));
-        salida.antesDeQueLlegue = conMarca();
+        const logo = () => hueco()?.querySelector('.instance-tab-icon-logo');
+        salida.hayLogo = Boolean(logo());
+        salida.fondo = logo() ? getComputedStyle(logo()).backgroundImage : '';
+        salida.hayMarcaDeSiempre = Boolean(hueco()?.querySelector('svg'));
 
-        avisoDeIcono({ url: 'https://poke.idleworld.online/favicon.ico' }, ICONO_A, 'poke-idle-world');
-        salida.llegoElLogo = hueco()?.querySelector('img')?.getAttribute('src') || '';
-        salida.yaNoHayMarca = conMarca();
-
-        // Y si el juego no contesta, vuelve la marca de siempre.
+        // Y no depende del aviso: nada de lo que llegue por el mapa de iconos lo cambia.
+        iconosDeInstancia.set('poke-idle-world', 'data:image/png;base64,ZZZ');
+        pintarIconoDeInstancia('poke-idle-world');
+        salida.sigueElLogoConOtroIconoEnElMapa = Boolean(logo());
+        salida.noCogeElDelMapa = !hueco()?.querySelector('img');
         iconosDeInstancia.delete('poke-idle-world');
         origenesDeIcono.delete('poke-idle-world');
-        pintarIconoDeInstancia('poke-idle-world');
-        salida.vuelveLaMarca = conMarca();
       } catch (e) {
         salida.error = String(e && e.stack ? e.stack.split('\\n').slice(0, 3).join(' ') : e);
       }
@@ -262,14 +295,109 @@ app.whenReady().then(async () => {
     }
 
     if (principal) {
-      comprobar(principal.antesDeQueLlegue,
-        'mientras no hay logo, la pestaña principal conserva su marca');
-      comprobar(principal.llegoElLogo === ICONO_A,
-        'y cuando el juego declara el suyo, lo enseña', JSON.stringify(principal.llegoElLogo));
-      comprobar(!principal.yaNoHayMarca,
-        'sustituyendo la marca, no juntando las dos');
-      comprobar(principal.vuelveLaMarca,
-        'si el juego no contesta, vuelve la marca en vez de quedarse un hueco');
+      comprobar(principal.hayLogo,
+        'la pestaña principal enseña el logo del juego, que ya viaja dentro del launcher');
+      comprobar(/idle-poke-logo/.test(principal.fondo),
+        'y es el logo del juego, no un dibujo de relleno', principal.fondo.slice(0, 120));
+      comprobar(!principal.hayMarcaDeSiempre,
+        'sin dejar debajo la marca de antes: una cosa o la otra, no las dos');
+      comprobar(principal.sigueElLogoConOtroIconoEnElMapa && principal.noCogeElDelMapa,
+        'y no depende del aviso de la página: el mapa de iconos no lo pisa',
+        JSON.stringify(principal));
+    }
+
+    // =================================================================================
+    console.log('\\n--- 5. el aviso, por el camino real ---');
+    // Las cuatro comprobaciones de arriba llaman a avisoDeIcono() a mano. Eso prueba la costura,
+    // pero NO prueba el cable: quien decide que hay que repintar, y con que id, es el oyente que
+    // escucha el `ipc-message` del webview. Aqui se lanza ese evento de verdad sobre una pantalla
+    // de verdad, con el canal y la forma que usa el preload, y se mira el resultado. Es la
+    // comprobacion que habria cazado que el logo del juego nunca llegaba.
+    const porElCaminoReal = await ventana.webContents.executeJavaScript(`(async () => {
+      const salida = {};
+      try {
+        browserInstances.length = 0;
+        const fila = {
+          id: 'cable-web', name: 'Cable', url: 'https://ejemplo.invalid/',
+          count: 1, modo: 'navegador', buscador: 'ddg', apertura: 'auto', inicio: ''
+        };
+        browserInstances.push(fila);
+        // Hay que MONTAR la instancia, no solo meterla en la lista: el mosaico —y con el, el panel
+        // y su webview— lo crea createBrowserInstanceWorkspace. Con solo la pestaña dibujada no hay
+        // panel al que lanzarle el evento, y la prueba se cae leyendo los paneles de una vista que
+        // no existe. (Sin acentos graves aqui: esto va dentro de una plantilla.)
+        browserInstanceViews.get('cable-web')?.workspace.remove();
+        createBrowserInstanceWorkspace(fila, 0);
+        renderBrowserInstanceTabs();
+        const panel = browserInstanceViews.get('cable-web').panels[0];
+        salida.escuchaEnganchada = Boolean(panel.oyEscuchaElIcono);
+
+        // Se sustituye la descarga de verdad —necesita red— por una respuesta conocida, para
+        // poder mirar el resto del camino sin Internet.
+        //
+        // Se sustituye pedirIconoAlProceso, que es del renderer, y NO
+        // window.pokeGrid.descargarIcono: el puente lo pone contextBridge y llega congelado,
+        // asi que asignarle algo no hace nada y falla en silencio. La primera version de esta
+        // prueba lo hacia y por eso medía cero: llamaba al de verdad, que sin red no pinta nada.
+        const original = pedirIconoAlProceso;
+        const pedidas = [];
+        pedirIconoAlProceso = (url) => {
+          pedidas.push(url);
+          return Promise.resolve('data:image/png;base64,CABLE');
+        };
+
+        const evento = new Event('ipc-message');
+        evento.channel = 'instancia:favicon';
+        evento.args = [{ url: 'https://ejemplo.invalid/cable.ico' }];
+        panel.webview.dispatchEvent(evento);
+        await new Promise((r) => setTimeout(r, 50));
+
+        salida.pedidas = pedidas.slice();
+        salida.iconoPintado = document.querySelector('[data-instancia-icono="cable-web"] img')
+          ?.getAttribute('src') || '';
+
+        // Y un evento de OTRO canal no puede pintar nada.
+        const ajeno = new Event('ipc-message');
+        ajeno.channel = 'otro:canal';
+        ajeno.args = [{ url: 'https://ejemplo.invalid/ajeno.ico' }];
+        panel.webview.dispatchEvent(ajeno);
+        await new Promise((r) => setTimeout(r, 50));
+        salida.pedidasTrasAjeno = pedidas.length;
+
+        // Y uno por el canal correcto pero sin direccion, tampoco.
+        const sinUrl = new Event('ipc-message');
+        sinUrl.channel = 'instancia:favicon';
+        sinUrl.args = [{}];
+        panel.webview.dispatchEvent(sinUrl);
+        await new Promise((r) => setTimeout(r, 50));
+        salida.pedidasTrasSinUrl = pedidas.length;
+
+        pedirIconoAlProceso = original;
+      } catch (e) {
+        salida.error = String(e && e.stack ? e.stack.split('\\n').slice(0, 3).join(' ') : e);
+      }
+      return salida;
+    })()`).catch((e) => {
+      console.log(`\\nFALLO: ${e && e.message ? e.message : e}`);
+      fallos.push('excepción por el camino real del aviso');
+      return null;
+    });
+
+    if (porElCaminoReal && porElCaminoReal.error) {
+      console.log(`\\nFALLO dentro de la pagina: ${porElCaminoReal.error}`);
+      fallos.push('el camino real revienta: ' + porElCaminoReal.error);
+    }
+
+    if (porElCaminoReal) {
+      comprobar(porElCaminoReal.escuchaEnganchada,
+        'la pantalla tiene enganchada la escucha del icono desde que se crea',
+        JSON.stringify(porElCaminoReal.escuchaEnganchada));
+      comprobar(porElCaminoReal.iconoPintado === 'data:image/png;base64,CABLE',
+        'y el aviso del preload, tal cual llega, acaba en el icono de su pestaña',
+        JSON.stringify(porElCaminoReal.iconoPintado));
+      comprobar(porElCaminoReal.pedidasTrasAjeno === 1 && porElCaminoReal.pedidasTrasSinUrl === 1,
+        'un evento de otro canal no descarga nada, ni uno del canal bueno sin dirección',
+        `peticiones: ${JSON.stringify(porElCaminoReal.pedidas)}`);
     }
   } catch (e) {
     console.log(`\\nFALLO: ${e && e.stack ? e.stack.split('\\n').slice(0, 6).join('\\n') : e}`);

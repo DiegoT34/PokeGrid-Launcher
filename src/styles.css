@@ -952,6 +952,13 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .instance-tab-favicon { width: 14px; height: 14px; border-radius: 3px; object-fit: contain; }
 .instance-tab-icon-globo { color: #6f8694; font-size: 12px; line-height: 1; }
 
+/* El logo del juego en la pestaña principal, desde los assets del launcher: sin red, sin
+   depender de que la web este en pie y sin meter un preload en las sesiones del juego. */
+.instance-tab-icon-logo {
+  width: 14px; height: 14px; border-radius: 3px;
+  background: url("assets/idle-poke-logo-512.png") center / contain no-repeat;
+}
+
 /* Las flechas de la barra de pestañas. Fijas y estrechas para que no roben sitio a las
    pestañas, que son lo que importa. El [hidden] es explicito porque display:inline-flex le
    gana al hidden del navegador y se verian siempre. */

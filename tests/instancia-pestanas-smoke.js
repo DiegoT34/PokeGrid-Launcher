@@ -167,8 +167,11 @@ app.whenReady().then(async () => {
       const sinIcono = document.querySelector('[data-instancia-icono="pest-navegador"]');
       salida.vuelveAlGlobo = Boolean(sinIcono?.querySelector('.instance-tab-icon-globo'));
       salida.cajaRotaFuera = Boolean(sinIcono?.querySelector('img'));
+      // La principal lleva el logo del JUEGO, que viaja dentro del launcher. Antes se comprobaba
+      // que conservara su marca dibujada; el logo la sustituyo porque las cuatro pantallas del
+      // juego son la misma pagina y no hay nada que seguir.
       salida.primaryIntacto = Boolean(document.querySelector(
-        '[data-instance-id="poke-idle-world"] .instance-tab-icon svg'
+        '[data-instance-id="poke-idle-world"] .instance-tab-icon-logo'
       ));
       salida.hayCanalEnElPuente = typeof window.pokeGrid.descargarIcono === 'function';
       return salida;
@@ -188,7 +191,7 @@ app.whenReady().then(async () => {
         'sin icono vuelve al globo, no a una imagen rota que ocupa el sitio y no dice nada',
         JSON.stringify(icono));
       comprobar(icono.primaryIntacto,
-        'la pantalla principal de Poke Idle World conserva su icono propio', JSON.stringify(icono));
+        'la pantalla principal de Poke Idle World lleva el logo del juego', JSON.stringify(icono));
       comprobar(icono.hayCanalEnElPuente,
         'y hay un canal para pedir la imagen al proceso principal', JSON.stringify(icono));
     }

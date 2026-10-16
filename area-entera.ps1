@@ -16,6 +16,7 @@ Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
 $pruebas = @(
   @{ nombre = 'npm run check';     comando = 'npm';      args = @('run', 'check');                       espera = 20 },
+  @{ nombre = 'plantillas-rotas';   comando = 'node';     args = @('buscar-plantilla-rota.cjs', 'tests\instancia-cabecera-smoke.js'); espera = 15 },
   @{ nombre = 'ipc-sender-guard';   comando = 'node';     args = @('tests\ipc-sender-guard-smoke.js');   espera = 20 },
   @{ nombre = 'instancia-vista';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-vista-smoke.js');        espera = 150 },
   @{ nombre = 'instancia-navegador';comando = 'tests\lanzar.cjs'; args = @('tests\instancia-navegador-smoke.js');    espera = 230 },

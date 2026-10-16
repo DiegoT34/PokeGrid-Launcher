@@ -8574,6 +8574,17 @@ function pintarIconoDeInstancia(instanceId, hueco) {
   if (!destino) return;
   const dataUrl = iconosDeInstancia.get(instanceId) || '';
   destino.replaceChildren();
+  // La principal va PRIMERO, antes de mirar el mapa. Comprobado despues, bastaba con que hubiera
+  // cualquier cosa en el mapa —de una pantalla suya o de un aviso— para que el logo desapareciera
+  // y volviera el favicon. Y no: el logo del juego es fijo, que todas sus pantallas son la misma
+  // pagina. Es la comprobacion de mas arriba a proposito.
+  if (instanceId === PRIMARY_BROWSER_INSTANCE_ID) {
+    const logo = document.createElement('span');
+    logo.className = 'instance-tab-icon-logo';
+    logo.setAttribute('aria-hidden', 'true');
+    destino.appendChild(logo);
+    return;
+  }
   if (dataUrl) {
     const imagen = document.createElement('img');
     imagen.className = 'instance-tab-favicon';
@@ -8582,13 +8593,14 @@ function pintarIconoDeInstancia(instanceId, hueco) {
     destino.appendChild(imagen);
     return;
   }
-  // La pantalla principal del juego tiene su propia marca y se la queda cuando el juego no
-  // contesta con su icono: ademas de no dejar un hueco, distingue la pestana principal de un
-  // vistazo. No es un caso aparte de la busqueda del icono, es la otra salida de aqui.
-  if (instanceId === PRIMARY_BROWSER_INSTANCE_ID) {
-    destino.innerHTML = launcherUiIcon('live');
-    return;
-  }
+  // PODRIA leerse el <link rel=icon> de la pagina del juego, y se intento. No funciona: los
+  // webviews del juego no llevan el preload que avisa del icono —`will-attach-webview` sale
+  // enseguida si la particion no es de instancia, y la del juego no lo es—, asi que el aviso
+  // nunca llegaba y la pestaña se quedaba con su marca. Ademas, ese preload habria que meterlo
+  // en las sesiones donde se inicia sesion, que es donde peor sienta tocar nada.
+  //
+  // Y un logo propio es mejor que el favicon de la web: esto es un logo de 512 px que no depende
+  // de la red ni de que el juego este en pie.
   // Sin icono se pone un globo y no un <img> roto: un icono que no se ve es peor que no tener
   // icono, porque ocupa el sitio y no dice nada.
   const globo = document.createElement('span');
@@ -8600,6 +8612,18 @@ function pintarIconoDeInstancia(instanceId, hueco) {
 
 // Del webview al icono de la pestaña. El aviso lo manda el preload de la instancia; aquí se pide
 // la imagen al proceso principal y se guarda en el mapa para las siguientes.
+// Pedir la imagen al proceso principal. Es una funcion con nombre y no una llamada directa a
+// `window.pokeGrid.descargarIcono` porque el puente lo pone contextBridge y llega CONGELADO: no
+// se puede sustituir desde una prueba, y asignarle algo falla en silencio. Con esta costura, el
+// cable entre el aviso del preload y el pintado se puede observar — que es justo el hueco por el
+// que paso que el logo del juego nunca llegara a su pestaña.
+function pedirIconoAlProceso(url) {
+  if (typeof window.pokeGrid?.descargarIcono !== 'function') return Promise.resolve('');
+  return window.pokeGrid.descargarIcono(url)
+    .then((respuesta) => (respuesta?.ok ? respuesta.dataUrl : ''))
+    .catch(() => '');
+}
+
 function pedirIconoDeWebview(panel) {
   if (!panel?.webview) return;
   // UNA vez por pantalla, y al crearla. Se enganchaba en el dom-ready, que es cuando ya hay id para
@@ -8615,11 +8639,11 @@ function pedirIconoDeWebview(panel) {
     if (evento.channel !== 'instancia:favicon') return;
     const url = evento.args?.[0]?.url;
     if (!url) return;
-    window.pokeGrid.descargarIcono(url).then((respuesta) => {
+    pedirIconoAlProceso(url).then((dataUrl) => {
       // Si no se pudo descargar se avisa igual, con el icono vacio: la costura decide si eso
       // cambia algo. Antes la decision estaba en estas dos lineas y por eso el icono se
       // quedaba clavado —«si ya hay icono, no hagas nada»— para siempre en el primer sitio.
-      avisoDeIcono({ url }, respuesta?.ok ? respuesta.dataUrl : '', instanceId);
+      avisoDeIcono({ url }, dataUrl || '', instanceId);
     }).catch(() => {});
   };
   panel.webview.addEventListener('ipc-message', alRecibir);

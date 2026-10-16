@@ -484,8 +484,15 @@ const VISTA_INSTANCIAS = [
   ['el engranaje de ajustes esta en el menu principal y no en la barra de pestanas', (html.match(/id="instanceSettingsButton"/g) || []).length === 1 && /id="globalActions"[\s\S]{0,4000}id="instanceSettingsButton"/.test(html)],
   ['y tiene un nombre escrito, no solo un engranaje', /id="instanceSettingsButton"[\s\S]{0,200}?<span>Configuraciones<\/span>/.test(html)],
   ['y NADIE lo vacia al arrancar: esta linea lo dejo sin nombre dos entregas seguidas', !/instanceSettingsButton\.innerHTML/.test(renderer) && !/instanceSettingsButton\?\.innerHTML/.test(renderer) && !/instanceSettingsButton\.replaceChildren/.test(renderer)],
-  ['las pestañas reparten el sobrante: crecen hasta un maximo y no se aplastan', /flex: 1 0 auto/.test(styles) && /\.instance-tab-shell \{[\s\S]{0,200}max-width: 320px/.test(styles) && /^\.instance-tabs \{[\s\S]{0,600}flex: 1 1 auto/m.test(styles)],
+  // MIRAR DENTRO DEL BLOQUE DE LA REGLA, no en el fichero entero. La version anterior buscaba
+  // `/flex: 1 0 auto/` a secas, y casaba con el COMENTARIO que hay encima de la regla citandolo
+  // entre acentos graves: borrando la declaracion de verdad, la invariante seguia verde. Se
+  // comprobo borrandola. Un patron que casa con su propia explicacion no vigila nada.
+  ['las pestañas reparten el sobrante: crecen hasta un maximo y no se aplastan', /^\.instance-tab-shell \{[^}]*flex: 1 0 auto;/m.test(styles) && /^\.instance-tab-shell \{[^}]*max-width: 320px/m.test(styles) && /^\.instance-tabs \{[^}]*flex: 1 1 auto;/m.test(styles)],
+  ['y la lista de dentro tambien crece, que sin eso las pestañas no tienen nada que repartir', /^\.instance-tabs \{[^}]*flex: 1 1 auto;/m.test(styles)],
   ['y el logo ya no reserva el ancho del texto que se quito, en la regla base', !/^\.brand \{[^}]*min-width: 205px/m.test(styles) && !/^\.instance-tabbar \{[^}]*max-width/m.test(styles)],
+  ['la pestaña principal lleva el logo del juego desde los assets, no un favicon que no llega', /\.instance-tab-icon-logo \{[^}]*idle-poke-logo-512\.png/.test(styles) && /if \(instanceId === PRIMARY_BROWSER_INSTANCE_ID\) \{[\s\S]{0,200}instance-tab-icon-logo/.test(renderer)],
+  ['y el aviso del icono se prueba por el camino real, no llamando a la costura', /instancia:favicon/.test(renderer) && /panel\.webview\.addEventListener\('ipc-message', alRecibir\)/.test(renderer)],
   ['pero en ventana estrecha la barra sigue limitandose, que si no se come los botones', /@media \(max-width: 900px\)[\s\S]{0,600}\.instance-tabbar \{ max-width: calc\(100vw - 150px\)/.test(styles)],
   ['y no queda ninguna regla anulando el min-width que ya no existe, ni en las ventanas estrechas', !/\.brand \{[^}]*min-width: auto/.test(styles) && (styles.match(/\.brand \{[^}]*min-width: 205px/g) || []).length === 0],
   ['el icono cambia de sitio, no se queda clavado en el primero', /function avisoDeIcono\(datos, dataUrl, instanceId\)/.test(renderer) && /origenesDeIcono\.set\(instanceId, url\)/.test(renderer) && !/if \(iconosDeInstancia\.has\(instanceId\)\) return;/.test(renderer)],
