@@ -47,7 +47,11 @@ foreach ($p in $pruebas) {
   # no suponerlo por la forma de la salida.
   $crudo = ($texto -join "`n")
   $fallo = $texto | Select-String -Pattern '^\s+FALLA|FALLO:|\d+ comprobaciones fallan|comprobaciones fallan:'
-  $excepcion = $crudo -match '^\s*throw |^Error:|^SyntaxError|Node\.js v\d|CategoryInfo|FullyQualifiedErrorId'
+  # SIN anclas. Un `^` en PowerShell solo casa al principio del texto entero, y el rastro de un
+  # error va en medio: con `^Node.js` esto contou como verde un verificador que habia reventado con
+  # ENOENT. Dos veces seguidas el mismo error mio —dar por bueno un resultado sin mirar lo que
+  # devuelve—, y las dos por una comprobacion mal escrita en vez de por no correr la prueba.
+  $excepcion = $crudo -match 'Node\.js v\d|ENOENT|CategoryInfo|FullyQualifiedErrorId|^\s*throw |SyntaxError:'
   if ($fallo -or $excepcion) {
     $fallos += $p.nombre
     Add-Content -Path $salida -Value 'FALLA' -Encoding utf8

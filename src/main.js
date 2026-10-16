@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { pathToFileURL } = require('node:url');
+const { ICONO_MAXIMO_BYTES, tipoDeImagen, esTipoDeIcono, esIconoAdmisible, esTamanoAdmisible } = require('./iconos-comunes');
 const { userScriptResponseTarget } = require('./userscript-network');
 const { accountTemplateText, parseAccountsTemplate } = require('./account-transfer');
 const { prepareUpdate, launchPreparedUpdate, peekLatestVersion } = require('./updater');
@@ -1589,22 +1590,18 @@ function vigilarVistaDeInstancia(contents, particion) {
   // página y sí ve el signo del `deltaY` del DOM.
 }
 
-// Que es una imagen que el navegador sabe pintar y no ocupa mas de 256 KB. Los SVG quedan fuera a
-// proposito: un icono es un icono, y un SVG de una web es un documento entero con scripts dentro.
-const ICONO_MAXIMO_BYTES = 256 * 1024;
-const TIPOS_DE_IMAGEN = new Set([
-  'image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/gif', 'image/jpeg', 'image/webp'
-]);
-
-function esIconoAdmisible(contentType, bytes) {
-  return TIPOS_DE_IMAGEN.has(String(contentType || '').split(';')[0].trim().toLowerCase())
-    && Number.isInteger(bytes) && bytes > 0 && bytes <= ICONO_MAXIMO_BYTES;
-}
+// Que es una imagen que el navegador sabe pintar y no ocupa mas de 256 KB vive en `iconos-comunes.js`,
+// no aqui: es la regla que una prueba tiene que poder EJECUTAR, y una funcion de primer nivel de este
+// modulo no se alcanza desde fuera porque `require` no expone su interior.
 
 // La cache es en memoria y se tira al cerrar. En la proxima ejecucion se descargan otra vez, que
 // es lo que hace cualquier navegador con la primera visita a cada web. En disco seria mas rapido y
-// no vale el complication de tener que invalidarla.
+// no vale la pena de tener que invalidarla.
 const cacheDeIconos = new Map();
+
+// Un icono que no contesta no puede dejar la peticion colgada para siempre. Diez segundos es mucho
+// para un icono de 14 pixeles: si en diez segundos no ha llegado, no va a llegar.
+const ICONO_TIEMPO_MAXIMO_MS = 10_000;
 
 // Descargar el icono de una web. Va por `net.fetch`, que ya viene importado en la linea 1 y es de
 // Electron: descargar en el renderer choca con la CSP de la pagina del launcher, cuyo img-src no
@@ -1612,21 +1609,52 @@ const cacheDeIconos = new Map();
 async function iconoComoDataUrl(url) {
   const yaEsta = cacheDeIconos.get(url);
   if (yaEsta) return yaEsta;
-  let respuesta;
+
+  // La direccion del icono la pone la pagina, no el launcher. Una web rota —o una hostil— puede
+  // apuntar su <link rel=icon> a un fichero enorme, y leerlo entero antes de mirar el tamano es
+  // tener el cuerpo de ese fichero en la memoria del proceso principal. Por eso se lee a trozos y
+  // se corta en cuanto se pasa del tope.
+  const control = new AbortController();
+  const reloj = setTimeout(() => control.abort(), ICONO_TIEMPO_MAXIMO_MS);
   try {
-    respuesta = await net.fetch(url, { headers: { Accept: 'image/*' } });
+    const respuesta = await net.fetch(url, {
+      headers: { Accept: 'image/*' },
+      signal: control.signal
+    });
+    if (!respuesta.ok) return '';
+
+    const tipo = respuesta.headers.get('content-type') || '';
+    if (!esTipoDeIcono(tipo)) return '';
+    // El `content-length` se mira antes de leer nada, cuando viene. Cuando no viene, el tope se
+    // aplica sobre lo ya leido, en el bucle de abajo.
+    if (!esTamanoAdmisible(respuesta.headers.get('content-length'))) return '';
+
+    const trozos = [];
+    let total = 0;
+    const lector = respuesta.body.getReader();
+    for (;;) {
+      const parte = await lector.read();
+      if (parte.done) break;
+      total += parte.value.byteLength;
+      if (total > ICONO_MAXIMO_BYTES) {
+        try { await lector.cancel(); } catch { /* ya se cancelo */ }
+        return '';
+      }
+      trozos.push(Buffer.from(parte.value));
+    }
+    if (!esIconoAdmisible(tipo, total)) return '';
+
+    const limpio = tipoDeImagen(tipo);
+    const dataUrl = `data:${limpio};base64,${Buffer.concat(trozos).toString('base64')}`;
+    cacheDeIconos.set(url, dataUrl);
+    return dataUrl;
   } catch {
+    // Sin red, con tiempo agotado, con una respuesta mal formada: el icono se queda sin poner y la
+    // pestaña muestra su globo. Ninguna de esas cosas puede romper el arranque.
     return '';
+  } finally {
+    clearTimeout(reloj);
   }
-  if (!respuesta.ok) return '';
-  const tipo = respuesta.headers.get('content-type') || '';
-  const cuerpo = await respuesta.arrayBuffer().catch(() => null);
-  if (!cuerpo) return '';
-  if (!esIconoAdmisible(tipo, cuerpo.byteLength)) return '';
-  const limpio = tipo.split(';')[0].trim();
-  const dataUrl = `data:${limpio};base64,${Buffer.from(cuerpo).toString('base64')}`;
-  cacheDeIconos.set(url, dataUrl);
-  return dataUrl;
 }
 
 const MAX_VENTANAS_EMERGENTES = 6;
@@ -1832,7 +1860,10 @@ ipcMain.on('instancia:rueda', (event, datos) => {
 
 // El modo de apertura de una pantalla, que se guarda para poder responder de inmediato cuando
 // esa peticion llegue. Se valida la particion con el mismo criterio que el resto: si no es de una
-// instancia, no se guarda nada.
+// El icono de una pantalla. Lo pide el renderer cuando el preload de la instancia ha leido el
+// `<link rel~="icon">` de la pagina. Devuelve `data:` y no una direccion porque la CSP del launcher no
+// deja meter imagenes remotas en su pagina; la regla de que se admite esta en `iconos-comunes.js`,
+// que es donde una prueba la puede ejecutar.
 ipcMain.handle('instancia:icono', async (event, url) => {
   assertMainWindowSender(event);
   const limpio = String(url || '').slice(0, 2000);
@@ -1842,6 +1873,9 @@ ipcMain.handle('instancia:icono', async (event, url) => {
   return dataUrl ? { ok: true, dataUrl } : { ok: false, error: 'Esa web no tiene icono.' };
 });
 
+// El modo de apertura de una pantalla, que se guarda para poder responder de inmediato cuando
+// esa peticion llegue. Se valida la particion con el mismo criterio que el resto: si no es de una
+// instancia, no se guarda nada.
 ipcMain.handle('instancia:apertura', (event, datos) => {
   assertMainWindowSender(event);
   const particion = String((datos && datos.particion) || '');

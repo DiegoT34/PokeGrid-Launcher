@@ -94,6 +94,10 @@ const styles = fs.readFileSync(path.join(TEMP, 'src', 'styles.css'), 'utf8');
 const html = fs.readFileSync(path.join(TEMP, 'src', 'index.html'), 'utf8');
 const mainProceso = fs.readFileSync(path.join(TEMP, 'src', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(TEMP, 'src', 'preload.js'), 'utf8');
+// La regla del icono vive en su propio fichero para que una prueba la pueda EJECUTAR. Si este
+// `readFileSync` falla, el verificador para aqui y el paquete queda sin comprobar: es preferible a
+// seguir comprobando contra un fichero que no se ha leido.
+const iconosComunes = fs.readFileSync(path.join(TEMP, 'src', 'iconos-comunes.js'), 'utf8');
 
 const TEXTOS = [
   ['Líder equipado', /leaderEyebrow\.textContent = leader \? 'Líder equipado' : 'Líder sin detectar';/, renderer],
@@ -472,8 +476,7 @@ const VISTA_INSTANCIAS = [
   ['el manejador de apertura es SINCRONO, porque Electron trata una promesa como un deny', /contents\.setWindowOpenHandler\(\(\{ url, features \}\) => \{/.test(mainCodigo) && !/setWindowOpenHandler\(async/.test(mainCodigo)],
   ['y no se pregunta nada al abrir: el modo se guarda antes, al crear la pantalla', /const aperturaDeParticion = new Map\(\)/.test(mainCodigo) && /ipcMain\.handle\('instancia:apertura'/.test(mainCodigo) && !/preguntarModoDeApertura/.test(mainCodigo)],
   ['y lo que no se conoce cae a ventana, que es lo que se hacia siempre', /aperturaDeParticion\.get\(particion\) \|\| 'ventana'/.test(mainCodigo)],
-  ['el aviso se ve en la franja, no solo en una variable', /panel\.botonAviso\.textContent = texto;/.test(renderer) && /\.browser-instance-aviso \{/.test(styles)],
-  ['y una instancia de navegador puede no tener enlace', /if \(opciones\.modo !== 'navegador'\) throw error;/.test(renderer)],
+  ['el aviso de «no caben mas pantallas» se ve en la franja, no solo en una variable', /panel\.botonAviso\.textContent = texto;/.test(renderer) && /\.browser-instance-aviso \{/.test(styles) && /function quitarAvisoDePanel/.test(renderer)],  ['y una instancia de navegador puede no tener enlace', /if \(opciones\.modo !== 'navegador'\) throw error;/.test(renderer)],
   ['los dos modos, y lo viejo se traduce al leerlo', /MODOS_DE_INSTANCIA = Object\.freeze/.test(renderer) && /opciones\.navegador \? 'navegador' : MODO_POR_DEFECTO/.test(renderer) && /function esModoNavegador/.test(renderer)],
   ['el modal pregunta el modo y solo pide enlace si es modo instancia', /id="browserInstanceMode"/.test(html) && /browserInstanceUrl\.required = conUrl;/.test(renderer) && !/id="browserInstanceBuscador"/.test(html) && !/id="browserInstanceApertura"/.test(html)],
   ['el motor y el reparto se editan en los ajustes, con selector de instancia', /id="instanceSettingsTarget"/.test(html) && /id="instanceSettingsSearch"/.test(html) && /id="instanceSettingsLinks"/.test(html) && /instanceSettingsSearchField\.hidden = !enNavegador;/.test(renderer)],
@@ -481,9 +484,16 @@ const VISTA_INSTANCIAS = [
   ['el engranaje de ajustes esta en el menu principal y no en la barra de pestanas', (html.match(/id="instanceSettingsButton"/g) || []).length === 1 && /id="globalActions"[\s\S]{0,4000}id="instanceSettingsButton"/.test(html)],
   ['de la cabecera solo queda el logo, con nombre accesible', !/brandSessionCount/.test(html) && !/<strong>IDLE POKE LAUNCHER<\/strong>/.test(html) && /class="brand" aria-label="IDLE POKE LAUNCHER"/.test(html)],
   ['el icono llega como data:, porque la CSP no deja meter imagenes remotas', /ipcMain\.handle\('instancia:icono'/.test(mainCodigo) && /const dataUrl = `data:\$\{limpio\};base64,/.test(mainCodigo)],
-  ['y solo se acepta lo que el navegador pinta y no pasa de 256 KB', /const ICONO_MAXIMO_BYTES = 256 \* 1024/.test(mainCodigo) && /function esIconoAdmisible/.test(mainCodigo) && !/image\/svg\+xml/.test(mainCodigo)],
+  ['y solo se acepta lo que el navegador pinta y no pasa de 256 KB', /const ICONO_MAXIMO_BYTES = 256 \* 1024/.test(iconosComunes) && /function esIconoAdmisible/.test(iconosComunes) && !/image\/svg\+xml/.test(iconosComunes)],
+  ['la regla del icono se ejecuta desde el proceso principal, no esta declarada en un sitio muerto', /module\.exports = \{[\s\S]{0,300}esIconoAdmisible/.test(iconosComunes) && /require\('\.\/iconos-comunes'\)/.test(mainCodigo)],
+  ['el tope se mira ANTES de leer el cuerpo, no despues', /esTamanoAdmisible\(respuesta\.headers\.get\('content-length'\)\)/.test(mainCodigo) && /total > ICONO_MAXIMO_BYTES/.test(mainCodigo) && /ICONO_TIEMPO_MAXIMO_MS/.test(mainCodigo)],
+  ['el oyente del icono se engancha al crear la pantalla, que es antes de que el invitado hable', /if \(!urlDePartida\) pedirIconoDeWebview\(panel\);/.test(renderer) && /if \(panel\.oyEscuchaElIcono\) return;/.test(renderer)],
+  ['recordar la pagina NO depende de que la pantalla tenga barra: se llama al navegar', /onNavigate: async \(event\) => \{[\s\S]{0,600}recordarPaginaDelPanel\(panel\);/.test(renderer) && /function recordarPaginaDelPanel\(panel\)/.test(renderer)],
+  ['y guardar NO esta dentro de pintarBarraDeNavegacion, que sale enseguida si no hay barra', /function pintarBarraDeNavegacion\(panel\) \{\r?\n  if \(!panel \|\| !panel\.campoDireccion\) return;[\s\S]{0,400}?actualizarEstadoDeHistorial\(panel\);\r?\n\}/.test(renderer)],
+  ['el recorte por pagina caducada ignora los iframes: un anuncio caido no tira la pantalla', /webview\.addEventListener\('did-fail-load', \(evento\) => \{[\s\S]{0,700}?if \(evento\?\.isMainFrame === false\) return;/.test(renderer) && /Number\(evento\?\.errorCode\) === -3/.test(renderer)],
+  ['las flechas se enganchan una vez al arrancar, no en cada redibujado de las pestanas', /function conectarFlechasDePestanas\(\)/.test(renderer) && /conectarFlechasDePestanas\(\);/.test(renderer) && !/updateBrowserInstanceSelection\(\);[\s\S]{0,200}instanceTabsBack\?\.addEventListener/.test(renderer)],
   ['el aviso de «no caben mas pantallas» se ve en la franja, no solo en una variable', /panel\.botonAviso\.textContent = texto;/.test(renderer) && /\.browser-instance-aviso \{/.test(styles) && /function quitarAvisoDePanel/.test(renderer)],
-  ['el reanudar es por instancia Y por pantalla, y solo lo recuerdan las originales', /function ultimaPaginaDe\(instanceId, indice\)/.test(renderer) && /recordarUltimaPagina\(panel\.instanceId, panel\.instanceIndex/.test(renderer) && /panel\.origen !== 'enlace'/.test(renderer)],
+  ['el reanudar es por instancia Y por pantalla, y solo lo recuerdan las originales', /function ultimaPaginaDe\(instanceId, indice\)/.test(renderer) && /recordarUltimaPagina\(panel\.instanceId, panel\.instanceIndex/.test(renderer) && /function recordarPaginaDelPanel\(panel\) \{[\s\S]{0,300}panel\.origen === 'enlace'/.test(renderer)],
   ['y el recorte por pagina caducada cae una sola vez, que si no rebota', /panel\.caidaPorPaginaMuerta = true;/.test(renderer) && /olvidarUltimaPagina\(instance\.id, index\)/.test(renderer)],
   ['las flechas solo cuando sobra algo que ver, y en los dos extremos se apagan', /instanceTabs\.scrollWidth - instanceTabs\.clientWidth/.test(renderer) && /instanceTabsBack\.hidden = sobra <= 1 \|\| alPrincipio;/.test(renderer) && /instanceTabsForward\.hidden = sobra <= 1 \|\| alFinal;/.test(renderer)],
   ['el inicio guardado se lee al arrancar', /return instance\.inicio \|\| BUSCADORES\[instance\.buscador\]/.test(renderer) && /const partida = urlDePartida \|\| ultimaPaginaDe\(instance\.id, index\) \|\| inicioDeInstancia\(instance\);/.test(renderer)],

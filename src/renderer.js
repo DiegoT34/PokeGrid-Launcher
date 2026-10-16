@@ -8589,13 +8589,21 @@ function pintarIconoDeInstancia(instanceId, hueco) {
 // la imagen al proceso principal y se guarda en el mapa para las siguientes.
 function pedirIconoDeWebview(panel) {
   if (!panel?.webview) return;
+  // UNA vez por pantalla, y al crearla. Se enganchaba en el dom-ready, que es cuando ya hay id para
+  // el mapa, pero el preload del invitado avisa en su DOMContentLoaded: dos viajes distintos y nada
+  // que garantice que el del invitado llega despues. Si perdia esa carrera, la instancia se quedaba
+  // sin icono hasta que se navegara a otro sitio y se volviera. Al crearla no hay carrera: el
+  // elemento existe antes de que el invitado pueda hablar.
+  if (panel.oyEscuchaElIcono) return;
+  panel.oyEscuchaElIcono = true;
   const instanceId = panel.instanceId;
-  if (iconosDeInstancia.has(instanceId)) return;
   if (typeof window.pokeGrid?.descargarIcono !== 'function') return;
   const alRecibir = (evento) => {
     if (evento.channel !== 'instancia:favicon') return;
     const url = evento.args?.[0]?.url;
     if (!url) return;
+    // Si ya hay icono de esta instancia se ignora: se ha pedido al navegar, no al montar.
+    if (iconosDeInstancia.has(instanceId)) return;
     window.pokeGrid.descargarIcono(url).then((respuesta) => {
       if (!respuesta?.ok || !respuesta.dataUrl) return;
       iconosDeInstancia.set(instanceId, respuesta.dataUrl);
@@ -8623,22 +8631,16 @@ function desplazarPestanas(paso) {
   else instanceTabs.scrollLeft += salto;
 }
 
-// Las flechas solo aparecen cuando hay algo que desplazar. Con cuatro o menos —el caso normal—
-// no se ven: dos botones apagados al lado de las pestañas son ruido que ocupa sitio y no dice
-// nada. Y la de un lado se apaga cuando ya estas en ese extremo, que es lo que hace una barra
-// de desplazamiento de verdad y no un par de flechas que nunca hacen nada.
-function actualizarFlechasDePestanas() {
-  const sobra = instanceTabs.scrollWidth - instanceTabs.clientWidth;
-  const alPrincipio = instanceTabs.scrollLeft <= 1;
-  const alFinal = instanceTabs.scrollLeft >= sobra - 1;
-  instanceTabsBack.hidden = sobra <= 1 || alPrincipio;
-  instanceTabsForward.hidden = sobra <= 1 || alFinal;
-}
-
-function desplazarPestanas(paso) {
-  const salto = paso * Math.max(120, instanceTabs.clientWidth * 0.7);
-  if (typeof instanceTabs.scrollBy === 'function') instanceTabs.scrollBy({ left: salto, behavior: 'smooth' });
-  else instanceTabs.scrollLeft += salto;
+// Las flechas viven en botones que existen toda la vida de la pagina, asi que su oyente se engancha
+// UNA vez y aqui, no en cada redibujado de las pestanas: renderBrowserInstanceTabs se llama cada vez
+// que se crea o se quita una instancia y cada vez que se guarda un ajuste, y un oyente nuevo con
+// cada redibujado hacia que un solo clic en «‹» desplazase varias pestanas a la vez. `scroll` y
+// `resize` si se pueden repetir sin daño: la misma función no se registra dos veces.
+function conectarFlechasDePestanas() {
+  instanceTabsBack?.addEventListener('click', () => desplazarPestanas(-1));
+  instanceTabsForward?.addEventListener('click', () => desplazarPestanas(1));
+  instanceTabs.addEventListener('scroll', actualizarFlechasDePestanas, { passive: true });
+  window.addEventListener('resize', actualizarFlechasDePestanas);
 }
 
 function renderBrowserInstanceTabs() {
@@ -8687,10 +8689,6 @@ function renderBrowserInstanceTabs() {
   // instancia no deje la cuenta a medias.
   renderDynamicAccountLabels();
   updateBrowserInstanceSelection();
-  instanceTabsBack?.addEventListener('click', () => desplazarPestanas(-1));
-  instanceTabsForward?.addEventListener('click', () => desplazarPestanas(1));
-  instanceTabs.addEventListener('scroll', actualizarFlechasDePestanas, { passive: true });
-  window.addEventListener('resize', actualizarFlechasDePestanas);
   // El ancho de la lista no se sabe hasta que el navegador ha repartido: pedirlo en el mismo
   // frame en el que se acaban de crear las pestanas daria el ancho viejo, y las flechas
   // aparecerian tarde o no aparecerian.
@@ -8725,11 +8723,8 @@ function registrarPanelEnMapa(panel) {
     const id = panel.webview?.getWebContentsId?.();
     if (!id) return false;
     panelesPorWebContentsId.set(id, panel);
-    // El icono se pide aqui y no al crear el panel, porque es aqui cuando la webview ya tiene
-    // id y cuando el preload puede haber leido el <link>. Y solo para las pantallas originales:
-    // una de enlace se recicla, y el icono de un enlace que se abrio un momento no describe la
-    // instancia.
-    if (panel.origen !== 'enlace') pedirIconoDeWebview(panel);
+    // El icono no se pide aqui: se engancha su oyente al crear la pantalla, que es antes de que el
+    // invitado pueda avisar. Aqui solo hacen falta las cosas que necesitan id.
     return true;
   } catch {
     return false;
@@ -8810,13 +8805,21 @@ function pintarBarraDeNavegacion(panel) {
     panel.campoDireccion.value = webviewCurrentUrl(panel) || panel.destinoActual || '';
   }
   actualizarEstadoDeHistorial(panel);
-  // Solo las pantallas originales. Una de enlace se recicla, y si guardara su direccion, la
-  // original perderia la suya al reiniciar. Y es panel.instanceIndex y no panel.index porque
-  // el segundo solo lo tienen algunos paneles.
-  if (panel.origen !== 'enlace' && Number.isInteger(Number(panel.instanceIndex))) {
-    const actual = webviewCurrentUrl(panel);
-    if (actual) recordarUltimaPagina(panel.instanceId, panel.instanceIndex, actual);
-  }
+}
+
+// Donde se quedo ESTA pantalla. Vive FUERA de pintarBarraDeNavegacion, y no por gusto: esa funcion
+// sale en la primera linea si el panel no tiene campo de direccion, y el campo solo existe en modo
+// navegador. Guardando desde ahi, en modo instancia —que es el de fabrica— no se guardaba nada, y
+// la funcion titular no funcionar en el modo por defecto.
+//
+// Solo las pantallas originales. Una de enlace se recicla, y si guardara su direccion, la original
+// perderia la suya al reiniciar. Y es panel.instanceIndex y no panel.index porque el segundo solo lo
+// tienen algunos paneles.
+function recordarPaginaDelPanel(panel) {
+  if (!panel || panel.origen === 'enlace') return;
+  if (!Number.isInteger(Number(panel.instanceIndex))) return;
+  const actual = webviewCurrentUrl(panel);
+  if (actual) recordarUltimaPagina(panel.instanceId, panel.instanceIndex, actual);
 }
 
 // Al escribir una direccion, esa pasa a ser el inicio de la instancia y se guarda. Se declara
@@ -9120,12 +9123,12 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
   const particionDelPanel = particionDePartida || browserInstancePartition(instance.id, index);
-webview.setAttribute('partition', particionDelPanel);
-// El modo de apertura se manda ANTES de que la webview cargue nada. El proceso principal lo
-// necesita de antemano: el manejador de apertura tiene que responder en el momento y no puede
-// preguntar a nadie, porque Electron trata una respuesta asincrona como un `deny` —y sin ventana
-// emergente se quedan muertos los inicios de sesion y las pasarelas, sin avisar de nada—.
-window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || APERTURA_POR_DEFECTO)
+  webview.setAttribute('partition', particionDelPanel);
+  // El modo de apertura se manda ANTES de que la webview cargue nada. El proceso principal lo
+  // necesita de antemano: el manejador de apertura tiene que responder en el momento y no puede
+  // preguntar a nadie, porque Electron trata una respuesta asincrona como un `deny` —y sin ventana
+  // emergente se quedan muertos los inicios de sesion y las pasarelas, sin avisar de nada—.
+  window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || APERTURA_POR_DEFECTO);
   webview.setAttribute('src', 'about:blank');
   // 'true' NO abre ventanas: solo hace que la peticion de apertura llegue al manejador del proceso
   // principal, que es quien decide —y deniega, salvo las emergentes que el usuario ha permitido—.
@@ -9166,13 +9169,26 @@ window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || A
     isLoading: false,
     destroyed: false
   };
+  // El oyente del icono se engancha aqui, al crearse la pantalla y con el panel ya construido,
+  // para que este escuchando antes de que la pagina tenga nada que decir. Solo en las originales:
+  // una pantalla de enlace se recicla, y el icono de un enlace que se abrio un momento no describe
+  // la instancia.
+  if (!urlDePartida) pedirIconoDeWebview(panel);
+
   // Si la pagina guardada ya no carga, esta pantalla cae a la de su instancia y la direccion mala
   // se olvida, para que no lo intente otra vez en cada arranque. Perder una pantalla por una
   // direccion caducada seria peor que empezar de nuevo.
   //
   // Se registra AQUI, una vez por panel, y no dentro de loadConnectionPanel: esa se llama en
   // cada carga y acumularia escuchas que la primera caida dispararia todas a la vez.
-  webview.addEventListener('did-fail-load', () => {
+  webview.addEventListener('did-fail-load', (evento) => {
+    // `did-fail-load` salta POR MARCO, no por pantalla. Sin esta comprobacion, un anuncio que no
+    // carga, un tracker con el servidor caido o un video embebido en un host muerto echarian la
+    // pantalla entera de vuelta al inicio y se llevarian por delante la pagina recordada. Es el
+    // mismo criterio que usa el manejador de recuperacion de mas abajo.
+    if (evento?.isMainFrame === false) return;
+    // -3 es ERR_ABORTED: no es que la pagina no cargue, es que se cancelo la carga. Tampoco es.
+    if (Number(evento?.errorCode) === -3) return;
     if (panel.origen === 'enlace') return;
     const guardada = ultimaPaginaDe(instance.id, index);
     if (!guardada) return;
@@ -9202,6 +9218,9 @@ window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || A
       // al ir a otra pagina cambia la direccion y cambian los botones de atras y adelante.
       pintarBarraDeNavegacion(panel);
       quitarAvisoDePanel(panel);
+      // Y se recuerda la pagina. Va aqui y no dentro de pintarBarraDeNavegacion porque esa sale
+      // enseguida si el panel no tiene barra, y en modo instancia no la tiene.
+      recordarPaginaDelPanel(panel);
     }
   });
   // El inicio va a donde toca la instancia: el buscador si es de estilo navegador, su direccion
@@ -9693,6 +9712,7 @@ function closeBrowserInstanceModal() {
   browserInstanceMessage.textContent = '';
 }
 function initializeBrowserInstances() {
+  conectarFlechasDePestanas();
   browserInstances = loadBrowserInstances();
   browserInstanceViews.set(PRIMARY_BROWSER_INSTANCE_ID, { workspace: grid, panels });
   browserInstances.forEach((instance, ordinal) => createBrowserInstanceWorkspace(instance, ordinal));

@@ -176,6 +176,81 @@ app.whenReady().then(async () => {
       comprobar(conCaida.caidaUnaSolaVez,
         'y la caída pasa una sola vez: si la URL de la instancia tampoco carga, no se rebota');
     }
+// --- Lo que encontró la revisión de rama ------------------------------------------
+    console.log('\n--- lo que encontró la revisión de rama ---');
+    // La revisión encontró que la memoria se guardaba DENTRO de pintarBarraDeNavegacion, que
+    // sale enseguida si el panel no tiene campo de dirección. Y el campo de dirección solo existe
+    // en modo navegador. O sea: en modo instancia —que es el de fábrica y el de cuatro cuentas del
+    // mismo juego— no se guardaba NADA. La función titular no funcione en el modo por defecto.
+    //
+    // Y el recorte por página caducada escuchaba cualquier fallo de carga, incluidos los de los
+    // iframes: un anuncio que no carga habría tirado la pantalla entera de vuelta al inicio.
+    const encontrado = await ventana.webContents.executeJavaScript(`(async () => {
+      const salida = {};
+
+      // 1. En modo instancia, que es el de fábrica.
+      const panel = browserInstanceViews.get('re-una').panels[0];
+      panel.lastUrl = 'https://ejemplo.invalid/juego-profundo';
+      olvidarUltimaPagina('re-una', 0);
+      recordarPaginaDelPanel(panel);
+      salida.modInstancia = ultimaPaginaDe('re-una', 0);
+
+      // Y lo mismo en modo navegador, para que los dos sirvan igual.
+      const conBarra = createBrowserInstanceWorkspace({
+        id: 're-navegador', name: 'Nav', url: 'https://ejemplo.invalid/', count: 1,
+        modo: 'navegador', buscador: 'ddg', inicio: '', apertura: 'auto'
+      }, 7);
+      const panelBarra = conBarra.panels[0];
+      panelBarra.lastUrl = 'https://ejemplo.invalid/en-modo-navegador';
+      olvidarUltimaPagina('re-navegador', 0);
+      recordarPaginaDelPanel(panelBarra);
+      salida.modNavegador = ultimaPaginaDe('re-navegador', 0);
+
+      // 2. Un iframe que falla NO es la pantalla entera fallando.
+      const muerta = 'https://no-existe.example/anuncio';
+      recordarUltimaPagina('re-sub', 0, muerta);
+      const delSub = createBrowserInstanceWorkspace({
+        id: 're-sub', name: 'Sub', url: 'https://ejemplo.invalid/', count: 1,
+        modo: 'instancia', buscador: 'ddg', inicio: '', apertura: 'auto'
+      }, 8);
+      const panelSub = delSub.panels[0];
+      const deSub = new Event('did-fail-load');
+      deSub.isMainFrame = false;
+      panelSub.webview.dispatchEvent(deSub);
+      await new Promise((r) => setTimeout(r, 200));
+      salida.trasSubFrame = ultimaPaginaDe('re-sub', 0);
+      salida.caidaTrasSubFrame = panelSub.caidaPorPaginaMuerta === true;
+
+      // 3. Pero la pantalla principal sí.
+      const dePrincipal = new Event('did-fail-load');
+      dePrincipal.isMainFrame = true;
+      panelSub.webview.dispatchEvent(dePrincipal);
+      await new Promise((r) => setTimeout(r, 300));
+      salida.trasPrincipal = ultimaPaginaDe('re-sub', 0);
+      salida.caidaTrasPrincipal = panelSub.caidaPorPaginaMuerta === true;
+      return salida;
+    })()`).catch((e) => {
+      console.log(`\nFALLO: ${e && e.message ? e.message : e}`);
+      fallos.push('excepción al comprobar lo de la revisión');
+      return null;
+    });
+
+    if (encontrado) {
+      comprobar(encontrado.modInstancia === 'https://ejemplo.invalid/juego-profundo',
+        'en modo instancia también se recuerda la página, que es el modo de fábrica',
+        encontrado.modInstancia);
+      comprobar(encontrado.modNavegador === 'https://ejemplo.invalid/en-modo-navegador',
+        'y en modo navegador igual: los dos modos se guardan por el mismo sitio',
+        encontrado.modNavegador);
+      comprobar(encontrado.trasSubFrame === 'https://no-existe.example/anuncio'
+        && encontrado.caidaTrasSubFrame === false,
+        'un iframe que falla no echa la pantalla: un anuncio que no carga no puede tirar la página',
+        JSON.stringify({ queda: encontrado.trasSubFrame, cayo: encontrado.caidaTrasSubFrame }));
+      comprobar(encontrado.trasPrincipal === '' && encontrado.caidaTrasPrincipal === true,
+        'pero si falla la pantalla principal, sí cae a la de su instancia',
+        JSON.stringify({ queda: encontrado.trasPrincipal, cayo: encontrado.caidaTrasPrincipal }));
+    }
+
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);
     fallos.push('excepción');

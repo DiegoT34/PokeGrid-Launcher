@@ -32,6 +32,8 @@ process.env.POKEGRID_DIAGNOSTIC_USER_DATA = userDataDir;
 
 require('../src/main.js');
 const { app, BrowserWindow } = electronApi;
+// La regla del icono se ejecuta, no se lee. Vive en su propio fichero para eso.
+const iconosComunes = require('../src/iconos-comunes.js');
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 const fallos = [];
@@ -81,16 +83,53 @@ app.whenReady().then(async () => {
         JSON.stringify({ vacio: canal.vacio, sinResolver: canal.sinResolver }));
     }
 
-    // La regla de qué se descarga, leída del código. Es una comprobación de que la regla EXISTE y
-    // dice lo que tiene que decir, no de que el navegador la cumpla: para eso haría falta una
-    // página que sirviera cada formato, y eso no se puede montar aquí sin montar un servidor con
-    // certificados.
-    const fuenteMain = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
-    comprobar(/const ICONO_MAXIMO_BYTES = 256 \* 1024/.test(fuenteMain)
-      && /'image\/png'/.test(fuenteMain) && /'image\/x-icon'/.test(fuenteMain),
-      'la regla de qué se descarga está escrita con los tipos correctos y el tope de 256 KB');
-    comprobar(!/image\/svg\+xml/.test(fuenteMain),
+    // La regla de qué se descarga, EJECUTADA. Está en `src/iconos-comunes.js` y se llama tal cual, con
+    // la tabla completa, porque es lo que decide qué llega a la pestaña.
+    //
+    // Antes esto era un `grep` del texto en `src/main.js`, que pasa igual de contento si la función
+    // desaparece y las constantes se quedan en un comentario. Un `grep` sobre un texto no prueba un
+    // comportamiento; es lo único que hay que no decirse nunca.
+    const FORMATOS = [
+      { tipo: 'image/png', bytes: 1024, ok: true },
+      { tipo: 'image/x-icon', bytes: 4096, ok: true },
+      { tipo: 'image/vnd.microsoft.icon', bytes: 200, ok: true },
+      { tipo: 'image/gif', bytes: 64, ok: true },
+      { tipo: 'image/webp', bytes: 300, ok: true },
+      { tipo: 'image/jpeg', bytes: 300, ok: true },
+      // Con parametros, que es como lo mandan algunos servidores.
+      { tipo: 'image/png; charset=binary', bytes: 100, ok: true },
+      // Un SVG es un documento con scripts, no un icono.
+      { tipo: 'image/svg+xml', bytes: 200, ok: false },
+      { tipo: 'text/html', bytes: 200, ok: false },
+      { tipo: 'text/html; charset=utf-8', bytes: 200, ok: false },
+      { tipo: '', bytes: 200, ok: false },
+      { tipo: null, bytes: 200, ok: false },
+      // El tope de 256 KB, por arriba y por abajo.
+      { tipo: 'image/png', bytes: 256 * 1024, ok: true },
+      { tipo: 'image/png', bytes: 256 * 1024 + 1, ok: false },
+      { tipo: 'image/png', bytes: 2 * 1024 * 1024, ok: false },
+      { tipo: 'image/png', bytes: 0, ok: false },
+      { tipo: 'image/png', bytes: -1, ok: false },
+      { tipo: 'image/png', bytes: 12.5, ok: false }
+    ];
+    const decisiones = FORMATOS.map((c) => ({
+      ...c,
+      obtenido: iconosComunes.esIconoAdmisible(c.tipo, c.bytes)
+    }));
+    comprobar(decisiones.every((c) => c.obtenido === c.ok),
+      'se acepta lo que el navegador pinta y no pasa de 256 KB, y nada más',
+      decisiones.filter((c) => c.obtenido !== c.ok).map((c) => `${c.tipo}/${c.bytes}`).join(' '));
+    comprobar(decisiones.find((c) => c.tipo === 'image/svg+xml')?.obtenido === false,
       'un SVG no vale: es un documento con scripts, no un icono');
+    comprobar(decisiones.find((c) => c.bytes === 2 * 1024 * 1024)?.obtenido === false,
+      'y uno de dos megas tampoco, que es lo que decide antes de descargar el cuerpo entero');
+    comprobar(iconosComunes.esTamanoAdmisible('') && iconosComunes.esTamanoAdmisible('1000'),
+      'un content-length ausente o pequeño no se descarta por la cabeza: se lee con tope',
+      `${iconosComunes.esTamanoAdmisible('')} / ${iconosComunes.esTamanoAdmisible('1000')}`);
+    comprobar(iconosComunes.esTamanoAdmisible(String(300 * 1024 * 1024)) === false,
+      'pero uno enorme se descarta sin leer ni un byte');
+    comprobar(iconosComunes.tipoDeImagen('image/png; charset=binary') === 'image/png',
+      'y los parametros del content-type no cuentan para decidir');
 
     console.log('\n--- el preload avisa del icono ---');
     const pre = fs.readFileSync(path.join(__dirname, '..', 'src', 'instancia-rueda-preload.js'), 'utf8');
@@ -145,7 +184,7 @@ app.whenReady().then(async () => {
         JSON.stringify(icono));
       comprobar(icono.imagenTrasPintar && icono.srcTrasPintar.startsWith('data:image/'),
         'y con icono muestra la imagen que le llega', JSON.stringify(icono));
-      comprobar(icono.vuelveAlGlobo && !icono.cajaRortaFuera,
+      comprobar(icono.vuelveAlGlobo && icono.cajaRotaFuera === false,
         'sin icono vuelve al globo, no a una imagen rota que ocupa el sitio y no dice nada',
         JSON.stringify(icono));
       comprobar(icono.primaryIntacto,
