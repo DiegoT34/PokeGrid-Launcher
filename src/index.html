@@ -28,7 +28,7 @@
         <button id="instanceTabsBack" class="instance-tabs-scroll" type="button" aria-label="Pestañas anteriores" title="Pestañas anteriores" hidden>&lsaquo;</button>
         <div id="instanceTabs" class="instance-tabs" role="tablist" aria-label="Juegos abiertos"></div>
         <button id="instanceTabsForward" class="instance-tabs-scroll" type="button" aria-label="Pestañas siguientes" title="Pestañas siguientes" hidden>&rsaquo;</button>
-        <button id="addBrowserInstanceButton" class="instance-add-button" type="button" aria-label="Agregar instancia de navegador" title="Agregar otro juego">+</button>
+        <button id="addBrowserInstanceButton" class="instance-add-button" type="button" aria-label="Nueva pestaña" title="Nueva pestaña">+</button>
       </div>
 
       <button id="topbarCollapseButton" class="topbar-collapse-button" type="button" aria-expanded="true" aria-label="Ocultar barra superior" title="Ocultar barra superior">&#8963;</button>
@@ -121,18 +121,32 @@
         <header class="modal-heading">
           <div>
             <span class="eyebrow">NAVEGADOR MULTIINSTANCIA</span>
-            <h1 id="browserInstanceTitle">Agregar otro juego</h1>
+            <h1 id="browserInstanceTitle">Nueva pesta&ntilde;a</h1>
           </div>
           <button id="closeBrowserInstanceButton" class="icon-button" type="button" aria-label="Cerrar">&times;</button>
         </header>
-        <p class="modal-copy">Cada pantalla conserva cookies, sesi&oacute;n y datos en una partici&oacute;n independiente. Las instancias guardadas vuelven a iniciarse autom&aacute;ticamente con el launcher.</p>
+
         <form id="browserInstanceForm" class="browser-instance-form">
-          <label class="field">
-            <span>NOMBRE DE LA INSTANCIA</span>
-            <input id="browserInstanceName" maxlength="48" required placeholder="Ej. Otro juego">
+          <!-- El modo, primero y con dos botones. Es la unica decision que cambia el resto del
+               formulario, asi que va arriba y no al final. -->
+          <div class="browser-instance-modo" role="radiogroup" aria-label="Qu&eacute; quieres abrir">
+            <button id="browserInstanceModeInstancia" class="modo-opcion is-elegido" type="button" role="radio" aria-checked="true" data-modo="instancia">
+              <strong>Un juego</strong>
+              <small>Una direcci&oacute;n fija. Todas sus pantallas abren esa misma p&aacute;gina, cada una con su sesi&oacute;n.</small>
+            </button>
+            <button id="browserInstanceModeNavegador" class="modo-opcion" type="button" role="radio" aria-checked="false" data-modo="navegador">
+              <strong>Un navegador</strong>
+              <small>Navegaci&oacute;n normal, con barra y buscador. El nombre lo pone la p&aacute;gina en la que est&eacute;s.</small>
+            </button>
+          </div>
+          <!-- El valor del modo vive aqui. Los dos botones de arriba solo lo escriben y avisan. -->
+          <input type="hidden" id="browserInstanceMode" value="instancia">
+          <label class="field browser-instance-name-field">
+            <span>NOMBRE</span>
+            <input id="browserInstanceName" maxlength="48" required placeholder="Ej. Poke Idle World">
           </label>
           <label class="field browser-instance-url-field">
-            <span>ENLACE HTTPS DEL JUEGO</span>
+            <span>DIRECCI&Oacute;N <small class="field-opcional">(en navegador, opcional)</small></span>
             <input id="browserInstanceUrl" type="url" maxlength="1000" required inputmode="url" placeholder="https://juego.example/">
           </label>
           <label class="field">
@@ -144,13 +158,6 @@
               <option value="4" selected>4 pantallas</option>
               <option value="5">5 pantallas</option>
               <option value="6">6 pantallas</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>MODO</span>
-            <select id="browserInstanceMode">
-              <option value="instancia" selected>Instancia: una URL, todas sus pantallas igual</option>
-              <option value="navegador">Navegador: navegaci&oacute;n normal, con barra</option>
             </select>
           </label>
           <p id="browserInstanceMessage" class="modal-message" role="status"></p>

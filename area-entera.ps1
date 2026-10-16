@@ -1,4 +1,4 @@
-# Corre el area entera de la entrega, en orden, sin saltarse nada.
+﻿# Corre el area entera de la entrega, en orden, sin saltarse nada.
 #
 # LA REGLA
 #
@@ -24,9 +24,11 @@ $pruebas = @(
   @{ nombre = 'instancia-ajustes';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-ajustes-smoke.js');      espera = 90 },
   @{ nombre = 'instancia-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pestanas-smoke.js');     espera = 95 },
   @{ nombre = 'instancia-cabecera'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-cabecera-smoke.js');   espera = 100 },
+  @{ nombre = 'instancia-nueva-pestana'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-nueva-pestana-smoke.js'); espera = 100 },
   @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
   @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
-  @{ nombre = 'verificador-paquete';comando = 'verificar-paquete.cjs'; args = @();                              espera = 90 }
+  @{ nombre = 'verificador-paquete';comando = 'verificar-paquete.cjs'; args = @();                              espera = 90 },
+  @{ nombre = 'lo-que-se-entrega';  comando = 'comprobar-entrega.cjs'; args = @();                              espera = 60 }
 )
 
 $fallos = @()
@@ -43,7 +45,7 @@ foreach ($p in $pruebas) {
   Remove-Job $job -Force -ErrorAction SilentlyContinue
   Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   $texto = Get-Content 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-una.txt' -ErrorAction SilentlyContinue
-  # MIRAR, no solo buscar un patron de fallo. Un error de Node —un throw, una excepcion— no lleva
+  # MIRAR, no solo buscar un patron de fallo. Un error de Node â€”un throw, una excepcionâ€” no lleva
   # ninguno de los patrones de abajo, y asi se conto como verde una prueba que en realidad habia
   # reventado por no encontrar el ZIP. Eso es exactamente lo que no hay que hacer: mirar el resultado,
   # no suponerlo por la forma de la salida.
@@ -51,8 +53,8 @@ foreach ($p in $pruebas) {
   $fallo = $texto | Select-String -Pattern '^\s+FALLA|FALLO:|\d+ comprobaciones fallan|comprobaciones fallan:'
   # SIN anclas. Un `^` en PowerShell solo casa al principio del texto entero, y el rastro de un
   # error va en medio: con `^Node.js` esto contou como verde un verificador que habia reventado con
-  # ENOENT. Dos veces seguidas el mismo error mio —dar por bueno un resultado sin mirar lo que
-  # devuelve—, y las dos por una comprobacion mal escrita en vez de por no correr la prueba.
+  # ENOENT. Dos veces seguidas el mismo error mio â€”dar por bueno un resultado sin mirar lo que
+  # devuelveâ€”, y las dos por una comprobacion mal escrita en vez de por no correr la prueba.
   $excepcion = $crudo -match 'Node\.js v\d|ENOENT|CategoryInfo|FullyQualifiedErrorId|^\s*throw |SyntaxError:'
   if ($fallo -or $excepcion) {
     $fallos += $p.nombre
@@ -60,7 +62,7 @@ foreach ($p in $pruebas) {
     if ($fallo) {
       Add-Content -Path $salida -Value ($fallo | Select-Object -First 3 | ForEach-Object { '   ' + $_.Line }) -Encoding utf8
     } else {
-      Add-Content -Path $salida -Value '   (no hay asercion que falle: el comando reventó)' -Encoding utf8
+      Add-Content -Path $salida -Value '   (no hay asercion que falle: el comando reventÃ³)' -Encoding utf8
       Add-Content -Path $salida -Value ('   ' + (($crudo -split "`n" | Where-Object { $_.Trim() } | Select-Object -First 2) -join ' | ')) -Encoding utf8
     }
   } else {
@@ -69,7 +71,7 @@ foreach ($p in $pruebas) {
 }
 
 Add-Content -Path $salida -Value "`n=== RESUMEN ===" -Encoding utf8
-# Se cuenta, no se escribe el numero a mano. Una vez puesto «las nueve» y ya habia diez, que es
+# Se cuenta, no se escribe el numero a mano. Una vez puesto Â«las nueveÂ» y ya habia diez, que es
 # exactamente como un rotulo mal puesto acaba creyendo al que lo lee en vez de a la lista.
 if ($fallos.Count) {
   Add-Content -Path $salida -Value ('fallan ' + $fallos.Count + ' de ' + $pruebas.Count + ': ' + ($fallos -join ', ')) -Encoding utf8

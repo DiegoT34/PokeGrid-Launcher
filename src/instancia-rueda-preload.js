@@ -56,7 +56,7 @@ function avisarDelIcono() {
   } catch {
     return;
   }
-  ipcRenderer.sendToHost('instancia:favicon', { url: absoluta });
+  ipcRenderer.sendToHost('instancia:favicon', { url: absoluta, titulo: document.title });
 }
 
 if (document.readyState === 'loading') {

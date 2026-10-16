@@ -127,6 +127,7 @@ app.whenReady().then(async () => {
       const leer = () => ({
         enlaceOculto: browserInstanceUrlField.hidden,
         enlaceObligatorio: browserInstanceUrl.required,
+        nombreOculto: browserInstanceNameField.hidden,
         hayCampoDeBuscador: Boolean(document.querySelector('#browserInstanceBuscador')),
         hayCampoDeReparto: Boolean(document.querySelector('#browserInstanceApertura'))
       });
@@ -145,11 +146,15 @@ app.whenReady().then(async () => {
     });
 
     if (modal) {
-      comprobar(modal.enNavegador.enlaceOculto && modal.enNavegador.enlaceObligatorio === false,
-        'en modo navegador el enlace se esconde y deja de ser obligatorio',
+      comprobar(modal.enNavegador.enlaceOculto === false
+        && modal.enNavegador.enlaceObligatorio === false,
+        'en modo navegador el enlace se ve pero deja de ser obligatorio: si lo escribes, arranca ahí',
         JSON.stringify(modal.enNavegador));
-      comprobar(modal.enInstancia.enlaceOculto === false && modal.enInstancia.enlaceObligatorio === true,
-        'y en modo instancia vuelve y es obligatorio', JSON.stringify(modal.enInstancia));
+      comprobar(modal.enNavegador.nombreOculto === true,
+        'y el nombre no se pregunta, porque lo pone la página', JSON.stringify(modal.enNavegador));
+      comprobar(modal.enInstancia.enlaceOculto === false && modal.enInstancia.enlaceObligatorio === true
+        && modal.enInstancia.nombreOculto === false,
+        'y en modo instancia se piden los dos', JSON.stringify(modal.enInstancia));
       comprobar(!modal.enNavegador.hayCampoDeBuscador && !modal.enInstancia.hayCampoDeBuscador,
         'el motor de búsqueda ya no está en el modal de creación', JSON.stringify(modal));
       comprobar(!modal.enNavegador.hayCampoDeReparto && !modal.enInstancia.hayCampoDeReparto,

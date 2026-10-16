@@ -71,39 +71,41 @@ app.whenReady().then(async () => {
       barra.style.width = '900px';
       barra.style.flex = '0 0 900px';
 
+      // Nombres de verdad, y de largos distintos. Con nombres de una letra la medida no dice
+      // nada: no hay nada que recortar y todas salen iguales mida lo que mida la regla.
+      const NOMBRES = [
+        'Poke Idle World', 'POKE SURVIVOR', 'Twitch', 'DISCORD', 'PIWTOOL',
+        'Un nombre bastante largo de verdad', 'Corto', 'Otro juego mas'
+      ];
       const medirCon = (cuantas) => {
         browserInstances.length = 0;
         for (let i = 0; i < cuantas; i += 1) {
           browserInstances.push({
-            id: 'ancho-' + i, name: 'P' + i, url: 'https://ejemplo.invalid/',
+            id: 'ancho-' + i, name: NOMBRES[i % NOMBRES.length],
+            url: 'https://ejemplo.invalid/',
             count: 1, modo: 'instancia', buscador: 'ddg', apertura: 'auto', inicio: ''
           });
         }
         renderBrowserInstanceTabs();
-        const shells = [...document.querySelectorAll('.instance-tab-shell')];
-        // +1 por la pestaña principal, que siempre esta. Se mide el conjunto, que es lo que
-        // comparten el ancho.
-        return Math.round(shells.reduce((suma, s) => suma + s.getBoundingClientRect().width, 0)
-          / Math.max(1, shells.length));
+        const anchos = [...document.querySelectorAll('.instance-tab-shell')]
+          .map((s) => s.getBoundingClientRect().width);
+        // El ancho de UNA pestaña concreta, la primera, que lleva el mismo nombre en las dos
+        // medidas. Comparar las medias de dos conjuntos distintos de nombres no dice nada del
+        // reparto: dice que «Twitch» es mas corto que «POKE SURVIVOR», que ya se sabia.
+        const primera = document.querySelector('[data-instance-id="ancho-0"]');
+        return {
+          primera: Math.round(primera ? primera.getBoundingClientRect().width : 0),
+          media: Math.round(anchos.reduce((a, b) => a + b, 0) / Math.max(1, anchos.length)),
+          max: Math.round(Math.max(0, ...anchos)),
+          min: Math.round(Math.min(...anchos))
+        };
       };
 
       salida.conDos = medirCon(2);
       salida.conCinco = medirCon(5);
+      salida.desbordaConCinco = instanceTabs.scrollWidth > instanceTabs.clientWidth;
       salida.conVeinte = medirCon(20);
-      // Y con veinte, la mas estrecha de todas. Es la medida que distingue «crecen y no se
-      // aplastan» de «crecen y se encogen»: si flex-shrink no fuera 0, veinte pestañas se
-      // repartirian 900 px y cada una se quedaria en ~43 px, ilegible. La prueba anterior solo
-      // comparaba dos contra cinco, y con tan pocas y nombres tan cortos NUNCA se desborda, asi
-      // que el encogimiento no llegaba a actuar y los dos valores salian casi iguales: daba verde
-      // sin distinguir la regresion que dice vigilar.
-      //
-      // Y OJO: esto va DENTRO de una plantilla, asi que no puede llevar acentos graves. Ni en el
-      // codigo ni en el comentario. Es la sexta vez hoy.
-      const shellsVeinte = [...document.querySelectorAll('.instance-tab-shell')];
-      salida.masEstrechaConVeinte = Math.round(
-        Math.min(...shellsVeinte.map((s) => s.getBoundingClientRect().width))
-      );
-      salida.desbordaYSeDesplaza = instanceTabs.scrollWidth > instanceTabs.clientWidth;
+      salida.desbordaConVeinte = instanceTabs.scrollWidth > instanceTabs.clientWidth;
 
       // Se deja como estaba, que el resto de la prueba no depende de este medida.
       browserInstances.length = 0;
@@ -124,15 +126,19 @@ app.whenReady().then(async () => {
         'y ocupa solo lo que ocupa el logo', `${ancho.logoOcupado} px`);
       comprobar(ancho.barraMax === 'none',
         'la lista de pestañas ya no tiene el tope de 680 px', `max-width: ${ancho.barraMax}`);
-      comprobar(ancho.conDos > ancho.conCinco,
-        'con pocas pestañas cada una es más ancha: el espacio sobrante se reparte',
-        `2 pestañas: ${ancho.conDos} px, 5 pestañas: ${ancho.conCinco} px`);
-      comprobar(ancho.masEstrechaConVeinte >= 70,
-        'y con veinte no se aplastan: se desplazan, que es lo que las flechas vienen a hacer',
-        `la más estrecha con 20: ${ancho.masEstrechaConVeinte} px`);
-      comprobar(ancho.desbordaYSeDesplaza,
-        'y la lista desborda y se puede desplazar en vez de encogerse',
-        `desborda: ${ancho.desbordaYSeDesplaza}`);
+      comprobar(ancho.conDos.primera === ancho.conCinco.primera
+        && ancho.conDos.primera >= 132 && ancho.conDos.primera <= 240,
+        'una pestaña mide lo mismo con dos que con cinco: no se reparten el ancho, se dimensionan a su nombre',
+        `la misma pestaña: ${ancho.conDos.primera} px con dos, ${ancho.conCinco.primera} px con cinco`);
+      comprobar(ancho.conDos.max <= 240 && ancho.conCinco.max <= 240,
+        'y ninguna pasa del máximo, por largo que sea el nombre',
+        `máximos: ${ancho.conDos.max} y ${ancho.conCinco.max}`);
+      comprobar(ancho.conVeinte.min >= 132,
+        'con veinte, la más estrecha sigue teniendo el mínimo: no se aplastan',
+        `la más estrecha con 20: ${ancho.conVeinte.min} px`);
+      comprobar(ancho.desbordaConVeinte && !ancho.desbordaConCinco,
+        'y desbordan cuando de verdad no caben, que es lo que llaman a las flechas',
+        `5 pestañas desborda: ${ancho.desbordaConCinco}, 20: ${ancho.desbordaConVeinte}`);
     }
 
     // =================================================================================
@@ -165,6 +171,7 @@ app.whenReady().then(async () => {
           display: estilo.display, visibility: estilo.visibility, opacity: estilo.opacity
         } : null,
         hayIcono: Boolean(boton.querySelector('.top-action-icon')),
+        hayDibujoEnElIcono: Boolean(boton.querySelector('.top-action-icon svg')),
         esUnico: document.querySelectorAll('#instanceSettingsButton').length
       };
     })()`).catch(() => null);
@@ -176,6 +183,9 @@ app.whenReady().then(async () => {
         'y ese nombre se ve de verdad, no es un texto invisible', JSON.stringify(engranaje));
       comprobar(engranaje.hayIcono && engranaje.esUnico === 1,
         'con su icono al lado y siendo el único', JSON.stringify(engranaje));
+      comprobar(engranaje.hayDibujoEnElIcono,
+        'y el icono tiene un dibujo dentro: el hueco vacío era el fallo que se reportó',
+        JSON.stringify(engranaje));
     }
 
     // Y se cierra, que el resto de la prueba necesita la barra como estaba.
@@ -304,6 +314,118 @@ app.whenReady().then(async () => {
       comprobar(principal.sigueElLogoConOtroIconoEnElMapa && principal.noCogeElDelMapa,
         'y no depende del aviso de la página: el mapa de iconos no lo pisa',
         JSON.stringify(principal));
+    }
+
+    // =================================================================================
+    console.log('\\n--- 6. el botón de cerrar y arrastrar para reordenar ---');
+    const cerrarYArrastrar = await ventana.webContents.executeJavaScript(`(() => {
+      const salida = {};
+      try {
+        browserInstances.length = 0;
+        ['Uno', 'Dos', 'Tres'].forEach((nombre, i) => {
+          browserInstances.push({
+            id: 'orden-' + i, name: nombre, url: 'https://ejemplo.invalid/',
+            count: 1, modo: 'instancia', buscador: 'ddg', apertura: 'auto', inicio: ''
+          });
+        });
+        renderBrowserInstanceTabs();
+        const shells = () => [...document.querySelectorAll('.instance-tab-shell')];
+        const nombres = () => shells().map((s) => s.dataset.instanceId);
+
+        // --- El boton de cerrar ---
+        const cerrar = document.querySelector('[data-instance-id="orden-0"] .instance-tab-close');
+        const cajaCerrar = cerrar.getBoundingClientRect();
+        const shellCaja = document.querySelector('[data-instance-id="orden-0"]').getBoundingClientRect();
+        salida.cerrar = {
+          ancho: Math.round(cajaCerrar.width),
+          alto: Math.round(cajaCerrar.height),
+          altoDeLaPestana: Math.round(shellCaja.height),
+          bordeIzquierdo: getComputedStyle(cerrar).borderLeftWidth
+        };
+
+        // --- Arrastrar ---
+        salida.ordenInicial = nombres();
+        salida.principalArrastrable = document
+          .querySelector('[data-instance-id="poke-idle-world"]').draggable === true;
+
+        const origen = document.querySelector('[data-instance-id="orden-2"]');
+        const destino = document.querySelector('[data-instance-id="orden-0"]');
+        salida.arrastrables = shells().filter((s) => s.draggable === true).length;
+
+        // Los eventos, tal cual los manda el navegador al arrastrar una cosa sobre otra.
+        const datos = new Map();
+        const dt = {
+          setData: (tipo, valor) => datos.set(tipo, valor),
+          getData: (tipo) => datos.get(tipo) || '',
+          effectAllowed: '',
+          dropEffect: ''
+        };
+        const lanzar = (nodo, tipo) => {
+          const evento = new Event(tipo, { bubbles: true, cancelable: true });
+          evento.dataTransfer = dt;
+          nodo.dispatchEvent(evento);
+          return evento;
+        };
+        lanzar(origen, 'dragstart');
+        lanzar(destino, 'dragover');
+        lanzar(destino, 'drop');
+        lanzar(origen, 'dragend');
+
+        salida.ordenTrasArrastrar = nombres();
+        salida.enLaLista = browserInstances.map((f) => f.id);
+
+        // --- Y sin raton, con el teclado ---
+        // Arrastrar con el raton deja la funcion inservible sin el. Alt y la flecha mueve la
+        // pestaña que tenga el foco, que es como se hace en el navegador.
+        const boton = document.querySelector('[data-instance-id="orden-0"] .instance-tab');
+        boton.focus();
+        salida.tecladoEnfocado = document.activeElement === boton;
+        boton.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'ArrowLeft', altKey: true, bubbles: true, cancelable: true
+        }));
+        salida.ordenTrasTeclado = nombres();
+        salida.enLaListaTrasTeclado = browserInstances.map((f) => f.id);
+      } catch (e) {
+        salida.error = String(e && e.stack ? e.stack.split('\\n').slice(0, 3).join(' ') : e);
+      }
+      return salida;
+    })()`).catch((e) => {
+      console.log(`\\nFALLO: ${e && e.message ? e.message : e}`);
+      fallos.push('excepción al cerrar y arrastrar');
+      return null;
+    });
+
+    if (cerrarYArrastrar && cerrarYArrastrar.error) {
+      console.log(`\\nFALLO dentro de la pagina: ${cerrarYArrastrar.error}`);
+      fallos.push('cerrar y arrastrar revienta: ' + cerrarYArrastrar.error);
+    }
+
+    if (cerrarYArrastrar) {
+      comprobar(cerrarYArrastrar.cerrar.ancho <= 24
+        && cerrarYArrastrar.cerrar.alto < cerrarYArrastrar.cerrar.altoDeLaPestana
+        && cerrarYArrastrar.cerrar.bordeIzquierdo === '0px',
+        'la X es un botón pequeño y centrado, no una columna pegada al borde',
+        JSON.stringify(cerrarYArrastrar.cerrar));
+      comprobar(cerrarYArrastrar.arrastrables === 3 && !cerrarYArrastrar.principalArrastrable,
+        'se pueden arrastrar las pestañas, y la del juego no: va siempre primera',
+        `arrastrables: ${cerrarYArrastrar.arrastrables}, principal: ${cerrarYArrastrar.principalArrastrable}`);
+      comprobar(JSON.stringify(cerrarYArrastrar.ordenTrasArrastrar)
+        === JSON.stringify(['poke-idle-world', 'orden-2', 'orden-0', 'orden-1']),
+        'y arrastrar una sobre otra la mueve ahí',
+        JSON.stringify(cerrarYArrastrar.ordenTrasArrastrar));
+      comprobar(JSON.stringify(cerrarYArrastrar.enLaLista)
+        === JSON.stringify(['orden-2', 'orden-0', 'orden-1']),
+        'el orden nuevo queda en la lista que se guarda, así que persiste',
+        JSON.stringify(cerrarYArrastrar.enLaLista));
+      comprobar(cerrarYArrastrar.tecladoEnfocado
+        && JSON.stringify(cerrarYArrastrar.ordenTrasTeclado)
+          === JSON.stringify(['poke-idle-world', 'orden-0', 'orden-2', 'orden-1']),
+        'y con Alt y la flecha se mueve la pestaña enfocada, para quien no usa el ratón',
+        `${cerrarYArrastrar.tecladoEnfocado} / ${JSON.stringify(cerrarYArrastrar.ordenTrasTeclado)}`);
+      comprobar(JSON.stringify(cerrarYArrastrar.enLaListaTrasTeclado)
+        === JSON.stringify(['orden-0', 'orden-2', 'orden-1']),
+        'y ese orden también se guarda',
+        JSON.stringify(cerrarYArrastrar.enLaListaTrasTeclado));
     }
 
     // =================================================================================

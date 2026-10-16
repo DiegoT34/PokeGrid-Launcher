@@ -142,14 +142,19 @@ input:focus-visible {
   scrollbar-width: none;
 }
 .instance-tabs::-webkit-scrollbar { display: none; }
-/* `flex: 1 0 auto` y no `1 1 auto`: crece con el espacio que sobra, hasta el maximo, pero NO se
-   encoge. Con `flex-shrink` en vez de 0, muchas pestanas se aplastarian hasta hacerse
-   ilegibles en vez de dejar que la lista se desplace con las flechas, que es lo que se quiere
-   cuando ya no cabe. El maximo evita que dos pestanas se estiren a media pantalla. */
+/* Tres reglas, y cada una por un motivo:
+   - `flex: 0 1 auto` — la pestaña se dimensiona a su contenido. NO crece para repartir el
+     sobrante: repartido, cinco pestañas se estiraban a 240 px con el nombre nadando en medio y
+     el hueco seguia al final, porque el reparto tambien tiene tope. Eso ya se probo y quedo mal.
+   - `min-width` — una pestaña de nombre corto no se queda diminuta ni se aplasta cuando hay
+     muchas: antes de encogerse mas, la lista desborda y se desplaza con las flechas.
+   - `max-width` — una de nombre largo no se come la barra; el nombre se corta con puntos.
+   Los tres numeros son los de la maqueta de la barra: 132 px es lo que mide el icono mas dos
+   palabras cortas, y 240 px es donde un nombre ya no aporta nada legible. */
 .instance-tab-shell {
-  flex: 1 0 auto;
-  max-width: 320px;
-  min-width: 0;
+  flex: 0 1 auto;
+  min-width: 132px;
+  max-width: 240px;
   height: 34px;
   display: inline-flex;
   align-items: center;
@@ -182,15 +187,22 @@ input:focus-visible {
 .instance-tab span:first-child { color: #66d5e8; }
 .instance-tab b { max-width: 116px; overflow: hidden; text-overflow: ellipsis; }
 .instance-tab small { color: #778994; font-size: 7px; }
+/* Una X redonda y centrada, no una columna. Antes era de 26x32 pegada al borde derecho con una
+   linea divisoria, y con las pestañas anchas se leia como un panel pegado a la pestaña en vez
+   de como un boton. `flex: 0 0 auto` para que no la aplaste el nombre cuando el maximo aprieta. */
 .instance-tab-close {
-  width: 26px;
-  height: 32px;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  padding: 0;
   border: 0;
-  border-left: 1px solid #354149;
+  border-radius: 5px;
   background: transparent;
   color: #81909b;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1;
 }
 .instance-tab-close:hover { 
   background: #43242a; color: #ff98a3; }
@@ -943,6 +955,32 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .navegacion-direccion:focus { outline: none; border-color: #5ec7dd; }
 .navegacion-direccion::placeholder { color: #6f8694; }
 
+/* El motor de busqueda en la barra: la marca del que este puesto. */
+.navegacion-motor {
+  flex: 0 0 auto; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 7px;
+  background: rgba(255, 255, 255, .05); cursor: pointer;
+  display: inline-grid; place-items: center;
+}
+.navegacion-motor:hover { background: rgba(255, 255, 255, .11); }
+.motor-marca {
+  width: 15px; height: 15px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  background: var(--motor-color, #83909a); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1;
+}
+/* El menu: uno solo, colgado del cuerpo y colocado con las coordenadas del boton. */
+.navegacion-motor-menu {
+  z-index: 60; display: grid; gap: 2px; padding: 5px; min-width: 150px;
+  border: 1px solid rgba(255, 255, 255, .13); border-radius: 10px;
+  background: rgba(20, 25, 29, .98); box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+}
+.navegacion-motor-menu button {
+  display: flex; align-items: center; gap: 9px; padding: 6px 9px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--text);
+  cursor: pointer; font: inherit; font-size: 12px; text-align: left;
+}
+.navegacion-motor-menu button:hover { background: rgba(255, 255, 255, .08); }
+
 /* El icono de la pestaña. El hueco es siempre el mismo tamaño, haya icono o no, para que las
    pestañas no bailen cuando una web tiene icono y otra no. */
 .instance-tab-icon {
@@ -1136,12 +1174,33 @@ body.instancia-pantalla-completa .browser-instance-identity { display: none; }
 
 .browser-instance-backdrop { z-index: 270; }
 .browser-instance-modal { width: min(720px, 96vw); }
-.browser-instance-form { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 11px; }
+/* Una columna. La rejilla de dos columnas ponia «pantallas» al lado de «modo» y el desplegable
+   de modo se solapaba con su propio texto. Con una columna cada campo ocupa lo que necesita. */
+.browser-instance-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+
+/* El modo, lo primero y con dos botones. Es la unica decision que cambia el resto del
+   formulario, asi que va arriba y se lee de un vistazo sin desplegar nada. */
+.browser-instance-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modo-opcion {
+  display: grid; gap: 3px; text-align: left; padding: 12px 13px;
+  border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px;
+  background: rgba(255, 255, 255, .03); color: var(--text); cursor: pointer; font: inherit;
+}
+.modo-opcion strong { font-size: 13px; letter-spacing: .01em; }
+.modo-opcion small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.modo-opcion:hover { border-color: rgba(255, 255, 255, .24); background: rgba(255, 255, 255, .06); }
+.modo-opcion.is-elegido {
+  border-color: #48bdd8; background: rgba(72, 189, 216, .12);
+  box-shadow: inset 0 0 0 1px rgba(72, 189, 216, .3);
+}
+.modo-opcion:focus-visible { outline: 2px solid #48bdd8; outline-offset: 2px; }
 .browser-instance-form .browser-instance-url-field,
 .browser-instance-form .modal-message,
 .browser-instance-form .modal-actions,
 /* El interruptor ocupa las dos columnas, como el campo de enlace y los botones: en la primera se
    quedaría estrecho, al lado del desplegable de pantallas. */
+.field-opcional { color: var(--muted); font-size: 9px; letter-spacing: 0; text-transform: none; }
+
 .browser-instance-form select {
   width: 100%; height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px;
   background: #090e16; color: var(--text);

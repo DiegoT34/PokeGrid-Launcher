@@ -56,6 +56,9 @@ const browserInstanceMessage = document.querySelector('#browserInstanceMessage')
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
 const browserInstanceMode = document.querySelector('#browserInstanceMode');
+const browserInstanceModeInstancia = document.querySelector('#browserInstanceModeInstancia');
+const browserInstanceModeNavegador = document.querySelector('#browserInstanceModeNavegador');
+const browserInstanceNameField = document.querySelector('.browser-instance-name-field');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
@@ -1273,7 +1276,12 @@ const ICONOS_MENU = {
   '#loginAllButton': 'play',
   '#reloadAllButton': 'refresh',
   '#updateLauncherButton': 'download',
-  '#viewModeButton': 'layout'
+  '#viewModeButton': 'layout',
+  // Faltaba, y por eso el engranaje salia como un cuadro vacio: esta lista es la que rellena el
+  // hueco del icono de cada boton del menu, y el engranaje no estaba en ella. Cuando vivia en la
+  // barra de pestañas se lo ponia una linea propia —`innerHTML` sobre el boton entero— y al
+  // quitar esa linea por vaciar el nombre, se quedo sin ninguna de las dos cosas.
+  '#instanceSettingsButton': 'settings'
 };
 function aplicarIconosMenu() {
   for (const [selector, icono] of Object.entries(ICONOS_MENU)) {
@@ -8563,6 +8571,10 @@ function syncUserScriptPanels() {
 // vez que se activa una, y el icono no se puede volver a descargar en cada redibujo.
 const iconosDeInstancia = new Map();
 
+// Cual se esta arrastrando ahora mismo, si es que hay alguna. Vive fuera del bucle porque el
+// arrastre empieza en una pestaña y termina en otra, y las dos tienen que ver lo mismo.
+let instanciaArrastrada = '';
+
 // De que pagina salio el icono que hay puesto. Sin esto no se puede distinguir «me estan
 // vuelto a avisar de la misma pagina» de «ahora estoy en otra», y con una sola comprobacion
 // —«si ya hay icono, no hagas nada»— el icono se queda clavado en el primer sitio para siempre,
@@ -8645,6 +8657,9 @@ function pedirIconoDeWebview(panel) {
       // quedaba clavado —«si ya hay icono, no hagas nada»— para siempre en el primer sitio.
       avisoDeIcono({ url }, dataUrl || '', instanceId);
     }).catch(() => {});
+    // Y el nombre, si la pagina lo trae. Va aqui y no en otro canal porque el aviso ya viaja
+    // una vez por documento: el titulo y el icono llegan juntos, o no llega ninguno.
+    tituloDePagina(panel, evento.args?.[0]?.titulo);
   };
   panel.webview.addEventListener('ipc-message', alRecibir);
 }
@@ -8672,11 +8687,94 @@ function desplazarPestanas(paso) {
 // que se crea o se quita una instancia y cada vez que se guarda un ajuste, y un oyente nuevo con
 // cada redibujado hacia que un solo clic en «‹» desplazase varias pestanas a la vez. `scroll` y
 // `resize` si se pueden repetir sin daño: la misma función no se registra dos veces.
+// El menu del motor se cierra al pulsar en cualquier otro sitio. Un menu que se queda abierto
+// tapando la barra es peor que no tenerlo.
+function conectarCierreDelMenuDeMotor() {
+  document.addEventListener('click', (evento) => {
+    if (evento.target.closest('.navegacion-motor-menu, .navegacion-motor')) return;
+    cerrarMenuDeMotor();
+  });
+}
+
 function conectarFlechasDePestanas() {
   instanceTabsBack?.addEventListener('click', () => desplazarPestanas(-1));
   instanceTabsForward?.addEventListener('click', () => desplazarPestanas(1));
   instanceTabs.addEventListener('scroll', actualizarFlechasDePestanas, { passive: true });
   window.addEventListener('resize', actualizarFlechasDePestanas);
+}
+
+// El nombre de cada motor, para el menu del boton. Las claves son las de `BUSCADORES`.
+const NOMBRES_DE_MOTOR = Object.freeze({
+  ddg: 'DuckDuckGo',
+  google: 'Google',
+  bing: 'Bing'
+});
+
+// La marca de un motor: su inicial en un circulo de su color.
+//
+// NO son los logos de las empresas, y es a proposito: meter marcas registradas de terceros en el
+// paquete es un problema que no compensa por tres iconos de 16 px. Una inicial en el color que
+// todo el mundo asocia a cada buscador se lee de un vistazo y no pide permiso a nadie.
+function marcaDeMotor(clave) {
+  const COLORES = { ddg: '#de5833', google: '#4285f4', bing: '#008373' };
+  const INICIALES = { ddg: 'D', google: 'G', bing: 'B' };
+  const color = COLORES[clave] || '#83909a';
+  const inicial = INICIALES[clave] || '?';
+  return `<span class="motor-marca" style="--motor-color:${color}">${inicial}</span>`;
+}
+
+// El menu del motor: se crea al abrirlo y se quita al cerrarlo, asi que hay UNO en el DOM como
+// mucho. Con un menu fijo por pantalla habria seis menus ocultos y cualquier busqueda en el
+// documento encontraria los seis —empezando por la prueba—.
+function cerrarMenuDeMotor() {
+  document.querySelector('.navegacion-motor-menu')?.remove();
+}
+
+function alternarMenuDeMotor(panel) {
+  if (!panel?.botonMotor) return;
+  const llave = `${panel.instanceId}:${panel.instanceIndex}`;
+  const abierto = document.querySelector('.navegacion-motor-menu');
+  const eraEste = abierto?.dataset.de === llave;
+  cerrarMenuDeMotor();
+  if (eraEste) return;
+  const menu = document.createElement('div');
+  menu.className = 'navegacion-motor-menu';
+  menu.dataset.de = llave;
+  for (const [clave, nombre] of Object.entries(NOMBRES_DE_MOTOR)) {
+    const opcion = document.createElement('button');
+    opcion.type = 'button';
+    opcion.dataset.motor = clave;
+    opcion.innerHTML = `${marcaDeMotor(clave)}<span>${nombre}</span>`;
+    opcion.addEventListener('click', () => {
+      cambiarMotorDeInstancia(panel.instanceId, clave);
+      cerrarMenuDeMotor();
+    });
+    menu.appendChild(opcion);
+  }
+  // Se cuelga del cuerpo y se coloca con las coordenadas del boton. Colgarlo del panel obligaria a
+  // que el panel, la franja y el mosaico tuvieran `position` y no lo desbordara nada: tres cosas
+  // que hoy no se sabe si son verdad y que cambiarian con cualquier retoque de la maqueta.
+  const caja = panel.botonMotor.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = `${Math.round(caja.bottom + 6)}px`;
+  menu.style.left = `${Math.round(Math.max(8, caja.left - 60))}px`;
+  document.body.appendChild(menu);
+}
+
+// Cambiar el motor de una instancia. Es de la INSTANCIA y no de la pantalla: las seis pantallas de
+// un juego buscan en el mismo sitio, igual que en los ajustes. Por eso se repinta el boton de
+// todas, no solo el de la que se pulso.
+function cambiarMotorDeInstancia(instanceId, clave) {
+  const fila = browserInstances.find((r) => r.id === instanceId);
+  if (!fila || !Object.prototype.hasOwnProperty.call(BUSCADORES, clave)) return false;
+  fila.buscador = clave;
+  saveBrowserInstances();
+  for (const panel of browserInstanceViews.get(instanceId)?.panels || []) {
+    if (!panel.botonMotor) continue;
+    panel.botonMotor.dataset.motor = clave;
+    panel.botonMotor.innerHTML = marcaDeMotor(clave);
+  }
+  return true;
 }
 
 // El aviso de una pantalla: «esta pagina declara este icono». Es la costura que usan el
@@ -8693,6 +8791,59 @@ function avisoDeIcono(datos, dataUrl, instanceId) {
   iconosDeInstancia.set(instanceId, dataUrl);
   origenesDeIcono.set(instanceId, url);
   pintarIconoDeInstancia(instanceId);
+}
+
+// Mover una instancia de sitio en la lista. El orden vive en `browserInstances`, que ya se
+// guarda, asi que basta con reordenar el array: la proxima vez que se abra el launcher las
+// pestañas salen en este orden sin nada mas que hacer.
+//
+// Se saca la que se mueve y se mete en la posicion de la otra, en vez de intercambiarlas: con
+// un intercambio, arrastrar la ultima sobre la primera no la pondria la primera, se quedaria
+// en el sitio de la primera y la primera en el suyo —que es correcto pero no es lo que parece
+// que va a pasar cuando sueltas una pestaña encima de otra—.
+function moverInstancia(instanciaId, destinoId) {
+  if (!instanciaId || !destinoId || instanciaId === destinoId) return false;
+  const desde = browserInstances.findIndex((fila) => fila.id === instanciaId);
+  const hasta = browserInstances.findIndex((fila) => fila.id === destinoId);
+  if (desde < 0 || hasta < 0) return false;
+  const [movida] = browserInstances.splice(desde, 1);
+  browserInstances.splice(hasta, 0, movida);
+  saveBrowserInstances();
+  renderBrowserInstanceTabs();
+  return true;
+}
+
+// Y una vuelta mas para el teclado. Arrastrar con el raton deja esto inservible sin el, y no
+// cuesta nada: Alt y la flecha mueve la pestaña que tenga el foco, que es lo que hace cualquier
+// navegador. Se devuelve el foco a la pestaña movida para poder seguir moviendola.
+function moverInstanciaConTeclado(instanciaId, paso) {
+  const desde = browserInstances.findIndex((fila) => fila.id === instanciaId);
+  if (desde < 0) return false;
+  const hasta = desde + paso;
+  if (hasta < 0 || hasta >= browserInstances.length) return false;
+  const [movida] = browserInstances.splice(desde, 1);
+  browserInstances.splice(hasta, 0, movida);
+  saveBrowserInstances();
+  renderBrowserInstanceTabs();
+  document.querySelector(`[data-instance-id="${instanciaId}"] .instance-tab`)?.focus();
+  return true;
+}
+
+// El nombre de una pestaña de navegador es el de la pagina en la que esta. En modo instancia NO
+// se toca: ahi el nombre lo puso quien la creo, y su sitio es siempre el mismo.
+//
+// Un titulo vacio no borra el que hay: hay paginas que no ponen titulo hasta que cargan del
+// todo, y dejarlo en blanco seria peor que quedarse con el anterior.
+function tituloDePagina(panel, titulo) {
+  if (!panel || panel.origen === 'enlace') return false;
+  const fila = browserInstances.find((r) => r.id === panel.instanceId);
+  if (!fila || !esModoNavegador(fila)) return false;
+  const limpio = String(titulo || '').replace(/\s+/g, ' ').trim().slice(0, 48);
+  if (!limpio || limpio === fila.name) return false;
+  fila.name = limpio;
+  saveBrowserInstances();
+  renderBrowserInstanceTabs();
+  return true;
 }
 
 function renderBrowserInstanceTabs() {
@@ -8724,8 +8875,45 @@ function renderBrowserInstanceTabs() {
     count.textContent = `${instance.count}×`;
     button.append(icon, label, count);
     button.addEventListener('click', () => activateBrowserInstance(instance.id));
+    // El teclado, en el boton, que ya es enfocable por ser un boton. No hace falta un `tabindex`
+    // ni un elemento mas: se engancha donde ya se puede llegar con el tabulador.
+    button.addEventListener('keydown', (evento) => {
+      if (!evento.altKey) return;
+      const paso = evento.key === 'ArrowLeft' ? -1 : evento.key === 'ArrowRight' ? 1 : 0;
+      if (!paso) return;
+      evento.preventDefault();
+      moverInstanciaConTeclado(instance.id, paso);
+    });
     shell.appendChild(button);
     if (!instance.primary) {
+      // La principal no se arrastra: es la del juego y va siempre primera. Tampoco se puede
+      // arrastrar nada por delante de ella, porque su sitio no esta en `browserInstances` y
+      // `moverInstancia` no la encuentra.
+      shell.draggable = true;
+      shell.addEventListener('dragstart', (evento) => {
+        instanciaArrastrada = instance.id;
+        shell.classList.add('is-arrastrando');
+        // Hay que poner algo en el `dataTransfer` aunque no se use: sin esto, algunos motores
+        // ni siquiera empiezan el arrastre.
+        try { evento.dataTransfer.setData('text/plain', instance.id); } catch { /* sin permiso */ }
+        evento.dataTransfer.effectAllowed = 'move';
+      });
+      shell.addEventListener('dragend', () => {
+        instanciaArrastrada = '';
+        shell.classList.remove('is-arrastrando');
+        instanceTabs.querySelectorAll('.is-destino').forEach((n) => n.classList.remove('is-destino'));
+      });
+      // `dragover` tiene que decir que si, o el navegador no deja soltar encima.
+      shell.addEventListener('dragover', (evento) => {
+        if (!instanciaArrastrada || instanciaArrastrada === instance.id) return;
+        evento.preventDefault();
+        evento.dataTransfer.dropEffect = 'move';
+      });
+      shell.addEventListener('drop', (evento) => {
+        if (!instanciaArrastrada) return;
+        evento.preventDefault();
+        moverInstancia(instanciaArrastrada, instance.id);
+      });
       const close = document.createElement('button');
       close.className = 'instance-tab-close';
       close.type = 'button';
@@ -9129,6 +9317,9 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   let botonAtras = null;
   let botonAdelante = null;
   let botonRecargar = null;
+  // El del motor, aqui y no dentro del bloque de abajo: este es el ambito de la funcion, que es
+  // donde se usa —dentro del objeto `panel`, que se construye fuera del bloque—.
+  let botonMotor = null;
   if (esModoNavegador(instance)) {
     barra = document.createElement('nav');
     barra.className = 'browser-instance-navegacion';
@@ -9155,7 +9346,22 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     campoDireccion.placeholder = 'Escribe una dirección o busca';
     campoDireccion.spellcheck = false;
     campoDireccion.setAttribute('aria-label', 'Dirección de la pantalla');
-    barra.append(botonAtras, botonAdelante, botonRecargar, campoDireccion);
+    // El motor, antes del campo de direccion: es una eleccion previa a lo que escribas. Con su
+    // marca, que dice cual esta puesto sin abrir nada.
+    botonMotor = document.createElement('button');
+    botonMotor.type = 'button';
+    botonMotor.className = 'navegacion-motor';
+    botonMotor.dataset.motor = instance.buscador || BUSCADOR_POR_DEFECTO;
+    botonMotor.title = 'Cambiar el motor de búsqueda';
+    botonMotor.setAttribute('aria-label', 'Motor de búsqueda');
+    botonMotor.innerHTML = marcaDeMotor(botonMotor.dataset.motor);
+    botonMotor.addEventListener('click', (evento) => {
+      // Sin esto, el clic llega al documento y el oyente de fuera cierra el menu que se acaba de
+      // abrir: se abriria y se cerraria en el mismo clic.
+      evento.stopPropagation();
+      alternarMenuDeMotor(panel);
+    });
+    barra.append(botonMotor, botonAtras, botonAdelante, botonRecargar, campoDireccion);
     panelbar.classList.add('tiene-barra');
     panelbar.insertBefore(barra, panelbar.firstChild);
   }
@@ -9210,6 +9416,8 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     startUrl: partida,
     lastUrl: partida,
     destinoActual: partida,
+    // El boton del motor, para poder repintarlo cuando cambie desde cualquier pantalla.
+    botonMotor,
     barra,
     campoDireccion,
     botonAtras,
@@ -9746,8 +9954,23 @@ function cerrarAjustesDeInstancia() {
 // En modo instancia es obligatorio, que es justo lo que lo distingue.
 function sincronizarModoElegido() {
   const conUrl = browserInstanceMode.value !== 'navegador';
-  browserInstanceUrlField.hidden = !conUrl;
+  // El enlace se ve SIEMPRE, y solo es obligatorio en modo instancia. En modo navegador es
+  // opcional: si lo escribes, la pestaña arranca ahi; si no, en el buscador. Antes se ocultaba y
+  // ademas se ignoraba su valor, que es la peor combinacion: un campo que no se ve y que tampoco
+  // hace nada.
   browserInstanceUrl.required = conUrl;
+  // El nombre tampoco se pregunta en modo navegador: lo pone la pagina en la que estes. Si se
+  // dejara visible y obligatorio, no habria nada que escribir que no fuese a ser sustituido en
+  // cuanto la pagina cargara.
+  browserInstanceNameField.hidden = !conUrl;
+  browserInstanceName.required = conUrl;
+  // Y los dos botones dicen cual esta elegido, tambien para quien navega con teclado.
+  for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]) {
+    if (!boton) continue;
+    const elegido = boton.dataset.modo === browserInstanceMode.value;
+    boton.classList.toggle('is-elegido', elegido);
+    boton.setAttribute('aria-checked', String(elegido));
+  }
 }
 
 function openBrowserInstanceModal() {
@@ -9766,6 +9989,7 @@ function closeBrowserInstanceModal() {
 }
 function initializeBrowserInstances() {
   conectarFlechasDePestanas();
+  conectarCierreDelMenuDeMotor();
   browserInstances = loadBrowserInstances();
   browserInstanceViews.set(PRIMARY_BROWSER_INSTANCE_ID, { workspace: grid, panels });
   browserInstances.forEach((instance, ordinal) => createBrowserInstanceWorkspace(instance, ordinal));
@@ -10858,7 +11082,14 @@ document.querySelector('#cancelButton').addEventListener('click', closeAccountsM
 addBrowserInstanceButton.addEventListener('click', openBrowserInstanceModal);
 closeBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 cancelBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
-browserInstanceMode?.addEventListener('change', sincronizarModoElegido);
+// Los dos botones escriben el modo y avisan, que es lo que hacia el desplegable.
+for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]) {
+  boton?.addEventListener('click', () => {
+    if (!boton.dataset.modo) return;
+    browserInstanceMode.value = boton.dataset.modo;
+    sincronizarModoElegido();
+  });
+}
 sincronizarModoElegido();
 
 browserInstanceForm.addEventListener('submit', (event) => {
@@ -10872,11 +11103,13 @@ browserInstanceForm.addEventListener('submit', (event) => {
       url: browserInstanceUrl.value,
       count: browserInstanceCount.value,
       modo: browserInstanceMode.value,
-      // El motor y el reparto de enlaces no se preguntan aqui: van en los ajustes, que es donde
-      // se cambian. Se mandan los de fabrica y se corrigen alli.
+      // El reparto de enlaces no se pregunta aqui: va en los ajustes, que es donde se cambia, y
+      // el motor tiene su boton en la barra de cada pantalla.
       buscador: BUSCADOR_POR_DEFECTO,
       apertura: APERTURA_POR_DEFECTO,
-      inicio: browserInstanceMode.value === 'navegador' ? '' : browserInstanceUrl.value
+      // En modo navegador el enlace es opcional: si se escribe, se arranca ahi; si no, en el
+      // buscador. Antes se ignoraba lo que se escribiera, que es peor que no pedirlo.
+      inicio: browserInstanceUrl.value
     });
     if (!instance) throw new Error('No se pudo crear la instancia con esos datos.');
     browserInstances.push(instance);
