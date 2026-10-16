@@ -1592,7 +1592,12 @@ function vigilarVistaDeInstancia(contents, particion) {
 const MAX_VENTANAS_EMERGENTES = 6;
 const MAX_PROFUNDIDAD_EMERGENTE = 2;
 const ventanasEmergentes = new Set();
-let ventanasEmergentesHabilitadas = true;
+// Las ventanas emergentes estan siempre activas y no hay ninguna via para apagarlas. No es una
+// decision de producto arbitraria: los inicios de sesion con Google y las pasarelas de pago las
+// necesitan, y apagarlas solo rompia cosas. El interruptor que las gobernaba se elimino en la
+// 0.29.0; lo que se conserva es el tope de ventanas de mas abajo.
+const VENTANAS_EMERGENTES_SIEMPRE = true;
+const ventanasEmergentesHabilitadas = VENTANAS_EMERGENTES_SIEMPRE;
 
 // Que una URL pueda abrirse en una ventana nuestra: https y sin credenciales. Es la MISMA regla
 // que aplica el guardia de navegación de la instancia, escrita una sola vez y usada por los
@@ -1807,12 +1812,6 @@ ipcMain.handle('instancia:pantalla-completa', (event, activa) => {
   if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'La ventana ya no esta.' };
   mainWindow.setFullScreen(Boolean(activa));
   return { ok: true };
-});
-
-ipcMain.handle('ventanas-emergentes:ajustar', (event, habilitado) => {
-  assertMainWindowSender(event);
-  ventanasEmergentesHabilitadas = Boolean(habilitado);
-  return { ok: true, habilitado: ventanasEmergentesHabilitadas };
 });
 
 ipcMain.handle('pokepedia:open', (event) => {

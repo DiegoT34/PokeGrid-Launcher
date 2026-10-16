@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   importAccountsFile: () => ipcRenderer.invoke('accounts:import-file'),
   unlinkAccountsSource: () => ipcRenderer.invoke('accounts:unlink-source'),
   restoreAccountsBackup: () => ipcRenderer.invoke('accounts:restore-backup'),
-  setPopupsEnabled: (habilitado) => ipcRenderer.invoke('ventanas-emergentes:ajustar', Boolean(habilitado)),
   setInstanceShortcut: (atajo) => ipcRenderer.invoke('instancia:atajo', atajo),
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),

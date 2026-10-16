@@ -55,7 +55,6 @@ const browserInstanceCount = document.querySelector('#browserInstanceCount');
 const browserInstanceMessage = document.querySelector('#browserInstanceMessage');
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
-const browserInstancePopups = document.querySelector('#browserInstancePopups');
 const browserInstanceMode = document.querySelector('#browserInstanceMode');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
@@ -9128,48 +9127,20 @@ function removeBrowserInstance(instanceId) {
 }
 // Las ventanas emergentes de las instancias de navegador.
 //
-// Quien las abre es el proceso principal —necesita la partición de quien las pide— y lo único que
-// hace falta aquí es saber si el usuario las quiere. El valor vive en localStorage como los otros
-// ajustes, y se le pasa al arrancar y cada vez que cambia. Por eso el proceso principal arranca con
-// el valor por defecto y este lo corrige enseguida, en vez de ir a leer un fichero.
-const VENTANAS_EMERGENTES_KEY = 'idle-poke:ventanas-emergentes:v1';
-const VENTANAS_EMERGENTES_POR_DEFECTO = Object.freeze({ habilitado: true });
+// Quien las abre es el proceso principal —necesita la partición de quien las pide— y ya no hay nada
+// que decidir aqui: estan siempre activas. Estaban apagables hasta la 0.29.0, con la casilla en el
+// modal de creación, una clave en localStorage y un canal para pasarle el valor. Todo eso se fue
+// porque no había ningún caso en el que tenerlas apagadas sirviera de algo: los inicios de sesión
+// con Google y las pasarelas de pago las necesitan, y apagarlas solo rompía cosas. Lo que sí se
+// conserva, y vive en el proceso principal, es el tope de seis ventanas.
 
 // Lo que venga de localStorage pasa por aquí: un valor raro guardado a mano no puede dejar el
 // manejador en un estado que nadie eligió.
-function normalizarVentanasEmergentes(valor) {
-  return {
-    habilitado: typeof valor?.habilitado === 'boolean'
-      ? valor.habilitado
-      : VENTANAS_EMERGENTES_POR_DEFECTO.habilitado
-  };
-}
-function cargarVentanasEmergentes() {
-  try {
-    return normalizarVentanasEmergentes(JSON.parse(localStorage.getItem(VENTANAS_EMERGENTES_KEY) || 'null'));
-  } catch {
-    return { ...VENTANAS_EMERGENTES_POR_DEFECTO };
-  }
-}
-let ventanasEmergentes = cargarVentanasEmergentes();
-function guardarVentanasEmergentes() {
-  try {
-    localStorage.setItem(VENTANAS_EMERGENTES_KEY, JSON.stringify(ventanasEmergentes));
-  } catch {}
-}
-function aplicarVentanasEmergentes() {
-  if (browserInstancePopups) browserInstancePopups.checked = ventanasEmergentes.habilitado;
-  // El puente puede no estar —las pruebas con preload de vista previa no lo traen— y eso no es un
-  // fallo: sin proceso principal no hay ventanas emergentes que abrir.
-  if (typeof window.pokeGrid?.setPopupsEnabled === 'function') {
-    window.pokeGrid.setPopupsEnabled(ventanasEmergentes.habilitado).catch(() => {});
-  }
-}
-function setVentanasEmergentes(habilitado) {
-  ventanasEmergentes = normalizarVentanasEmergentes({ habilitado: Boolean(habilitado) });
-  guardarVentanasEmergentes();
-  aplicarVentanasEmergentes();
-}
+// Las ventanas emergentes estan SIEMPRE activas y no hay ninguna manera de apagarlas. No es una
+//decision de producto arbitraria: los inicios de sesion con Google y las pasarelas de pago las
+// necesitan, y apagarlas solo rompia cosas sin ganar nada a cambio. Lo que si se conserva es el
+//tope de seis ventanas, que es lo unico que impide que una pagina con anuncios en bucle se coma
+//el escritorio. El interruptor y su casilla se fueron en la 0.29.0.
 
 // La vista de las instancias: pantalla completa y zoom.
 //
@@ -10637,9 +10608,6 @@ closeBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 cancelBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 browserInstanceMode?.addEventListener('change', sincronizarModoElegido);
 sincronizarModoElegido();
-browserInstancePopups?.addEventListener('change', () => {
-  setVentanasEmergentes(browserInstancePopups.checked);
-});
 
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -11202,7 +11170,6 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
   // si no, tras recargar leería cada 10 s con el desplegable diciendo «solo al abrir».
   renderHuntSettings();
   renderCaptureModoSettings();
-  aplicarVentanasEmergentes();
   // Aislado a proposito: un fallo al montar la vista de las instancias no puede impedir que se
   // ejecute lo que viene despues en el arranque. Antes, un fallo aqui se comia el icono y el clic
   // del boton y no decia nada.

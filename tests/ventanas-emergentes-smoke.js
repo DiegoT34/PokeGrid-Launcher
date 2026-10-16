@@ -13,8 +13,8 @@
 //   · La ventana que sale comparte la SESIÓN, no solo se abre. Se siembra una cookie en la partición
 //     de la instancia y se busca en la ventana nueva. Si comparten sesión, aparece; si abrieran con
 //     una partición propia, no. Es la prueba de que el inicio de sesión con Google sirve de algo.
-//   · El interruptor de verdad corta la apertura —no es decorativo— y volver a marcarlo la deja
-//     pasar.
+//   · No hay interruptor. No se comprueba que funcione, porque no existe: se comprueba que no está,
+//     para que nadie lo vuelva a añadir sin pensar. Las ventanas emergentes están siempre activas.
 //   · Las webviews del juego siguen sin abrir ventanas.
 //   · El tope de 6 se respeta, y lo que no cabe se abre fuera en vez de perderse.
 //
@@ -101,16 +101,6 @@ async function esperarNuevasVentanas(cuantas, ms = 4000) {
   return ventanasNuevas();
 }
 
-// El interruptor viaja por IPC, así que hay que darle un momento antes de pedir una ventana: si se
-// pide antes de que llegue, se abre con el valor viejo y la comprobación miente.
-const dejarAplicadoElInterruptor = () => dormir(400);
-
-const marcarInterruptor = (marcado) => ventanaPrincipal.webContents.executeJavaScript(`(() => {
-  const c = document.querySelector('#browserInstancePopups');
-  c.checked = ${marcado ? 'true' : 'false'};
-  c.dispatchEvent(new Event('change', { bubbles: true }));
-  return true;
-})()`);
 
 const pedirDesde = (id) => ventanaPrincipal.webContents.executeJavaScript(
   `document.getElementById('${id}').executeJavaScript("document.getElementById('abrir').click()")`);
@@ -132,25 +122,27 @@ app.whenReady().then(async () => {
     const t1 = Date.now();
     while (Date.now() - t1 < 25_000) {
       const listo = await ventanaPrincipal.webContents.executeJavaScript(
-        'Boolean(document.querySelector("#browserInstancePopups") && typeof window.pokeGrid === "object")');
+        // La espera ya no mira la casilla: no hay casilla. Mira el puente, que es lo unico que
+        // tiene que estar para poder trabajar con el.
+        'typeof window.pokeGrid === "object" && Boolean(window.pokeGrid.setInstanceApertura)');
       if (listo) break;
       await dormir(200);
     }
 
-    // --- 1. El interruptor --------------------------------------------------------
-    console.log('--- el interruptor del modal de instancias ---');
-    const casilla = await ventanaPrincipal.webContents.executeJavaScript(`(() => {
-      const c = document.querySelector('#browserInstancePopups');
-      const bloque = c ? c.closest('.browser-instance-popups') : null;
-      return {
-        existe: Boolean(c),
-        marcada: c ? c.checked : null,
-        texto: bloque ? bloque.textContent.replace(/\\s+/g, ' ').trim().slice(0, 150) : ''
-      };
-    })()`);
-    comprobar(casilla.existe, 'el modal de instancias tiene su interruptor');
-    comprobar(casilla.marcada === true, 'y viene marcado: las páginas que necesitan ventana funcionan sin tocar nada');
-    comprobar(/emergente/i.test(casilla.texto), 'con una explicación de qué hace', casilla.texto.slice(0, 80));
+    // --- 1. No hay interruptor ----------------------------------------------------
+    console.log('--- el interruptor de ventanas emergentes ---');
+    // No es una comprobacion de que este: es de que NO esta. Las ventanas emergentes siempre
+    // estan activas porque los inicios de sesion y las pasarelas las necesitan, y una casilla
+    // para apagarlas solo rompia cosas. Lo que se vigila desde aqui, abajo, es que sigan
+    // abriendose de verdad.
+    const casilla = await ventanaPrincipal.webContents.executeJavaScript(`(() => ({
+      existe: Boolean(document.querySelector('#browserInstancePopups')),
+      bloque: Boolean(document.querySelector('.browser-instance-popups')),
+      enElPuente: typeof window.pokeGrid.setPopupsEnabled === 'function'
+    }))()`);
+    comprobar(!casilla.existe && !casilla.bloque && !casilla.enElPuente,
+'no hay casilla ni interruptor: las ventanas emergentes no se pueden apagar',
+      JSON.stringify(casilla));
 
     // --- 2. Montar la instancia ----------------------------------------------------
     const archivo = path.join(userDataDir, 'instancia.html');
@@ -185,8 +177,8 @@ app.whenReady().then(async () => {
 
     const sesionInstancia = session.fromPartition(PARTICION);
 
-    // --- 3. Con el interruptor marcado --------------------------------------------
-    console.log('\n--- con el interruptor marcado ---');
+    // --- 3. La ventana emergente --------------------------------------------------
+    console.log('\n--- la ventana emergente ---');
     await pedirDesde('__instancia');
     const [emergente] = await esperarNuevasVentanas(1);
     comprobar(Boolean(emergente), 'la instancia abre la ventana emergente');
@@ -207,31 +199,8 @@ app.whenReady().then(async () => {
         }));
     }
 
-    // --- 4. Desmarcado: no abre nada ----------------------------------------------
-    console.log('\n--- desmarcando el interruptor ---');
-    await marcarInterruptor(false);
-    await dejarAplicadoElInterruptor();
-    const externasAntes = abiertasFuera.length;
-    await pedirDesde('__instancia');
-    await dormir(1200);
-    const ninguna = ventanasNuevas();
-    comprobar(ninguna.length === 0, 'no sale ninguna ventana', `${ninguna.length}`);
-    comprobar(abiertasFuera.length > externasAntes,
-      'y la página sigue funcionando: se abre en el navegador del sistema, como antes',
-      `${abiertasFuera.length - externasAntes} apertura(s) fuera`);
 
-    // --- 5. Volviendo a marcarlo, vuelve a abrirse -------------------------------
-    console.log('\n--- marcando otra vez ---');
-    await marcarInterruptor(true);
-    await dejarAplicadoElInterruptor();
-    await pedirDesde('__instancia');
-    const [vuelve] = await esperarNuevasVentanas(1);
-    comprobar(Boolean(vuelve), 'vuelve a abrirse dentro del launcher');
-    if (vuelve) {
-      comprobar(vuelve.webContents.session === sesionInstancia, 'y con la misma sesión de la instancia');
-    }
-
-    // --- 6. Las webviews del juego no cambian -------------------------------------
+    // --- 4. Las webviews del juego no cambian -------------------------------------
     console.log('\n--- una webview del juego ---');
     await ventanaPrincipal.webContents.executeJavaScript(`(() => {
       const vieja = document.getElementById('__juego');
@@ -258,7 +227,7 @@ app.whenReady().then(async () => {
       `${abiertasFuera.length - externasJuego}`);
     await ventanaPrincipal.webContents.executeJavaScript('document.getElementById("__juego")?.remove()');
 
-    // --- 7. El tope: 6 a la vez ----------------------------------------------------
+    // --- 5. El tope: 6 a la vez ----------------------------------------------------
     console.log('\n--- una página que abre sin parar ---');
     const externasTope = abiertasFuera.length;
     const PIDE = 7;
@@ -286,7 +255,7 @@ app.whenReady().then(async () => {
 
   console.log('');
   console.log(fallos.length === 0
-    ? 'Ventanas emergentes: las instancias de navegador abren sus ventanas con la misma sesión, el interruptor manda y el juego sigue sin abrirlas.'
+    ? 'Ventanas emergentes: siempre activas, las instancias abren con la misma sesión y el juego sigue sin abrirlas.'
     : `${fallos.length} comprobaciones fallan:\n  - ${fallos.join('\n  - ')}`);
   app.exit(fallos.length === 0 ? 0 : 1);
 });

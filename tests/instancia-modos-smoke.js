@@ -155,6 +155,21 @@ app.whenReady().then(async () => {
       comprobar(!modal.enNavegador.hayCampoDeReparto && !modal.enInstancia.hayCampoDeReparto,
         'ni el reparto de enlaces: los dos van a los ajustes', JSON.stringify(modal));
     }
+
+    // Las ventanas emergentes no son una opcion del usuario: estan siempre activas porque los inicios
+    // de sesion y las pasarelas las necesitan. Que haya una casilla para apagarlas solo rompia cosas.
+    console.log('\\n--- no queda casilla de ventanas emergentes ---');
+    const sinCasilla = await ventana.webContents.executeJavaScript(`(() => ({
+      casilla: Boolean(document.querySelector('#browserInstancePopups')),
+      bloque: Boolean(document.querySelector('.browser-instance-popups')),
+      interruptorEnElPuente: typeof window.pokeGrid.setPopupsEnabled === 'function'
+    }))()`).catch(() => null);
+    if (sinCasilla) {
+      comprobar(!sinCasilla.casilla && !sinCasilla.bloque,
+        'la casilla y su bloque de explicación ya no están en el modal', JSON.stringify(sinCasilla));
+      comprobar(sinCasilla.interruptorEnElPuente === false,
+        'y el puente ya no tiene con qué encenderlas ni apagarlas', JSON.stringify(sinCasilla));
+    }
   } catch (e) {
     console.log(`\\nFALLO: ${e && e.stack ? e.stack.split('\\n').slice(0, 6).join('\\n') : e}`);
     fallos.push('excepción');
