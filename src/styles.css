@@ -927,6 +927,23 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 .navegacion-direccion:focus { outline: none; border-color: #5ec7dd; }
 .navegacion-direccion::placeholder { color: #6f8694; }
+
+/* Los ajustes por instancia. El selector de arriba, el motor y el reparto. El motor solo sale
+   en modo navegador, que es el unico modo donde hay un buscador que elegir; el reparto vale
+   para los dos. */
+.instance-settings-separator { height: 1px; margin: 14px 0 12px; background: rgba(255, 255, 255, .1); }
+#instanceSettingsTarget, #instanceSettingsSearch, #instanceSettingsLinks {
+  width: 100%; height: 34px; padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .14); border-radius: 8px;
+  background: rgba(255, 255, 255, .06); color: #e9f1f6; font-size: 13px;
+}
+#instanceSettingsTarget:focus, #instanceSettingsSearch:focus, #instanceSettingsLinks:focus {
+  outline: none; border-color: #5ec7dd;
+}
+#instanceSettingsTarget option, #instanceSettingsSearch option, #instanceSettingsLinks option {
+  background: #0f1a20; color: #e9f1f6;
+}
+.button-instance-settings .top-action-icon { font-size: 15px; }
 /* El aviso de una pantalla —«no caben mas pantallas»— va en la franja, porque un aviso que solo
    existe en una variable no lo ve nadie. El boton es ancho, se recorta al panel, y al pulsarlo
    sale el texto entero: en un mosaico de doce el mensaje completo no cabe ni con letras de 8. */

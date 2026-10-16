@@ -18,18 +18,15 @@
           <i id="hamburgerAvisoDotActualizador" class="hamburger-aviso-dot" hidden></i>
         </span>
       </button>
+      <!-- Solo el logo. El nombre se queda en el aria-label para quien lee con lector de pantalla;
+           el contador de cuentas y juegos vivia en el <small> que se ha ido con el texto. -->
       <div class="brand" aria-label="IDLE POKE LAUNCHER">
         <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <strong>IDLE POKE LAUNCHER</strong>
-          <small id="brandSessionCount">Tus sesiones · 1 launcher</small>
-        </div>
       </div>
 
       <div id="instanceTabbar" class="instance-tabbar" aria-label="Instancias del navegador">
         <div id="instanceTabs" class="instance-tabs" role="tablist" aria-label="Juegos abiertos"></div>
         <button id="addBrowserInstanceButton" class="instance-add-button" type="button" aria-label="Agregar instancia de navegador" title="Agregar otro juego">+</button>
-        <button id="instanceSettingsButton" class="instance-settings-button" type="button" aria-label="Ajustes de las instancias" title="Ajustes de las instancias"></button>
       </div>
 
       <button id="topbarCollapseButton" class="topbar-collapse-button" type="button" aria-expanded="true" aria-label="Ocultar barra superior" title="Ocultar barra superior">&#8963;</button>
@@ -55,6 +52,7 @@
         <div class="view-mode-control">
           <button id="viewModeButton" class="button button-secondary button-view-mode" type="button" aria-expanded="false" aria-controls="viewModeMenu"><span class="top-action-icon" aria-hidden="true">&#9638;</span><span>Modo vista</span></button>
         </div>
+        <button id="instanceSettingsButton" class="button button-secondary button-instance-settings" type="button"><span class="top-action-icon" aria-hidden="true">&#9881;</span><span>Ajustes de instancias</span></button>
       </nav>
     </header>
 
@@ -88,6 +86,29 @@
         <div class="instance-settings-field">
           <span class="instance-settings-label">ZOOM</span>
           <small class="instance-settings-help">Con los botones <b>&minus;</b> y <b>+</b> de la barra de cada pantalla, o con <b>Ctrl</b> y la rueda del rat&oacute;n encima. Cada juego recuerda el suyo. Toca el porcentaje para volver al 100&nbsp;%.</small>
+        </div>
+        <div class="instance-settings-separator"></div>
+        <div class="instance-settings-field">
+          <span class="instance-settings-label">AJUSTES DE</span>
+          <select id="instanceSettingsTarget" aria-label="Instancia a la que se aplican estos ajustes"></select>
+        </div>
+        <div class="instance-settings-field" id="instanceSettingsSearchField">
+          <span class="instance-settings-label">MOTOR DE B&Uacute;SQUEDA</span>
+          <select id="instanceSettingsSearch">
+            <option value="ddg">DuckDuckGo</option>
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+          </select>
+          <small class="instance-settings-help">Solo afecta al modo navegador, que es el que arranca en un buscador. El motor no se cambia al crear la instancia.</small>
+        </div>
+        <div class="instance-settings-field">
+          <span class="instance-settings-label">LOS ENLACES NUEVOS SE ABREN</span>
+          <select id="instanceSettingsLinks">
+            <option value="auto">En la misma instancia, seg&uacute;n el enlace</option>
+            <option value="panel">Siempre en un panel de la instancia</option>
+            <option value="ventana">Siempre en una ventana aparte</option>
+          </select>
+          <small id="instanceSettingsLinksCopy" class="instance-settings-help"></small>
         </div>
         <p id="instanceSettingsMessage" class="modal-message" role="status"></p>
       </section>

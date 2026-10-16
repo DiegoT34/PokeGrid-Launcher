@@ -302,6 +302,11 @@ let accountsBackupAvailable = false;
 let accountProfilePollBusy = false;
 const panels = [];
 const browserInstanceViews = new Map();
+const instanceSettingsTarget = document.querySelector('#instanceSettingsTarget');
+const instanceSettingsSearch = document.querySelector('#instanceSettingsSearch');
+const instanceSettingsSearchField = document.querySelector('#instanceSettingsSearchField');
+const instanceSettingsLinks = document.querySelector('#instanceSettingsLinks');
+const instanceSettingsLinksCopy = document.querySelector('#instanceSettingsLinksCopy');
 let browserInstances = [];
 let activeBrowserInstanceId = PRIMARY_BROWSER_INSTANCE_ID;
 let expandedPanel = null;
@@ -416,9 +421,7 @@ function accountCountText() {
 // quita una instancia llama aquí para que las dos mitades no se separen.
 function renderDynamicAccountLabels() {
   const count = accountCount();
-  const juegos = browserInstances.length + 1;
-  const brand = document.querySelector('#brandSessionCount');
-  if (brand) brand.textContent = `${count} ${count === 1 ? 'cuenta' : 'cuentas'} · ${juegos} ${juegos === 1 ? 'juego' : 'juegos'}`;
+
   ['#notificationAccountCount'].forEach((selector) => {
     const node = document.querySelector(selector);
     if (node) node.textContent = accountCountText();
@@ -9441,14 +9444,71 @@ function escucharAtajoEnLosAjustes() {
   });
 }
 
+// Los ajustes por instancia, al mismo nivel que las dos escuchas del atajo que hay justo
+// encima: no hay funcion que las agrupe, y meterlas en una seria inventarse una.
+instanceSettingsTarget?.addEventListener('change', pintarAjustesDeInstancia);
+instanceSettingsSearch?.addEventListener('change', guardarAjustesDeInstancia);
+instanceSettingsLinks?.addEventListener('change', guardarAjustesDeInstancia);
+
 function setInstanceSettingsMessage(texto, tono = '') {
   if (!instanceSettingsMessage) return;
   instanceSettingsMessage.textContent = texto;
   instanceSettingsMessage.className = 'modal-message' + (tono ? ' is-' + tono : '');
 }
 
+// Los ajustes por instancia. El panel es global —el atajo de pantalla completa vale para todas—,
+// asi que hace falta saber a quien se le habla, y para eso el selector. Un selector que guarde
+// sobre la instancia de al lado es peor que no tener selector.
+function instanciaDeLosAjustes() {
+  return browserInstances.find((fila) => fila.id === instanceSettingsTarget.value) || null;
+}
+
+function pintarAjustesDeInstancia() {
+  const anterior = instanceSettingsTarget.value;
+  instanceSettingsTarget.replaceChildren();
+  for (const instancia of browserInstances) {
+    const opcion = document.createElement('option');
+    opcion.value = instancia.id;
+    opcion.textContent = instancia.name;
+    instanceSettingsTarget.appendChild(opcion);
+  }
+  // Si la instancia que estaba elegida ya no existe se va a la primera: dejar el selector vacio
+  // haria que guardar escribiera sobre la instancia de al lado.
+  if (browserInstances.some((fila) => fila.id === anterior)) instanceSettingsTarget.value = anterior;
+  const instancia = instanciaDeLosAjustes();
+  const enNavegador = Boolean(instancia) && esModoNavegador(instancia);
+  instanceSettingsSearchField.hidden = !enNavegador;
+  instanceSettingsSearch.value = instancia?.buscador || BUSCADOR_POR_DEFECTO;
+  instanceSettingsLinks.value = instancia?.apertura || APERTURA_POR_DEFECTO;
+  instanceSettingsLinksCopy.textContent = instancia
+    ? (enNavegador
+      ? 'Un enlace normal se abre en un panel de esta instancia, con la misma sesion de la pantalla de la que salio. Uno con medidas propias —un inicio de sesion, una pasarela— sale en ventana aparte.'
+      : 'Un enlace normal se abre en un panel de esta instancia. Las ventanas con medidas propias —un inicio de sesion, una pasarela— salen en ventana aparte. Las ventanas emergentes estan siempre activas.')
+    : '';
+}
+
+function guardarAjustesDeInstancia() {
+  const instancia = instanciaDeLosAjustes();
+  if (!instancia) return;
+  instancia.buscador = instanceSettingsSearch.value;
+  instancia.apertura = instanceSettingsLinks.value;
+  saveBrowserInstances();
+  // El modo de apertura vive en el proceso principal por particion, asi que hay que avisarle o el
+  // cambio no se nota hasta que se reinicie el launcher.
+  if (typeof window.pokeGrid?.setInstanceApertura === 'function') {
+    const view = browserInstanceViews.get(instancia.id);
+    for (const panel of view?.panels || []) {
+      const particion = panel.webview?.getAttribute?.('partition') || '';
+      if (particion) window.pokeGrid.setInstanceApertura(particion, instancia.apertura).catch(() => {});
+    }
+  }
+  renderBrowserInstanceTabs();
+  setInstanceSettingsMessage('Guardado en ' + instancia.name + '.');
+}
+
 function abrirAjustesDeInstancia() {
   pintarAtajoEnLosAjustes();
+  pintarAjustesDeInstancia();
   setInstanceSettingsMessage('');
   instanceSettingsBackdrop.hidden = false;
   instanceSettingsClose.focus();
