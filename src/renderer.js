@@ -301,6 +301,8 @@ let accountsBackupAvailable = false;
 let accountProfilePollBusy = false;
 const panels = [];
 const browserInstanceViews = new Map();
+const instanceTabsBack = document.querySelector('#instanceTabsBack');
+const instanceTabsForward = document.querySelector('#instanceTabsForward');
 const instanceSettingsTarget = document.querySelector('#instanceSettingsTarget');
 const instanceSettingsSearch = document.querySelector('#instanceSettingsSearch');
 const instanceSettingsSearchField = document.querySelector('#instanceSettingsSearchField');
@@ -8603,6 +8605,42 @@ function pedirIconoDeWebview(panel) {
   panel.webview.addEventListener('ipc-message', alRecibir);
 }
 
+// Las flechas solo aparecen cuando hay algo que desplazar. Con cuatro o menos —el caso normal—
+// no se ven: dos botones apagados al lado de las pestañas son ruido que ocupa sitio y no dice
+// nada. Y la de un lado se apaga cuando ya estas en ese extremo, que es lo que hace una barra
+// de desplazamiento de verdad y no un par de flechas que nunca hacen nada.
+function actualizarFlechasDePestanas() {
+  const sobra = instanceTabs.scrollWidth - instanceTabs.clientWidth;
+  const alPrincipio = instanceTabs.scrollLeft <= 1;
+  const alFinal = instanceTabs.scrollLeft >= sobra - 1;
+  instanceTabsBack.hidden = sobra <= 1 || alPrincipio;
+  instanceTabsForward.hidden = sobra <= 1 || alFinal;
+}
+
+function desplazarPestanas(paso) {
+  const salto = paso * Math.max(120, instanceTabs.clientWidth * 0.7);
+  if (typeof instanceTabs.scrollBy === 'function') instanceTabs.scrollBy({ left: salto, behavior: 'smooth' });
+  else instanceTabs.scrollLeft += salto;
+}
+
+// Las flechas solo aparecen cuando hay algo que desplazar. Con cuatro o menos —el caso normal—
+// no se ven: dos botones apagados al lado de las pestañas son ruido que ocupa sitio y no dice
+// nada. Y la de un lado se apaga cuando ya estas en ese extremo, que es lo que hace una barra
+// de desplazamiento de verdad y no un par de flechas que nunca hacen nada.
+function actualizarFlechasDePestanas() {
+  const sobra = instanceTabs.scrollWidth - instanceTabs.clientWidth;
+  const alPrincipio = instanceTabs.scrollLeft <= 1;
+  const alFinal = instanceTabs.scrollLeft >= sobra - 1;
+  instanceTabsBack.hidden = sobra <= 1 || alPrincipio;
+  instanceTabsForward.hidden = sobra <= 1 || alFinal;
+}
+
+function desplazarPestanas(paso) {
+  const salto = paso * Math.max(120, instanceTabs.clientWidth * 0.7);
+  if (typeof instanceTabs.scrollBy === 'function') instanceTabs.scrollBy({ left: salto, behavior: 'smooth' });
+  else instanceTabs.scrollLeft += salto;
+}
+
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
@@ -8649,6 +8687,14 @@ function renderBrowserInstanceTabs() {
   // instancia no deje la cuenta a medias.
   renderDynamicAccountLabels();
   updateBrowserInstanceSelection();
+  instanceTabsBack?.addEventListener('click', () => desplazarPestanas(-1));
+  instanceTabsForward?.addEventListener('click', () => desplazarPestanas(1));
+  instanceTabs.addEventListener('scroll', actualizarFlechasDePestanas, { passive: true });
+  window.addEventListener('resize', actualizarFlechasDePestanas);
+  // El ancho de la lista no se sabe hasta que el navegador ha repartido: pedirlo en el mismo
+  // frame en el que se acaban de crear las pestanas daria el ancho viejo, y las flechas
+  // aparecerian tarde o no aparecerian.
+  requestAnimationFrame(actualizarFlechasDePestanas);
 }
 function updateBrowserInstanceSelection() {
   document.querySelectorAll('.instance-workspace').forEach((workspace) => {
@@ -8730,6 +8776,9 @@ function activateBrowserInstance(instanceId, { persist = true } = {}) {
   updateBrowserInstanceSelection();
   refreshBrowserInstanceLayout(activeBrowserInstanceId);
   applySidebarState(false);
+  // Activar una instancia puede dejar su pestaña fuera de la vista, asi que las flechas se
+  // recalculan: si no, se quedarian encendidas sin nada que desplazar detras.
+  requestAnimationFrame(actualizarFlechasDePestanas);
   if (persist) localStorage.setItem(ACTIVE_BROWSER_INSTANCE_KEY, activeBrowserInstanceId);
 }
 // Atras y adelante se ponen grises cuando no hay a donde ir. Sin esto, un boton que no hace

@@ -937,6 +937,16 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .instance-tab-favicon { width: 14px; height: 14px; border-radius: 3px; object-fit: contain; }
 .instance-tab-icon-globo { color: #6f8694; font-size: 12px; line-height: 1; }
 
+/* Las flechas de la barra de pestañas. Fijas y estrechas para que no roben sitio a las
+   pestañas, que son lo que importa. El [hidden] es explicito porque display:inline-flex le
+   gana al hidden del navegador y se verian siempre. */
+.instance-tabs-scroll {
+  flex: 0 0 auto; width: 20px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: #9fb4c0; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.instance-tabs-scroll:hover { background: rgba(255, 255, 255, .07); color: #effcff; }
+.instance-tabs-scroll[hidden] { display: none; }
+
 /* Los ajustes por instancia. El selector de arriba, el motor y el reparto. El motor solo sale
    en modo navegador, que es el unico modo donde hay un buscador que elegir; el reparto vale
    para los dos. */

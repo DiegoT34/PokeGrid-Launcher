@@ -154,6 +154,54 @@ app.whenReady().then(async () => {
         'y hay un canal para pedir la imagen al proceso principal', JSON.stringify(icono));
     }
 
+    console.log('\n--- las flechas de la barra de pestañas ---');
+    const flechas = await ventana.webContents.executeJavaScript(`(() => {
+      const salida = {};
+      // Falsear las TRES propiedades, no solo las dos medidas. Con un elemento vacio, el desplazamiento se
+// recorta a 0 aunque se mienta sobre el ancho: el navegador no deja desplazar lo que no tiene nada
+// que desplazar. Con solo las medidas mintiendo, el estado «al principio» y el estado «en el medio»
+// serian el mismo, y las dos comprobaciones de los extremos no probarian nada.
+//
+// OJO: los acentos graves CIERRAN la plantilla de abajo. Este comentario va dentro del codigo que se
+// inyecta, no fuera, asi que no puede llevar ni uno.
+const medir = (ancho) => {
+  Object.defineProperty(instanceTabs, 'scrollWidth', { configurable: true, get: () => ancho });
+  Object.defineProperty(instanceTabs, 'clientWidth', { configurable: true, get: () => 400 });
+  Object.defineProperty(instanceTabs, 'scrollLeft', { configurable: true, writable: true, value: 0 });
+};
+      const leer = () => ({ izquierda: !instanceTabsBack.hidden, derecha: !instanceTabsForward.hidden });
+      medir(400);
+      instanceTabs.scrollLeft = 0;
+      actualizarFlechasDePestanas();
+      salida.caben = leer();
+      medir(900);
+      instanceTabs.scrollLeft = 200;
+      actualizarFlechasDePestanas();
+      salida.noCaben = leer();
+      instanceTabs.scrollLeft = 0;
+      actualizarFlechasDePestanas();
+      salida.alPrincipio = leer();
+      instanceTabs.scrollLeft = 900;
+      actualizarFlechasDePestanas();
+      salida.alFinal = leer();
+      return salida;
+    })()`).catch((e) => {
+      console.log(`\nFALLO: ${e && e.message ? e.message : e}`);
+      fallos.push('excepción al manejar las flechas');
+      return null;
+    });
+
+    if (flechas) {
+      comprobar(!flechas.caben.izquierda && !flechas.caben.derecha,
+        'con todas las pestañas a la vista, las flechas no estorban', JSON.stringify(flechas.caben));
+      comprobar(flechas.noCaben.izquierda && flechas.noCaben.derecha,
+        'y en cuanto no caben, aparecen las dos', JSON.stringify(flechas.noCaben));
+      comprobar(!flechas.alPrincipio.izquierda && flechas.alPrincipio.derecha,
+        'al principio solo se puede ir hacia delante', JSON.stringify(flechas.alPrincipio));
+      comprobar(flechas.alFinal.izquierda && !flechas.alFinal.derecha,
+        'y al final, solo hacia atrás', JSON.stringify(flechas.alFinal));
+    }
+
   } catch (e) {
     console.log(`\nFALLO: ${e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e}`);
     fallos.push('excepción');
