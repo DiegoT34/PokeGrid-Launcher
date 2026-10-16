@@ -22,6 +22,7 @@ $pruebas = @(
   @{ nombre = 'instancia-modos';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-modos-smoke.js');        espera = 90 },
   @{ nombre = 'instancia-ajustes';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-ajustes-smoke.js');      espera = 90 },
   @{ nombre = 'instancia-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pestanas-smoke.js');     espera = 95 },
+  @{ nombre = 'instancia-cabecera'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-cabecera-smoke.js');   espera = 100 },
   @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
   @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
   @{ nombre = 'verificador-paquete';comando = 'verificar-paquete.cjs'; args = @();                              espera = 90 }
@@ -67,9 +68,11 @@ foreach ($p in $pruebas) {
 }
 
 Add-Content -Path $salida -Value "`n=== RESUMEN ===" -Encoding utf8
+# Se cuenta, no se escribe el numero a mano. Una vez puesto «las nueve» y ya habia diez, que es
+# exactamente como un rotulo mal puesto acaba creyendo al que lo lee en vez de a la lista.
 if ($fallos.Count) {
-  Add-Content -Path $salida -Value ('fallan: ' + ($fallos -join ', ')) -Encoding utf8
+  Add-Content -Path $salida -Value ('fallan ' + $fallos.Count + ' de ' + $pruebas.Count + ': ' + ($fallos -join ', ')) -Encoding utf8
 } else {
-  Add-Content -Path $salida -Value 'las nueve pasan' -Encoding utf8
+  Add-Content -Path $salida -Value ('las ' + $pruebas.Count + ' pasan') -Encoding utf8
 }
 'LISTO' | Out-File -Encoding utf8 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-fin.txt'

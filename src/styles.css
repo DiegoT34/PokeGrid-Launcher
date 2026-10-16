@@ -99,7 +99,9 @@ input:focus-visible {
   align-items: center;
 }
 
-.brand { gap: 8px; min-width: 205px; }
+/* El logo ya no tiene texto al lado, asi que este ancho era del nombre que se fue. Reservaba
+   205 px de barra para una cadena vacia, y con ella empujaba las pestanas hacia la derecha. */
+.brand { gap: 8px; flex: 0 0 auto; }
 .brand strong { display: block; letter-spacing: 0.09em; font-size: 12px; }
 .brand small { display: block; color: var(--muted); font-size: 9px; margin-top: 1px; }
 
@@ -114,9 +116,12 @@ input:focus-visible {
 .brand-mark::before,
 .brand-mark span { display: none; }
 
+/* Se queda con el ancho que sobra, en vez de con un tope fijo de 680 px que dejaba un hueco
+   grande a la derecha. El min-width: 0 sigue siendo necesario para que la lista pueda
+   encogerse por debajo de su contenido en vez de empujar la barra. */
 .instance-tabbar {
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: min(680px, 52vw);
   margin-left: 4px;
   display: flex;
   align-items: center;
@@ -124,6 +129,11 @@ input:focus-visible {
 }
 .instance-tabs {
   min-width: 0;
+  /* Sin esto, `flex-grow` de las pestañas no tiene nada que repartir: se dimensionaria al contenido
+     y las pestañas se quedarian en su tamaño natural dentro de una barra de 900 px. Con `1 1 auto`
+     la lista ocupa lo que le da la barra, y el `overflow-x: auto` de abajo sigue haciendo su trabajo
+     cuando el contenido no cabe. */
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -132,7 +142,13 @@ input:focus-visible {
   scrollbar-width: none;
 }
 .instance-tabs::-webkit-scrollbar { display: none; }
+/* `flex: 1 0 auto` y no `1 1 auto`: crece con el espacio que sobra, hasta el maximo, pero NO se
+   encoge. Con `flex-shrink` en vez de 0, muchas pestanas se aplastarian hasta hacerse
+   ilegibles en vez de dejar que la lista se desplace con las flechas, que es lo que se quiere
+   cuando ya no cabe. El maximo evita que dos pestanas se estiren a media pantalla. */
 .instance-tab-shell {
+  flex: 1 0 auto;
+  max-width: 320px;
   min-width: 0;
   height: 34px;
   display: inline-flex;
@@ -141,7 +157,6 @@ input:focus-visible {
   border-radius: 8px;
   background: #22262a;
   overflow: hidden;
-  flex: 0 0 auto;
 }
 .instance-tab-shell.is-active {
   border-color: #48bdd8;
@@ -3455,7 +3470,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 
 @media (max-width: 760px) {
   .appbar { align-items: center; }
-  .brand { min-width: auto; }
+  /* Sin el min-width del logo: ya no existe, y una regla que anula una propiedad que no esta es
+     una que dentro de seis meses hace creer que si. */
   .global-actions { min-width: 0; gap: 5px; overflow-x: auto; scrollbar-width: none; }
   .global-actions::-webkit-scrollbar { display: none; }
   .button { min-height: 32px; font-size: 10px; }
@@ -4239,8 +4255,11 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 
 @media (max-width: 900px) {
-  .brand { min-width: auto; }
+  /* Sin el min-width que se quito del logo: esta regla lo anulaba y ya no hay nada que anular.
+     Era una regla anulando una propiedad que ya no existe, de las que un dia miran al reves. */
   .brand > div { display: none; }
+  /* Y aqui la barra SI se limita, a proposito: en una ventana estrecha no puede quedarse con todo
+     y dejar sin sitio a los botones de la derecha. */
   .instance-tabbar { max-width: calc(100vw - 150px); margin-left: 0; }
   .instance-tab { max-width: 135px; }
   .instance-tab b { max-width: 80px; }

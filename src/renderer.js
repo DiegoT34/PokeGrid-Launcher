@@ -8563,6 +8563,12 @@ function syncUserScriptPanels() {
 // vez que se activa una, y el icono no se puede volver a descargar en cada redibujo.
 const iconosDeInstancia = new Map();
 
+// De que pagina salio el icono que hay puesto. Sin esto no se puede distinguir «me estan
+// vuelto a avisar de la misma pagina» de «ahora estoy en otra», y con una sola comprobacion
+// —«si ya hay icono, no hagas nada»— el icono se queda clavado en el primer sitio para siempre,
+// que es justo lo que pasaba.
+const origenesDeIcono = new Map();
+
 function pintarIconoDeInstancia(instanceId, hueco) {
   const destino = hueco || document.querySelector(`[data-instancia-icono="${instanceId}"]`);
   if (!destino) return;
@@ -8574,6 +8580,13 @@ function pintarIconoDeInstancia(instanceId, hueco) {
     imagen.src = dataUrl;
     imagen.alt = '';
     destino.appendChild(imagen);
+    return;
+  }
+  // La pantalla principal del juego tiene su propia marca y se la queda cuando el juego no
+  // contesta con su icono: ademas de no dejar un hueco, distingue la pestana principal de un
+  // vistazo. No es un caso aparte de la busqueda del icono, es la otra salida de aqui.
+  if (instanceId === PRIMARY_BROWSER_INSTANCE_ID) {
+    destino.innerHTML = launcherUiIcon('live');
     return;
   }
   // Sin icono se pone un globo y no un <img> roto: un icono que no se ve es peor que no tener
@@ -8602,12 +8615,11 @@ function pedirIconoDeWebview(panel) {
     if (evento.channel !== 'instancia:favicon') return;
     const url = evento.args?.[0]?.url;
     if (!url) return;
-    // Si ya hay icono de esta instancia se ignora: se ha pedido al navegar, no al montar.
-    if (iconosDeInstancia.has(instanceId)) return;
     window.pokeGrid.descargarIcono(url).then((respuesta) => {
-      if (!respuesta?.ok || !respuesta.dataUrl) return;
-      iconosDeInstancia.set(instanceId, respuesta.dataUrl);
-      pintarIconoDeInstancia(instanceId);
+      // Si no se pudo descargar se avisa igual, con el icono vacio: la costura decide si eso
+      // cambia algo. Antes la decision estaba en estas dos lineas y por eso el icono se
+      // quedaba clavado —«si ya hay icono, no hagas nada»— para siempre en el primer sitio.
+      avisoDeIcono({ url }, respuesta?.ok ? respuesta.dataUrl : '', instanceId);
     }).catch(() => {});
   };
   panel.webview.addEventListener('ipc-message', alRecibir);
@@ -8643,6 +8655,22 @@ function conectarFlechasDePestanas() {
   window.addEventListener('resize', actualizarFlechasDePestanas);
 }
 
+// El aviso de una pantalla: «esta pagina declara este icono». Es la costura que usan el
+// oyente del preload y la prueba, para que los dos caminos lleguen al mismo sitio y no haya
+// dos reglas de «cuando hay que repintar».
+function avisoDeIcono(datos, dataUrl, instanceId) {
+  const url = String(datos?.url || '');
+  if (!url) return;
+  // La MISMA pagina no vuelve a pintar. Sin esto, cada navegacion interna vuelve a descargar
+  // y repinta el mismo icono, y en una instancia con seis pantallas la mas rapida manda.
+  if (origenesDeIcono.get(instanceId) === url) return;
+  // Y un icono que no se pudo descargar no quita el que hay: se deja el anterior.
+  if (!dataUrl) return;
+  iconosDeInstancia.set(instanceId, dataUrl);
+  origenesDeIcono.set(instanceId, url);
+  pintarIconoDeInstancia(instanceId);
+}
+
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
   const rows = [
@@ -8662,9 +8690,10 @@ function renderBrowserInstanceTabs() {
     icon.className = 'instance-tab-icon';
     icon.dataset.instanciaIcono = instance.id;
     icon.setAttribute('aria-hidden', 'true');
-    // La principal conserva su icono propio: no es una web, es la pantalla del juego.
-    if (instance.primary) icon.innerHTML = launcherUiIcon('live');
-    else pintarIconoDeInstancia(instance.id, icon);
+    // Todas pasan por el mismo sitio, incluida la principal. Poke Idle World es una instancia
+    // mas —con su icono declarado por la pagina del juego— y no un caso aparte que conserve su
+    // marca mientras las demas cambian. Si el juego no contesta, la marca vuelve igual.
+    pintarIconoDeInstancia(instance.id, icon);
     const label = document.createElement('b');
     label.textContent = instance.name;
     const count = document.createElement('small');
@@ -11425,7 +11454,11 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
       guardarZoomInstancias();
       pintarZoomDePantalla(panel);
     });
-    if (instanceSettingsButton) instanceSettingsButton.innerHTML = launcherUiIcon('settings');
+    // AQUI NO SE PINTA NADA DENTRO. Antes esta linea ponia el icono con innerHTML, y con el
+    // boton en la barra de pestanas —donde era solo un icono, sin nombre— no se notaba. Al
+    // moverlo al menu vacio el icono y el texto que traia en el HTML, y en pantalla se veia un
+    // engranaje sin una sola letra. El icono y el nombre van en el HTML, como los demas botones
+    // del menu.
     instanceSettingsButton?.addEventListener('click', () => abrirAjustesDeInstancia());
     instanceSettingsClose?.addEventListener('click', () => cerrarAjustesDeInstancia());
     escucharAtajoEnLosAjustes();
