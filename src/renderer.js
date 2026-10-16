@@ -8810,6 +8810,13 @@ function pintarBarraDeNavegacion(panel) {
     panel.campoDireccion.value = webviewCurrentUrl(panel) || panel.destinoActual || '';
   }
   actualizarEstadoDeHistorial(panel);
+  // Solo las pantallas originales. Una de enlace se recicla, y si guardara su direccion, la
+  // original perderia la suya al reiniciar. Y es panel.instanceIndex y no panel.index porque
+  // el segundo solo lo tienen algunos paneles.
+  if (panel.origen !== 'enlace' && Number.isInteger(Number(panel.instanceIndex))) {
+    const actual = webviewCurrentUrl(panel);
+    if (actual) recordarUltimaPagina(panel.instanceId, panel.instanceIndex, actual);
+  }
 }
 
 // Al escribir una direccion, esa pasa a ser el inicio de la instancia y se guarda. Se declara
@@ -8894,6 +8901,50 @@ function avisarEnPanel(panel, texto) {
   panel.botonAviso.hidden = false;
 }
 
+// Donde se quedo cada pantalla. NO son las cookies ni la cache: eso se guarda solo porque cada
+// pantalla tiene su particion. Esto es «en que pagina estaba», que es otra cosa, y es lo que
+// se pide al reabrir el launcher.
+//
+// La clave lleva instancia Y numero de pantalla porque dos pantallas de la misma instancia
+// estan en sitios distintos a proposito —son cuentas distintas— y una sola direccion no valdria.
+const ULTIMA_PAGINA_POR_PANTALLA_KEY = 'pokegrid:instance-last-page:v1';
+
+function leerUltimasPaginas() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(ULTIMA_PAGINA_POR_PANTALLA_KEY) || '{}');
+    return guardado && typeof guardado === 'object' && !Array.isArray(guardado) ? guardado : {};
+  } catch {
+    return {};
+  }
+}
+
+function ultimaPaginaDe(instanceId, indice) {
+  return String(leerUltimasPaginas()[`${instanceId}:${indice}`] || '').slice(0, 2000);
+}
+
+// La regla de que es una direccion es la misma que usa la barra, porque tener dos reglas
+// divergentes es como se acaba con dosaunch definiciones de la misma cosa.
+function recordarUltimaPagina(instanceId, indice, url) {
+  const limpio = String(url || '').trim().slice(0, 2000);
+  if (!instanceId || !Number.isInteger(Number(indice)) || !pareceDireccion(limpio)) return;
+  const guardado = leerUltimasPaginas();
+  guardado[`${instanceId}:${indice}`] = limpio;
+  try {
+    localStorage.setItem(ULTIMA_PAGINA_POR_PANTALLA_KEY, JSON.stringify(guardado));
+  } catch {
+    // Si no se puede guardar —la cuota llena, el almacenamiento capado— la pantalla abre en su
+    // pagina de partida y ya esta. Perder el reanudar es molesto; romper el arranque, no.
+  }
+}
+
+function olvidarUltimaPagina(instanceId, indice) {
+  const guardado = leerUltimasPaginas();
+  delete guardado[`${instanceId}:${indice}`];
+  try {
+    localStorage.setItem(ULTIMA_PAGINA_POR_PANTALLA_KEY, JSON.stringify(guardado));
+  } catch {}
+}
+
 // Quitar el aviso: se va solo en cuanto el panel vuelve a navegación. Un aviso pegado para
 // siempre se vuelve un aviso que nadie mira.
 function quitarAvisoDePanel(panel) {
@@ -8958,10 +9009,15 @@ function crearPanelDeEnlace(instance, url, panelOrigen) {
 // creada por el usuario tiene su propia particion —son cuentas distintas, con sus cookies— pero un
 // enlace sale de una sesion concreta y continuar en otra perderia la sesion, que es justo lo que hace
 // util abrirlo aqui dentro.
-// `urlDePartida` es la direccion con la que arranca ESTE panel, y por defecto la de su instancia:
-// el buscador si es de estilo navegador —que es lo que se pidio al crearla—, o la ultima
-// direccion escrita en su barra.
-function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = inicioDeInstancia(instance), particionDePartida = '') {
+// `urlDePartida` es la direccion con la que arranca ESTE panel. Por defecto no es ninguna de las
+// tres cosas que podria ser: se decide aqui, porque es aqui donde se sabe el numero de pantalla.
+// Se pasa en `null` y no ya resuelta porque el valor por defecto se evalua antes de que exista
+// `index` de forma util.
+function createBrowserInstancePanel(instance, workspace, index, launchDelay, urlDePartida = null, particionDePartida = '') {
+  // 1. La ultima pagina en la que se quedo ESTA pantalla, que es lo que se ha pedido. 2. Si no hay
+  // ninguna, la de la instancia: el buscador si es de estilo navegador, o su URL. 3. Si el panel
+  // viene de un enlace, la del enlace, que manda sobre todo lo demas.
+  const partida = urlDePartida || ultimaPaginaDe(instance.id, index) || inicioDeInstancia(instance);
   const element = document.createElement('article');
   element.className = 'browser-instance-panel';
   const panelbar = document.createElement('header');
@@ -9095,9 +9151,9 @@ window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || A
     // `urlDePartida` es la direccion con la que arranca ESTE panel. Para los originales es la
     // de la instancia; para uno que se abre por enlace, la del enlace. Sin esta distincion, un
     // panel de enlace cargaria dos veces: una la que programa el arranque y otra la del enlace.
-    startUrl: urlDePartida,
-    lastUrl: urlDePartida,
-    destinoActual: urlDePartida,
+    startUrl: partida,
+    lastUrl: partida,
+    destinoActual: partida,
     barra,
     campoDireccion,
     botonAtras,
@@ -9110,6 +9166,25 @@ window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || A
     isLoading: false,
     destroyed: false
   };
+  // Si la pagina guardada ya no carga, esta pantalla cae a la de su instancia y la direccion mala
+  // se olvida, para que no lo intente otra vez en cada arranque. Perder una pantalla por una
+  // direccion caducada seria peor que empezar de nuevo.
+  //
+  // Se registra AQUI, una vez por panel, y no dentro de loadConnectionPanel: esa se llama en
+  // cada carga y acumularia escuchas que la primera caida dispararia todas a la vez.
+  webview.addEventListener('did-fail-load', () => {
+    if (panel.origen === 'enlace') return;
+    const guardada = ultimaPaginaDe(instance.id, index);
+    if (!guardada) return;
+    // Una sola caida por pantalla, y no se vuelve a marcar. Sin esto, si la URL de la instancia
+    // tampoco cargara, su fallo volveria a disparar esta misma caida y la pantalla se quedaria
+    // rebotando entre las dos direcciones.
+    if (panel.caidaPorPaginaMuerta) return;
+    panel.caidaPorPaginaMuerta = true;
+    olvidarUltimaPagina(instance.id, index);
+    loadConnectionPanel(panel, inicioDeInstancia(instance), { reason: 'Volviendo al inicio' });
+  });
+
   attachResilientWebview(panel, {
     onReady: async () => {
       // Aquí es cuando el webview ya tiene id. Antes no lo tiene, y sin esto el mapa se queda
@@ -9186,7 +9261,7 @@ window.pokeGrid?.setInstanceApertura?.(particionDelPanel, instance.apertura || A
     expandButton.title = expand ? 'Volver al mosaico' : 'Agrandar panel';
   });
   if (!window.pokeGrid.previewMode) {
-    window.setTimeout(() => loadConnectionPanel(panel, urlDePartida, { reason: 'Inicio automático' }), launchDelay);
+    window.setTimeout(() => loadConnectionPanel(panel, partida, { reason: 'Inicio automático' }), launchDelay);
   }
   return panel;
 }
