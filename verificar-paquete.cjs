@@ -486,7 +486,7 @@ const VISTA_INSTANCIAS = [
   ['el reanudar es por instancia Y por pantalla, y solo lo recuerdan las originales', /function ultimaPaginaDe\(instanceId, indice\)/.test(renderer) && /recordarUltimaPagina\(panel\.instanceId, panel\.instanceIndex/.test(renderer) && /panel\.origen !== 'enlace'/.test(renderer)],
   ['y el recorte por pagina caducada cae una sola vez, que si no rebota', /panel\.caidaPorPaginaMuerta = true;/.test(renderer) && /olvidarUltimaPagina\(instance\.id, index\)/.test(renderer)],
   ['las flechas solo cuando sobra algo que ver, y en los dos extremos se apagan', /instanceTabs\.scrollWidth - instanceTabs\.clientWidth/.test(renderer) && /instanceTabsBack\.hidden = sobra <= 1 \|\| alPrincipio;/.test(renderer) && /instanceTabsForward\.hidden = sobra <= 1 \|\| alFinal;/.test(renderer)],
-  ['el inicio guardado se lee al arrancar', /return instance\.inicio \|\| BUSCADORES\[instance\.buscador\]/.test(renderer) && /urlDePartida = inicioDeInstancia\(instance\)/.test(renderer)],
+  ['el inicio guardado se lee al arrancar', /return instance\.inicio \|\| BUSCADORES\[instance\.buscador\]/.test(renderer) && /const partida = urlDePartida \|\| ultimaPaginaDe\(instance\.id, index\) \|\| inicioDeInstancia\(instance\);/.test(renderer)],
   ['una ventana con medidas sigue yendo aparte', /function pideVentanaConMedidas/.test(mainCodigo) && /did-create-window/.test(mainCodigo)],
   ['y hay reglas de mosaico para de siete a doce', /data-view-count="12"/.test(styles)],
   ['el tope no toca los originales', /TOPE_PANELES_INSTANCIA = 12/.test(renderer) && /panel\.origen === 'enlace'/.test(renderer)],
