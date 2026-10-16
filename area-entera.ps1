@@ -1,0 +1,71 @@
+# Corre el area entera de la entrega, en orden, sin saltarse nada.
+#
+# LA REGLA
+#
+# Los seis, o no se compila. La entrega anterior se dio por cerrada sin el que cubria el punto mas
+# delicado, y salio una regresion que mataba los inicios de sesion. Aqui no: o pasa todo, o se para.
+#
+# Cada prueba necesita matar los procesos de la vuelta anterior; si no, el Electron de la prueba
+# anterior se queda vivo y el resumen no se imprime. Y cada una tarda entre uno y cuatro minutos,
+# asi que el script no falla nunca: escribe el resultado de cada una y sigue, para que se vea el
+# panorama entero en vez de solo el primer fallo.
+$ErrorActionPreference = 'Continue'
+$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0290.txt'
+Remove-Item $salida -Force -ErrorAction SilentlyContinue
+Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
+
+$pruebas = @(
+  @{ nombre = 'npm run check';     comando = 'npm';      args = @('run', 'check');                       espera = 20 },
+  @{ nombre = 'ipc-sender-guard';   comando = 'node';     args = @('tests\ipc-sender-guard-smoke.js');   espera = 20 },
+  @{ nombre = 'instancia-vista';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-vista-smoke.js');        espera = 150 },
+  @{ nombre = 'instancia-navegador';comando = 'tests\lanzar.cjs'; args = @('tests\instancia-navegador-smoke.js');    espera = 230 },
+  @{ nombre = 'instancia-modos';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-modos-smoke.js');        espera = 90 },
+  @{ nombre = 'instancia-ajustes';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-ajustes-smoke.js');      espera = 90 },
+  @{ nombre = 'instancia-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pestanas-smoke.js');     espera = 95 },
+  @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
+  @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
+  @{ nombre = 'verificador-paquete';comando = 'verificar-paquete.cjs'; args = @();                              espera = 90 }
+)
+
+$fallos = @()
+foreach ($p in $pruebas) {
+  Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Add-Content -Path $salida -Value "`n=== $($p.nombre) ===" -Encoding utf8
+  $job = Start-Job -ScriptBlock {
+    param($cmd, $args)
+    Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
+    & $cmd @args 2>&1 | Out-File -Encoding utf8 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-una.txt'
+  } -ArgumentList $p.comando, $p.args
+  Start-Sleep -Seconds $p.espera
+  Stop-Job $job -ErrorAction SilentlyContinue
+  Remove-Job $job -Force -ErrorAction SilentlyContinue
+  Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  $texto = Get-Content 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-una.txt' -ErrorAction SilentlyContinue
+  # MIRAR, no solo buscar un patron de fallo. Un error de Node —un throw, una excepcion— no lleva
+  # ninguno de los patrones de abajo, y asi se conto como verde una prueba que en realidad habia
+  # reventado por no encontrar el ZIP. Eso es exactamente lo que no hay que hacer: mirar el resultado,
+  # no suponerlo por la forma de la salida.
+  $crudo = ($texto -join "`n")
+  $fallo = $texto | Select-String -Pattern '^\s+FALLA|FALLO:|\d+ comprobaciones fallan|comprobaciones fallan:'
+  $excepcion = $crudo -match '^\s*throw |^Error:|^SyntaxError|Node\.js v\d|CategoryInfo|FullyQualifiedErrorId'
+  if ($fallo -or $excepcion) {
+    $fallos += $p.nombre
+    Add-Content -Path $salida -Value 'FALLA' -Encoding utf8
+    if ($fallo) {
+      Add-Content -Path $salida -Value ($fallo | Select-Object -First 3 | ForEach-Object { '   ' + $_.Line }) -Encoding utf8
+    } else {
+      Add-Content -Path $salida -Value '   (no hay asercion que falle: el comando reventó)' -Encoding utf8
+      Add-Content -Path $salida -Value ('   ' + (($crudo -split "`n" | Where-Object { $_.Trim() } | Select-Object -First 2) -join ' | ')) -Encoding utf8
+    }
+  } else {
+    Add-Content -Path $salida -Value 'ok' -Encoding utf8
+  }
+}
+
+Add-Content -Path $salida -Value "`n=== RESUMEN ===" -Encoding utf8
+if ($fallos.Count) {
+  Add-Content -Path $salida -Value ('fallan: ' + ($fallos -join ', ')) -Encoding utf8
+} else {
+  Add-Content -Path $salida -Value 'las nueve pasan' -Encoding utf8
+}
+'LISTO' | Out-File -Encoding utf8 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-fin.txt'
