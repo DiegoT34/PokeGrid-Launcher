@@ -56,10 +56,7 @@ const browserInstanceMessage = document.querySelector('#browserInstanceMessage')
 const closeBrowserInstanceButton = document.querySelector('#closeBrowserInstanceButton');
 const cancelBrowserInstanceButton = document.querySelector('#cancelBrowserInstanceButton');
 const browserInstancePopups = document.querySelector('#browserInstancePopups');
-const browserInstanceStart = document.querySelector('#browserInstanceStart');
-const browserInstanceBuscador = document.querySelector('#browserInstanceBuscador');
-const browserInstanceBuscadorField = document.querySelector('#browserInstanceBuscadorField');
-const browserInstanceApertura = document.querySelector('#browserInstanceApertura');
+const browserInstanceMode = document.querySelector('#browserInstanceMode');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
@@ -8215,9 +8212,20 @@ const MODOS_DE_APERTURA = Object.freeze(['auto', 'panel', 'ventana']);
 // Lo que no viene en una instancia guardada antes de esto se rellena aqui. No se reescribe
 // `localStorage`: los valores por defecto se aplican al leer, y lo que se guarde despues ya
 // viene completo. Una instancia vieja se ve igual que antes.
+// Los dos modos. «navegador» es navegacion normal —barra en cada pantalla y arranque en el
+// buscador—; «instancia» es una URL fija y todas sus pantallas cargando esa misma, sin barra.
+const MODOS_DE_INSTANCIA = Object.freeze(['navegador', 'instancia']);
+const MODO_POR_DEFECTO = 'instancia';
+
 function normalizarOpcionesDeInstancia(valor) {
   const opciones = valor && typeof valor === 'object' ? valor : {};
-  const navegador = Boolean(opciones.navegador);
+  // Lo que no viene en una instancia guardada antes de esto se rellena aqui, y no se reescribe
+// `localStorage`: los valores por defecto se aplican al leer. El `modo` sustituye al booleano
+// `navegador`, que solo sobrevive en los registros viejos, y la traduccion va aqui y no donde
+// se lee el registro para que no haya dos sitios que puedan desincronizarse.
+  const modo = MODOS_DE_INSTANCIA.includes(opciones.modo)
+    ? opciones.modo
+    : (opciones.navegador ? 'navegador' : MODO_POR_DEFECTO);
   const buscador = Object.prototype.hasOwnProperty.call(BUSCADORES, opciones.buscador)
     ? opciones.buscador
     : BUSCADOR_POR_DEFECTO;
@@ -8225,7 +8233,13 @@ function normalizarOpcionesDeInstancia(valor) {
     ? opciones.apertura
     : APERTURA_POR_DEFECTO;
   const inicio = String(opciones.inicio || '').slice(0, 1000);
-  return { navegador, buscador, apertura, inicio };
+  return { modo, buscador, apertura, inicio };
+}
+
+// El modo se lee con esta pregunta y no comparando el campo de antes, porque un sitio u otro
+// acabaria leyendo uno de los dos y rompiéndose con el otro.
+function esModoNavegador(instance) {
+  return instance?.modo === 'navegador';
 }
 
 // La pagina de partida. Una instancia de navegador arranca en el buscador —por eso el campo de
@@ -8233,7 +8247,7 @@ function normalizarOpcionesDeInstancia(valor) {
 // para lo que se guarda `inicio`. Sin esto, escribir una direccion y reiniciar el launcher no
 // hacia nada.
 function inicioDeInstancia(instance) {
-  if (instance.navegador) {
+  if (esModoNavegador(instance)) {
     return instance.inicio || BUSCADORES[instance.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
   }
   return instance.inicio || instance.url;
@@ -8276,7 +8290,7 @@ function normalizeBrowserInstance(value, fallbackId = '') {
     try {
       url = normalizeBrowserInstanceUrl(value?.url);
     } catch (error) {
-      if (!opciones.navegador) throw error;
+      if (opciones.modo !== 'navegador') throw error;
       url = BUSCADORES[opciones.buscador] || BUSCADORES[BUSCADOR_POR_DEFECTO];
     }
     return { id, name, url, count, ...opciones };
@@ -8897,7 +8911,7 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   let botonAtras = null;
   let botonAdelante = null;
   let botonRecargar = null;
-  if (instance.navegador) {
+  if (esModoNavegador(instance)) {
     barra = document.createElement('nav');
     barra.className = 'browser-instance-navegacion';
     botonAtras = document.createElement('button');
@@ -9445,14 +9459,13 @@ function cerrarAjustesDeInstancia() {
   setInstanceSettingsMessage('');
 }
 
-// Mostrar u ocultar el motor segun como vaya a empezar. Con buscador, el campo de enlace deja de
-// ser obligatorio —y si no se le quita el `required`, el formulario no deja continuar sin un
-// enlace que no se va a usar—, y con URL se esconde para que no estorbe.
-function sincronizarInicioElegido() {
-  const conBuscador = browserInstanceStart.value === 'buscador';
-  browserInstanceBuscadorField.hidden = !conBuscador;
-  browserInstanceUrl.required = !conBuscador;
-  browserInstanceUrlField.hidden = conBuscador;
+// Mostrar u ocultar el enlace segun el modo. En modo navegador se esconde Y deja de ser
+// obligatorio, porque no hay nada que escribir ahi: se arranca en el buscador y de ahi se navega.
+// En modo instancia es obligatorio, que es justo lo que lo distingue.
+function sincronizarModoElegido() {
+  const conUrl = browserInstanceMode.value !== 'navegador';
+  browserInstanceUrlField.hidden = !conUrl;
+  browserInstanceUrl.required = conUrl;
 }
 
 function openBrowserInstanceModal() {
@@ -9461,9 +9474,7 @@ function openBrowserInstanceModal() {
   browserInstanceName.value = '';
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
-  browserInstanceStart.value = 'url';
-  browserInstanceBuscador.value = BUSCADOR_POR_DEFECTO;
-  browserInstanceApertura.value = APERTURA_POR_DEFECTO;
+  browserInstanceMode.value = MODO_POR_DEFECTO;
   browserInstanceBackdrop.hidden = false;
   browserInstanceName.focus();
 }
@@ -10564,8 +10575,8 @@ document.querySelector('#cancelButton').addEventListener('click', closeAccountsM
 addBrowserInstanceButton.addEventListener('click', openBrowserInstanceModal);
 closeBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
 cancelBrowserInstanceButton.addEventListener('click', closeBrowserInstanceModal);
-browserInstanceStart?.addEventListener('change', sincronizarInicioElegido);
-sincronizarInicioElegido();
+browserInstanceMode?.addEventListener('change', sincronizarModoElegido);
+sincronizarModoElegido();
 browserInstancePopups?.addEventListener('change', () => {
   setVentanasEmergentes(browserInstancePopups.checked);
 });
@@ -10580,10 +10591,12 @@ browserInstanceForm.addEventListener('submit', (event) => {
       name: browserInstanceName.value,
       url: browserInstanceUrl.value,
       count: browserInstanceCount.value,
-      navegador: browserInstanceStart.value === 'buscador',
-      buscador: browserInstanceBuscador.value,
-      apertura: browserInstanceApertura.value,
-      inicio: browserInstanceStart.value === 'buscador' ? '' : browserInstanceUrl.value
+      modo: browserInstanceMode.value,
+      // El motor y el reparto de enlaces no se preguntan aqui: van en los ajustes, que es donde
+      // se cambian. Se mandan los de fabrica y se corrigen alli.
+      buscador: BUSCADOR_POR_DEFECTO,
+      apertura: APERTURA_POR_DEFECTO,
+      inicio: browserInstanceMode.value === 'navegador' ? '' : browserInstanceUrl.value
     });
     if (!instance) throw new Error('No se pudo crear la instancia con esos datos.');
     browserInstances.push(instance);

@@ -104,7 +104,7 @@ app.whenReady().then(async () => {
         buscador: conBuscador.buscador,
         apertura: conBuscador.apertura,
         inicioVacio: conBuscador.inicio === '',
-        sinCambios: [conUrl.navegador, conUrl.buscador, conUrl.apertura],
+        sinCambios: [conUrl.modo, conUrl.buscador, conUrl.apertura],
         ventana: conVentana.apertura,
         inicioDeBuscador: inicioDeInstancia(conBuscador),
         inicioDeUrl: inicioDeInstancia(conUrl),
@@ -116,7 +116,7 @@ app.whenReady().then(async () => {
       'una instancia de navegador guarda su buscador y su modo de apertura', JSON.stringify(modelo));
     comprobar(modelo.inicioVacio === true,
       'y arranca en el buscador, así que no necesita dirección de inicio', String(modelo.inicioVacio));
-    comprobar(modelo.sinCambios.join(',') === 'false,ddg,auto',
+    comprobar(modelo.sinCambios.join(',') === 'instancia,ddg,auto',
       'una instancia normal no cambia de comportamiento', modelo.sinCambios.join(','));
     comprobar(modelo.ventana === 'ventana', 'y se puede fijar en «siempre ventana aparte»', modelo.ventana);
     comprobar(modelo.inicioDeBuscador === 'https://www.google.com/search?q=',
@@ -134,20 +134,24 @@ app.whenReady().then(async () => {
     // `inst-nav` lleva la página local como inicio guardado. Una instancia de navegador arranca en el
     // buscador —eso se comprueba aparte, en `inst-buscador`—, y de esta prueba necesita una página de
     // verdad a la que poder pedirle que abra enlaces. Las dos cosas a la vez.
+    // OJO: estas instancias se montan con objetos CRUDOS, no con `normalizeBrowserInstance`, que es lo que
+// hace la app de verdad al leerlas de `localStorage`. Por eso van con `modo` y no con el booleano
+// `navegador` que tenían antes: el campo viejo solo lo traduce `normalizarOpcionesDeInstancia`, y aquí
+// no pasa por ahi. La traducción de lo viejo se prueba en `instancia-modos-smoke.js`.
     const montado = await ventana.webContents.executeJavaScript(`(() => {
       try {
         createBrowserInstanceWorkspace({
           id: 'inst-nav', name: 'Navegador', url: ${JSON.stringify(paginaNavegador)},
-          count: 1, navegador: true, buscador: 'ddg',
+          count: 1, modo: 'navegador', buscador: 'ddg',
           inicio: ${JSON.stringify(paginaNavegador)}, apertura: 'auto'
         }, 0);
         createBrowserInstanceWorkspace({
           id: 'inst-buscador', name: 'Buscador', url: ${JSON.stringify(paginaNavegador)},
-          count: 1, navegador: true, buscador: 'google', inicio: '', apertura: 'auto'
+          count: 1, modo: 'navegador', buscador: 'google', inicio: '', apertura: 'auto'
         }, 2);
         createBrowserInstanceWorkspace({
           id: 'inst-juego', name: 'Juego', url: ${JSON.stringify(paginaNavegador)},
-          count: 1, navegador: false, buscador: 'ddg', inicio: '', apertura: 'auto'
+          count: 1, modo: 'instancia', buscador: 'ddg', inicio: '', apertura: 'auto'
         }, 1);
         return { ok: true, error: '' };
       } catch (error) {
@@ -219,7 +223,7 @@ app.whenReady().then(async () => {
     const guardado = await ventana.webContents.executeJavaScript(`(() => {
       const fila = {
         id: 'inst-guardada', name: 'Guardada', url: 'https://ejemplo.invalid/', count: 1,
-        navegador: true, buscador: 'ddg', inicio: '', apertura: 'auto'
+        modo: 'navegador', buscador: 'ddg', inicio: '', apertura: 'auto'
       };
       browserInstances.push(fila);
       saveBrowserInstances();
@@ -420,7 +424,7 @@ const antesDeLogin = await ventana.webContents.executeJavaScript(
       // 3. Y la dirección escrita en la barra no se leía al arrancar, que es para lo que se guardaba.
       const conInicio = createBrowserInstanceWorkspace({
         id: 'inst-inicio', name: 'Con inicio', url: 'https://ejemplo.invalid/',
-        count: 1, navegador: true, buscador: 'ddg',
+        count: 1, modo: 'navegador', buscador: 'ddg',
         inicio: 'https://ejemplo.invalid/guardado', apertura: 'auto'
       }, 3);
       salida.arrancaEnElInicioGuardado = conInicio.panels[0].startUrl;
