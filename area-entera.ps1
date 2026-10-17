@@ -10,13 +10,13 @@
 # asi que el script no falla nunca: escribe el resultado de cada una y sigue, para que se vea el
 # panorama entero en vez de solo el primer fallo.
 $ErrorActionPreference = 'Continue'
-$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0290.txt'
+$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0310.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
 $pruebas = @(
   @{ nombre = 'npm run check';     comando = 'npm';      args = @('run', 'check');                       espera = 20 },
-  @{ nombre = 'plantillas-rotas';   comando = 'node';     args = @('buscar-plantilla-rota.cjs', 'tests\instancia-cabecera-smoke.js'); espera = 15 },
+  @{ nombre = 'plantillas-rotas';   comando = 'node';     args = @('buscar-plantilla-rota.cjs', 'tests\descanso-smoke.js', 'tests\sondeos-visibles-smoke.js'); espera = 15 },
   @{ nombre = 'ipc-sender-guard';   comando = 'node';     args = @('tests\ipc-sender-guard-smoke.js');   espera = 20 },
   @{ nombre = 'instancia-vista';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-vista-smoke.js');        espera = 150 },
   @{ nombre = 'instancia-navegador';comando = 'tests\lanzar.cjs'; args = @('tests\instancia-navegador-smoke.js');    espera = 230 },
@@ -26,10 +26,13 @@ $pruebas = @(
   @{ nombre = 'instancia-cabecera'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-cabecera-smoke.js');   espera = 100 },
   @{ nombre = 'instancia-nueva-pestana'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-nueva-pestana-smoke.js'); espera = 100 },
   @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
-  @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
-  @{ nombre = 'verificador-paquete';comando = 'verificar-paquete.cjs'; args = @();                              espera = 90 },
-  @{ nombre = 'lo-que-se-entrega';  comando = 'comprobar-entrega.cjs'; args = @();                              espera = 60 }
+  @{ nombre = 'descanso';           comando = 'tests\lanzar.cjs'; args = @('tests\descanso-smoke.js');             espera = 110 },
+  @{ nombre = 'sondeos-visibles';   comando = 'tests\lanzar.cjs'; args = @('tests\sondeos-visibles-smoke.js');      espera = 100 },
+  @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 }
 )
+# `verificar-paquete` y `comprobar-entrega` NO estan aqui a proposito. Comprueban el ARTEFACTO, y antes
+# de compilar mirarian el build de la entrega anterior: darian verde —o fallarian— por un fichero que
+# no es el que se va a entregar. Se corren DESPUES de `npm run dist`, y entonces si significan algo.
 
 $fallos = @()
 foreach ($p in $pruebas) {

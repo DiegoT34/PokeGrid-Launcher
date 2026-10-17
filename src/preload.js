@@ -15,6 +15,19 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
   setInstanceApertura: (particion, modo) => ipcRenderer.invoke('instancia:apertura', { particion, modo }),
   descargarIcono: (url) => ipcRenderer.invoke('instancia:icono', String(url || '')),
+  // Decirle a una pantalla que se duerma o que corra. `duerme = true` la duerme. OJO al nombre: en
+  // Electron `setBackgroundThrottling(true)` significa DORMIR, no despertar. La primera version de
+  // esto se lo tomaba al reves y dormia justo la pantalla que estabas mirando.
+  // El renderer no tiene `electron`, así que el id de webContents viaja hasta el proceso principal,
+  // que es el único que puede tocar al invitado.
+  duermirPanel: (id, duerme) => ipcRenderer.invoke('instancia:atenuar', Number(id), Boolean(duerme)),
+  borrarParticionDeInstancia: (particion) => ipcRenderer.invoke('instancia:borrar-particion', String(particion || '')),
+  borrarParticionesPendientes: () => ipcRenderer.invoke('instancia:borrar-particiones-pendientes'),
+  onDescansoCambiado: (listener) => {
+    const wrapped = (_event, datos) => listener(datos || {});
+    ipcRenderer.on('instancia:descanso-cambiado', wrapped);
+    return () => ipcRenderer.removeListener('instancia:descanso-cambiado', wrapped);
+  },
   onPeticionPestana: (listener) => {
     const handler = (_event, value) => listener(value);
     ipcRenderer.on('instancia:peticion-pestana', handler);

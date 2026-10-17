@@ -35,13 +35,24 @@ const REMOTE_IMAGE_CACHE_LIMIT = 48;
 // 33%. 48 capturas de 2 MB serian 128 MB en memoria, y abrir un catalogo grande podria
 // dejar al launcher sin ella. Con 24 entradas el peor caso son unos 65 MB.
 const CAPTURAS_CACHE_LIMIT = 24;
+// Cuantos iconos se quedan en memoria a la vez. Con doce instancias y varias webs cada una, la
+// cuenta de webs distintas visitadas pasa de doce con facilidad, y cada entrada es una imagen en
+// base64.
+const ICONOS_EN_CACHE = 96;
 const SPECIES_CACHE_LIMIT = 256;
 const GAME_SESSION_CACHE_BUDGET = 96 * 1024 * 1024;
 const GAME_SESSION_CACHE_CHECK_INTERVAL = 7 * 24 * 60 * 60 * 1000;
 
-// Las sesiones permanecen activas al cambiar de pestaña o minimizar el launcher.
-// Esto evita que Chromium suspenda conexiones y temporizadores de juegos en segundo plano.
-app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// ESTO ESTUVO AQUÍ Y SE HA IDO. Decía: «Las sesiones permanecen activas al cambiar de pestaña o
+// minimizar el launcher. Esto evita que Chromium suspenda conexiones y temporizadores de juegos en
+// segundo plano.» Era un buen motivo, pero el precio era otro: medido, el launcher quemaba 341 % de
+// CPU (3,4 núcleos) y 3.012 MB de los 8.070 MB de RAM, con 16 páginas del juego —16 procesos de
+// Chromium— corriendo a tope aunque no las mirara nadie. La memoria privada llegaba a 6.726 MB: más
+// de la que cabe en la máquina.
+//
+// La misma intención se cumple ahora de otra manera, con `instancia:atenuar` y `aplicarDescanso()`:
+// la pantalla que estás mirando NO se atenúa, y todo lo demás sí. Si algo se rompe al pasar a la
+// instancia principal, es esta línea la que hay que volver a mirar, no una constante.
 
 let mainWindow = null;
 let pokepediaWindow = null;
@@ -1104,11 +1115,9 @@ function createPokepediaWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false,
       webviewTag: true
     }
   });
-
   pokepediaWindow.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url);
     return { action: 'deny' };
@@ -1148,7 +1157,6 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false,
       webviewTag: true
     }
   });
@@ -1168,6 +1176,28 @@ function createWindow() {
     }
   });
 
+  // Minimizada o escondida no hay ni una pantalla a la vista: se duerme todo. Es el caso que más
+  // importa, porque es el de verdad —el launcher se deja abierto horas mirando solo una pantalla— y
+  // el que antes no ahorraba absolutamente nada.
+  const dormirTodo = () => dormirTodosLosInvitados();
+  const despertarTodo = () => {
+    // Primero, que el proceso principal despierte a todos en bloque: si no, el renderer tendria que
+    // recorrer las doce pantallas una por una y habia un instante en que todas dormian.
+    const propia = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null;
+    for (const contents of webContents.getAllWebContents()) {
+      if (contents.isDestroyed() || contents === propia) continue;
+      try { contents.setBackgroundThrottling(false); } catch { /* se va de camino */ }
+    }
+    // Y despues, que el renderer deje a solo las de la pantalla activa despiertas.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('instancia:descanso-cambiado', { despierto: true });
+    }
+  };
+  mainWindow.on('minimize', dormirTodo);
+  mainWindow.on('hide', dormirTodo);
+  mainWindow.on('restore', despertarTodo);
+  mainWindow.on('show', despertarTodo);
+
   mainWindow.webContents.on('will-attach-webview', (_event, webPreferences, params) => {
     const partition = String(params.partition || webPreferences.partition || '');
     if (!partition.startsWith('persist:pokegrid-instance-')) return;
@@ -1183,7 +1213,6 @@ function createWindow() {
     webPreferences.nodeIntegration = false;
     webPreferences.contextIsolation = true;
     webPreferences.sandbox = true;
-    webPreferences.backgroundThrottling = false;
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
@@ -1647,6 +1676,15 @@ async function iconoComoDataUrl(url) {
     const limpio = tipoDeImagen(tipo);
     const dataUrl = `data:${limpio};base64,${Buffer.concat(trozos).toString('base64')}`;
     cacheDeIconos.set(url, dataUrl);
+    // El caché no tenía tope: cada icono es una imagen en base64 —hasta 256 KB— guardada para
+    // siempre. Con doce instancias y varias webs cada una, son decenas de MB que nadie vuelve a
+    // usar. Al insertar se borra la más antigua, que es lo justo: el orden de un Map es el de
+    // inserción, así que la primera clave es la más vieja.
+    while (cacheDeIconos.size > ICONOS_EN_CACHE) {
+      const masVieja = cacheDeIconos.keys().next();
+      if (masVieja.done) break;
+      cacheDeIconos.delete(masVieja.value);
+    }
     return dataUrl;
   } catch {
     // Sin red, con tiempo agotado, con una respuesta mal formada: el icono se queda sin poner y la
@@ -1871,6 +1909,123 @@ ipcMain.handle('instancia:icono', async (event, url) => {
   if (!/^https:\/\//i.test(limpio)) return { ok: false, error: 'El icono tiene que ser https.' };
   const dataUrl = await iconoComoDataUrl(limpio);
   return dataUrl ? { ok: true, dataUrl } : { ok: false, error: 'Esa web no tiene icono.' };
+});
+
+// =====================================================================================
+// DORMIR LO QUE NO SE MIRA
+//
+// Medido: con las dieciséis páginas del juego vivas y sin atenuar, el launcher quemaba 341 % de CPU
+// y ocupaba 3.012 MB de los 8.070 MB de RAM. Aquí se decide, pantalla a pantalla, cuál duerme.
+//
+// El nombre importa mas de lo que parece: `setBackgroundThrottling(true)` significa DORMIR, no
+// despertar. Con el nombre al reves, la primera version de esto dejaba la pantalla que estabas
+// mirando echada y despertaba las que no mirabas — justo lo contrario de lo que se pedia. Por eso el
+// parametro se llama `duermir` y no `activar`: que se lea igual en los tres sitios.
+ipcMain.handle('instancia:atenuar', (event, id, duermir) => {
+  assertMainWindowSender(event);
+  const contents = webContents.fromId(Number(id));
+  if (!contents || contents.isDestroyed()) return { ok: false };
+  contents.setBackgroundThrottling(Boolean(duermir));
+  return { ok: true };
+});
+
+// Cuando la ventana se minimiza o se esconde, no hay ni una pantalla visible: se duerme todo. Sin
+// esto, dejar el launcher abierto toda la noche no ahorraba nada, que era justo el uso para el que
+// está hecho. Al volver, el renderer vuelve a decidir cuál era la activa.
+function dormirTodosLosInvitados() {
+  const propia = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null;
+  for (const contents of webContents.getAllWebContents()) {
+    if (contents.isDestroyed() || contents === propia) continue;
+    try {
+      contents.setBackgroundThrottling(true);
+    } catch { /* un invitado que ya está en camino a cerrarse da igual */ }
+  }
+}
+
+// Borrar del disco la partición de una instancia que el usuario ha BORRADO a propósito. Es lo que
+// explica los 2.867 MB de la carpeta de datos: 30 particiones de instancia para un máximo de 12
+// instancias, porque al borrar una instancia su partición se quedaba ahí para siempre.
+//
+// Concede: una instancia borrada pierde su sesión guardada (la web que tenía abierta). Es lo que se
+// pide al borrarla, y es lo que el botón dice.
+// Las particiones de las instancias que se han quitado, y que todavia no se pudieron borrar.
+//
+// En Windows, si una particion la tiene abierta un proceso de Chromium, el borrado falla con EBUSY y
+// NO se arregla esperando. Se vio dos veces al probar: primero con el CdmStorage.db y luego con el
+// DIPS-wal. Peor: el arreglo intuitivo, llamar a session.fromPartition() para "soltar" el
+// almacenamiento, es lo que PROVOCA el bloqueo, porque esa llamada crea la sesion si no existe.
+// O sea que el intento de arreglarlo lo rompia.
+//
+// Lo que funciona es no insistir: se intenta ahora, y si el fichero esta pillado, el nombre se
+// guarda en una lista y se borra al arrancar siguiente, cuando ya no hay ningun invitado de esa
+// particion. El usuario no tiene que hacer nada y el disco se limpia igual.
+const RUTA_PENDIENTES = 'particiones-pendientes.json';
+const nombreDePendientes = () => path.join(app.getPath('userData'), RUTA_PENDIENTES);
+
+// Vaciar la cola ahora, sin esperar al arranque. Lo usa `whenReady`; el canal existe para que una
+// prueba pueda comprobar que la cola se vacia de verdad, porque si no, lo unico que se podria
+// comprobar es que el fichero se escribe — y eso no dice nada de que luego se borre.
+ipcMain.handle('instancia:borrar-particiones-pendientes', async (event) => {
+  assertMainWindowSender(event);
+  return vaciarPendientesDeParticiones();
+});
+
+function leerPendientes() {
+  try {
+    const lista = JSON.parse(fs.readFileSync(nombreDePendientes(), 'utf8'));
+    return Array.isArray(lista) ? lista.filter((n) => typeof n === 'string' && /^[a-zA-Z0-9._-]+$/.test(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function escribirPendientes(lista) {
+  try {
+    fs.writeFileSync(nombreDePendientes(), JSON.stringify([...new Set(lista)], null, 2), 'utf8');
+  } catch { /* si no se puede ni escribir la lista, no se rompe el arranque */ }
+}
+
+// Intenta borrar. Devuelve true si el directorio ya no esta, false si algo lo tiene abierto.
+async function intentarBorrarParticion(nombre) {
+  const destino = path.join(app.getPath('userData'), 'Partitions', nombre);
+  try {
+    await fs.promises.rm(destino, { recursive: true, force: true, maxRetries: 2, retryDelay: 200 });
+  } catch {
+    return false;
+  }
+  return !fs.existsSync(destino);
+}
+
+// Al arrancar. Nada tiene abierta su particion todavia, asi que es el momento en que esto si funciona.
+async function vaciarPendientesDeParticiones() {
+  const pendientes = leerPendientes();
+  if (!pendientes.length) return { borradas: [], quedaron: [] };
+  const borradas = [];
+  const quedaron = [];
+  for (const nombre of pendientes) {
+    if (await intentarBorrarParticion(nombre)) borradas.push(nombre);
+    else quedaron.push(nombre);
+  }
+  escribirPendientes(quedaron);
+  if (borradas.length) console.log(`Particiones borradas de instancias quitadas: ${borradas.length}`);
+  return { borradas, quedaron };
+}
+
+ipcMain.handle('instancia:borrar-particion', async (event, particion) => {
+  assertMainWindowSender(event);
+  const limpia = String(particion || '');
+  if (!limpia.startsWith('persist:pokegrid-instance-')) {
+    return { ok: false, error: 'Esa particion no es de una instancia.' };
+  }
+  const nombre = limpia.slice('persist:'.length);
+  if (!/^[a-zA-Z0-9._-]+$/.test(nombre)) return { ok: false, error: 'Nombre de particion no valido.' };
+  const destino = path.join(app.getPath('userData'), 'Partitions', nombre);
+  if (!fs.existsSync(destino)) return { ok: true, borrado: false, motivo: 'no existia' };
+  if (await intentarBorrarParticion(nombre)) return { ok: true, borrado: true, motivo: 'ahora' };
+  // Pillada. Se apunta para el siguiente arranque y se DICE, en vez de fingir que se ha borrado: una
+  // particion que no se borro y nadie sabe por que es peor que una que se avisa que no se pudo borrar.
+  escribirPendientes([...leerPendientes(), nombre]);
+  return { ok: true, borrado: false, pendiente: true, motivo: 'la tiene abierta Chromium; se borrara al arrancar' };
 });
 
 // El modo de apertura de una pantalla, que se guarda para poder responder de inmediato cuando
@@ -2347,6 +2502,11 @@ app.whenReady().then(async () => {
     .replace(/ Electron\/[\d.]+/, '')
     .replace(/(Chrome\/\d+)[\d.]+/, '$1.0.0.0');
   await configureGameSessions();
+  // Las particiones de instancias que se quitaron y que, en su momento, tenian abierto un proceso
+  // de Chromium. Ahora ya no hay nadie dentro de ellas, asi que es el momento en que si se pueden
+  // borrar. Va antes de createWindow() a proposito: crear la ventana es lo que empieza a abrir
+  // sesiones, y hay que hacerlo antes de que vuelva a haber una.
+  await vaciarPendientesDeParticiones();
   createWindow();
 });
 

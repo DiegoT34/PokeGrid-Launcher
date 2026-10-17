@@ -3101,6 +3101,11 @@ async function pollCaptureNotifications() {
     await Promise.allSettled(panels.map(async (panel) => {
       try {
         if (!panelDentroDelJuego(panel)) return;
+        // SOLO la pantalla que se está mirando. Antes esto iba contra las cuatro cuentas cada 3,5
+        // segundos sin mirar si estabas en esa pestaña: unas 1.714 inyecciones de script por hora
+        // contra páginas que nadie estaba viendo. Los guiones leen y envían datos, y para eso hace
+        // falta estar mirando la pantalla.
+        if (!panelEstaEnPantalla(panel)) return;
         if (Date.now() - Number(panel.captureMonitorHealthAt || 0) > 30_000) {
           panel.captureMonitorHealthAt = Date.now();
           await withTimeout(panel.webview.executeJavaScript(captureMonitorInstallScript()), PANEL_READ_TIMEOUT_MS, 'El monitor de eventos no respondió.').catch(() => {});
@@ -3431,9 +3436,20 @@ function archiveCaptureRows(panel, captures) {
   if (!panel || panel.captureLogPreview || panel.captureLogActionBusy || panel.captureArchiveResetPending ||
       !Array.isArray(captures) || !captures.length) return;
   const changed = [];
-  const existingById = new Map([...panel.captureArchive.values()].map((entry) => [
-    String(entry.id || entry.recordId || '').trim(), entry
-  ]).filter(([id]) => id));
+  // Antes, aquí se construía un Map con TODAS las entradas del archivo, cada 3,5 segundos y por
+  // cada cuenta: una copia entera para mirar, en el peor caso, una fila. Se hace ahora LAZOSO, solo
+  // si alguna fila entrante no aparece por su clave de archivo —que son las pocas que cambian de
+  // clave al fusionarse— y una sola vez por pasada.
+  let indicePorId = null;
+  const indiceEstable = () => {
+    if (indicePorId) return indicePorId;
+    indicePorId = new Map();
+    for (const entry of panel.captureArchive.values()) {
+      const id = String(entry.id || entry.recordId || '').trim();
+      if (id) indicePorId.set(id, entry);
+    }
+    return indicePorId;
+  };
   captures.forEach((capture) => {
     if (!capture?.name) return;
     const row = durableCaptureRow(panel, capture);
@@ -3441,7 +3457,7 @@ function archiveCaptureRows(panel, captures) {
     if (!previous) {
       const stableId = String(row.id || row.recordId || '').trim();
       if (stableId) {
-        previous = existingById.get(stableId);
+        previous = indiceEstable().get(stableId);
         if (previous?.archiveKey) row.archiveKey = previous.archiveKey;
       }
     }
@@ -3450,7 +3466,9 @@ function archiveCaptureRows(panel, captures) {
     if (signature === panel.captureArchiveSignatures.get(row.archiveKey)) return;
     panel.captureArchive.set(row.archiveKey, merged);
     const stableId = String(merged.id || merged.recordId || '').trim();
-    if (stableId) existingById.set(stableId, merged);
+    // Si el indice se llegó a construir, se actualiza; si no, no hay nada que actualizar porque
+    // significa que en esta pasada no se ha usado.
+    if (stableId && indicePorId) indicePorId.set(stableId, merged);
     panel.captureArchiveSignatures.set(row.archiveKey, signature);
     changed.push(merged);
   });
@@ -3997,7 +4015,7 @@ async function refreshPanelCaptureLog(panel, { force = false } = {}) {
 }
 async function pollCaptureLogs() {
   if (captureLogPollBusy) return;
-  const activePanels = panels.filter((panel) => panel.captureLogOpen);
+  const activePanels = panels.filter((panel) => panel.captureLogOpen && panelEstaEnPantalla(panel));
   if (!activePanels.length) return;
   captureLogPollBusy = true;
   try {
@@ -4960,7 +4978,9 @@ window.__pokeGridHuntLectura = {
 
 async function pollHuntAnalyzers() {
   if (huntPollBusy) return;
-  const activePanels = panels.filter((panel) => panel.huntOpen);
+  // Con el analizador abierto Y la pantalla a la vista. El analizador lee la sesión del juego y
+  // manda datos, así que fuera de la pantalla que se está mirando no tiene nada que hacer.
+  const activePanels = panels.filter((panel) => panel.huntOpen && panelEstaEnPantalla(panel));
   if (!activePanels.length) return;
   huntPollBusy = true;
   try {
@@ -6166,6 +6186,10 @@ async function refreshFarmContexts({ render = true, forcePokes = false, accountI
   try {
     const contexts = await Promise.all(panels.map(async (panel, index) => {
       if (accountIndex !== null && index !== accountIndex) return farmContexts[index];
+        // El sondeo de cada cinco segundos solo lee las cuentas que se están mirando. Cuando se pide
+        // UNA cuenta concreta —el boton de forzar— esa se lee aunque no sea la activa, porque la
+        // acaba de pedir el usuario.
+        if (accountIndex === null && !panelEstaEnPantalla(panel)) return farmContexts[index];
       try {
         if (!panelDentroDelJuego(panel)) {
           return { level: null, location: '', ready: false, leader: null };
@@ -7488,14 +7512,22 @@ function loginScript(credentials) {
         setNativeValue(userInput, username);
         setNativeValue(passwordInput, password);
         if (!window.__pokeGridSubmitWatcher) {
+          // Este sondeo se paraba solo cuando encontraba el boton de enviar, y solo entonces. Si la
+          // pagina no lo tiene —o lo tiene deshabilitado para siempre— se quedaba mirando a 2 Hz
+          // hasta el final de la sesion, en cada pagina de acceso a la que se llegara.
+          window.__pokeGridSubmitWatcherVence = Date.now() + 60_000;
           window.__pokeGridSubmitWatcher = window.setInterval(() => {
             const submit = findSubmit();
             const captcha = document.querySelector('input[name="cf-turnstile-response"]');
             const captchaReady = !captcha || Boolean(captcha.value);
-            if (submit && !submit.disabled && captchaReady) {
+            const pasoElPlazo = Date.now() > Number(window.__pokeGridSubmitWatcherVence || 0);
+            if (pasoElPlazo || (submit && !submit.disabled && captchaReady)) {
               clearInterval(window.__pokeGridSubmitWatcher);
               window.__pokeGridSubmitWatcher = null;
-              submit.click();
+              window.__pokeGridSubmitWatcherVence = 0;
+              // Vencido no se pulsa nada: un boton de enviar que aparece tarde, en una pagina que ya
+              // no es la del acceso, es peor que no pulsar ninguno.
+              if (!pasoElPlazo && submit && !submit.disabled) submit.click();
             }
           }, 500);
         }
@@ -8550,6 +8582,9 @@ function attachResilientWebview(panel, callbacks = {}) {
   };
   webview.addEventListener('did-navigate', navigationHandler);
   webview.addEventListener('did-navigate-in-page', navigationHandler);
+  // Se guarda en el panel para poder quitarlo al destruirlo. Sin esto, un panel reciclado se
+  // llevaba sus dos oyentes puestos y la navegacion siguiente los llamaba dos veces.
+  panel.navigationHandler = navigationHandler;
   const recoverRenderer = (event) => {
     const reason = event?.reason || event?.details?.reason || 'Proceso del navegador interrumpido';
     schedulePanelRecovery(panel, reason, { immediate: true });
@@ -8935,6 +8970,63 @@ function renderBrowserInstanceTabs() {
   // aparecerian tarde o no aparecerian.
   requestAnimationFrame(actualizarFlechasDePestanas);
 }
+// =====================================================================================
+// DORMIR LO QUE NO SE MIRA
+//
+// Medido antes de cambiar nada: el launcher quemaba 341 % de CPU (3,4 núcleos) y ocupaba 3.012 MB
+// de los 8.070 MB de RAM. La causa no era una fuga: eran dieciséis páginas del juego —dieciséis
+// procesos de Chromium— corriendo a tope aunque nadie las mirara, porque nada decía nunca
+// «duérmete».
+//
+// Aquí está la regla, y sale de cómo está montado: solo hay UNA instancia activa, y los paneles de
+// una instancia se ven TODOS a la vez en rejilla. O sea que no existe «el panel visible» dentro de
+// una instancia: se ve la instancia entera o no se ve nada. Por eso la pregunta no es «¿está este
+// panel a la vista?» sino «¿es de la pestaña que tengo abierta?».
+function todosLosPanelesVivos() {
+  const salida = [];
+  for (const panel of panels) if (panel && !panel.destroyed) salida.push(panel);
+  for (const view of browserInstanceViews.values()) {
+    for (const panel of view?.panels || []) if (panel && !panel.destroyed) salida.push(panel);
+  }
+  return salida;
+}
+
+function panelEstaEnPantalla(panel) {
+  return Boolean(panel) && panel.instanceId === activeBrowserInstanceId;
+}
+
+let descansoPendiente = 0;
+function aplicarDescanso() {
+  // Antes de que una pantalla llegue a dom-ready, getWebContentsId LANZA. Se guarda el resultado y se
+  // reintenta cuando ya exista, en vez de tragarse el error y dejar esa pantalla dormida para
+  // siempre: una página que nace dormida no avisa nunca de que ha despertado.
+  let pendiente = 0;
+  for (const panel of todosLosPanelesVivos()) {
+    const despierta = panelEstaEnPantalla(panel);
+    let id = 0;
+    try {
+      id = Number(panel.webview?.getWebContentsId?.() || 0);
+    } catch {
+      id = 0;
+    }
+    if (!id) {
+      if (despierta) pendiente++;
+      continue;
+    }
+    try {
+      // OJO: se pasa lo CONTRARIO de «despierta». En Electron, poner la atenuacion a true es
+      // echarse a dormir. La primera version pasaba `despierta` tal cual y por eso dormia la
+      // pantalla abierta y despertaba las ocultas: justo lo contrario de lo pedido. La prueba lo
+      // cazó leyendo el estado real del webContents, no una variable del launcher.
+      window.pokeGrid?.duermirPanel?.(id, !despierta)?.catch?.(() => {});
+    } catch { /* el puente no esta todavia: se reintenta en la siguiente pasada */ }
+  }
+  if (pendiente > 0) {
+    window.clearTimeout(descansoPendiente);
+    descansoPendiente = window.setTimeout(() => aplicarDescanso(), 700);
+  }
+}
+
 function updateBrowserInstanceSelection() {
   document.querySelectorAll('.instance-workspace').forEach((workspace) => {
     const active = workspace.dataset.instanceId === activeBrowserInstanceId;
@@ -8946,6 +9038,10 @@ function updateBrowserInstanceSelection() {
     shell.classList.toggle('is-active', active);
     shell.querySelector('.instance-tab')?.setAttribute('aria-selected', String(active));
   });
+  // La pestaña ha cambiado, asi que quien se duerme y quien se despierta tambien. Va aqui y no en el
+  // manejador de clic porque TODA forma de cambiar de instancia pasa por esta funcion: el atajo, el
+  // boton, la restauracion del arranque y el cambio al entrar en pantalla completa.
+  aplicarDescanso();
 }
 // El proceso principal solo sabe de webContents. Este mapa traduce de uno a la pantalla que le
 // corresponde.
@@ -8964,6 +9060,10 @@ function registrarPanelEnMapa(panel) {
     const id = panel.webview?.getWebContentsId?.();
     if (!id) return false;
     panelesPorWebContentsId.set(id, panel);
+    // La pantalla acaba de tener id, que es justo lo que hacia falta para poder decidir si duerme.
+    // Sin esta llamada, una pantalla que nace en una pestaña que no es la activa se queda
+    // funcionando sola, y una que nace en la activa arrancaria dormida.
+    aplicarDescanso();
     // El icono no se pide aqui: se engancha su oyente al crear la pantalla, que es antes de que el
     // invitado pueda avisar. Aqui solo hacen falta las cosas que necesitan id.
     return true;
@@ -9397,7 +9497,11 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   webview.setAttribute('allowpopups', 'true');
   // nativeWindowOpen=yes es lo que hace que Electron cree la ventana cuando el manejador lo permite.
   // Sin esta preferencia, aunque el manejador diga que sí, no sale ninguna ventana.
-  webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no, nativeWindowOpen=yes');
+  // Sin `backgroundThrottling=no`: el valor por defecto de Electron es atenuar, y eso es lo que
+  // queremos. Lo que se mira corre a tope porque `aplicarDescanso()` lo desactiva solo en la pantalla
+  // activa; lo que no se mira se duerme. Con las dieciséis páginas del juego encendidas a la vez, esto
+  // solo era la diferencia entre 341 % de CPU y una CPU de verdad.
+  webview.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no, nativeWindowOpen=yes');
   host.appendChild(webview);
   element.append(panelbar, host);
   workspace.appendChild(element);
@@ -9567,22 +9671,74 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   syncUserScriptPanels();
   return view;
 }
+// Destruir una pantalla DE VERDAD. Antes esto no existía: al cerrar una instancia se quitaba el
+// elemento del DOM y se paraba la carga, y con eso el proceso invitado se quedaba vivo. Medido: 22
+// procesos del launcher abiertos, 3.012 MB de RAM. Un `<webview>` que sale del DOM sin destruirse
+// deja su proceso de Chromium enteroloaded en memoria.
+//
+// El orden importa: primero los relojes, luego las oyentes, luego fuera el mapa —porque una cosa que
+// sigue en el mapa cuando su webContents ya no existe es un puntero a nada— y por ultimo
+// `destroy()`, que es lo unico que se lleva el proceso consigo.
+function destruirPanelDeVerdad(panel, { quitarDelDom = true } = {}) {
+  if (!panel) return false;
+  if (panel.destroyed) {
+    // Ya estaba marcado, pero el elemento puede seguir puesto en el DOM: quitarlo siempre es lo
+    // correcto y antes lo hacia el codigo de cada sitio. Con un retorno seco aqui se dejaba una
+    // pantalla huerfana en la rejilla, y se veria solo.
+    if (quitarDelDom) panel.element?.remove();
+    return false;
+  }
+  panel.destroyed = true;
+  clearConnectionTimers(panel);
+  try {
+    if (panel.navigationHandler) {
+      panel.webview.removeEventListener('did-navigate', panel.navigationHandler);
+      panel.webview.removeEventListener('did-navigate-in-page', panel.navigationHandler);
+      panel.navigationHandler = null;
+    }
+  } catch { /* el webview puede estar ya desconectado */ }
+  try {
+    const id = Number(panel.webview?.getWebContentsId?.() || 0);
+    if (id) panelesPorWebContentsId.delete(id);
+  } catch { /* sin id, no habia nada en el mapa */ }
+  try { panel.webview.stop(); } catch {}
+  try {
+    // Y esto, que es lo que de verdad libera la memoria.
+    panel.webview.destroy();
+  } catch {}
+  if (quitarDelDom) panel.element?.remove();
+  return true;
+}
+
 function removeBrowserInstance(instanceId) {
   const instance = browserInstances.find((row) => row.id === instanceId);
   if (!instance || !window.confirm(`¿Cerrar y quitar la instancia "${instance.name}" del launcher?`)) return;
   const view = browserInstanceViews.get(instanceId);
-  (view?.panels || []).forEach((panel) => {
-    panel.destroyed = true;
-    clearConnectionTimers(panel);
-    try { panel.webview.stop(); } catch {}
-  });
+  // Las particiones se leen ANTES de destruir nada. Despues de `destroy()` el webview ya no
+  // contesta a getAttribute, y el borrado se quedaria sin particion: justo el fallo que hace que esto
+  // parezca funcionar y no borre nada.
+  const particiones = (view?.panels || []).map((panel) => {
+    try { return String(panel.webview?.getAttribute?.('partition') || ''); } catch { return ''; }
+  }).filter((particion) => particion.startsWith('persist:pokegrid-instance-'));
+  (view?.panels || []).forEach((panel) => destruirPanelDeVerdad(panel));
   view?.workspace.remove();
   browserInstanceViews.delete(instanceId);
   browserInstances = browserInstances.filter((row) => row.id !== instanceId);
+  // Los mapas de icono son por instancia, y una instancia borrada no puede dejar su icono ocupando
+  // sitio para siempre. El error se traga: que no se borre el icono es un MUCHISIMO problema menor
+  // que un borrado que revienta.
+  iconosDeInstancia.delete(instanceId);
+  origenesDeIcono.delete(instanceId);
   saveBrowserInstances();
   syncUserScriptPanels();
   if (activeBrowserInstanceId === instanceId) activateBrowserInstance(PRIMARY_BROWSER_INSTANCE_ID);
   renderBrowserInstanceTabs();
+  // Y su partición del disco. Esto es lo que explica los 2.867 MB de la carpeta de datos: 30
+  // particiones de instancia para un máximo de 12 instancias, porque al borrar una su partición se
+  // quedaba ahí para siempre.
+  for (const particion of particiones) {
+    window.pokeGrid?.borrarParticionDeInstancia?.(particion)?.catch?.(() => {});
+  }
 }
 // Las ventanas emergentes de las instancias de navegador.
 //
@@ -10084,7 +10240,10 @@ function createPanel(index) {
   webview.setAttribute('partition', `persist:pokegrid-${accountId}`);
   webview.setAttribute('src', 'about:blank');
   webview.setAttribute('allowpopups', 'false');
-  webview.setAttribute('webpreferences', 'backgroundThrottling=no, contextIsolation=yes, nodeIntegration=no');
+  // Aquí también sin `backgroundThrottling=no`: las cuentas del juego son la instancia principal, así
+  // que solo corren mientras las estás mirando. Mientras estás en otra pestaña se duermen, que es lo
+  // que se pidió: los guiones solo leen y envían con su pantalla a la vista.
+  webview.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no');
   webviewHost.appendChild(webview);
   grid.appendChild(fragment);
   const panel = {
@@ -10349,10 +10508,10 @@ function setGridLayout() {
 }
 function rebuildGamePanels() {
   panels.forEach((panel) => {
-    panel.destroyed = true;
-    clearConnectionTimers(panel);
-    try { panel.webview.stop(); } catch {}
-    panel.element.remove();
+    // Esto pasa cada vez que cambian las cuentas. Con solo `stop()` y quitar el elemento, cada
+    // reconstrucción dejaba los cuatro procesos del juego vivos para siempre: en una sesion en la
+    // que se recargan las cuentas varias veces son cuatro procesos huérfanos por cada vez.
+    destruirPanelDeVerdad(panel);
   });
   panels.length = 0;
   resetFarmContexts();
@@ -11243,6 +11402,12 @@ if (window.pokeGrid.onUpdateProgress) {
       setUpdateLauncherState('clock', 'Verificando');
     }
   });
+}
+// La ventana principal se ha restaurado: el proceso principal ya ha despertado a todos los invitados
+// en bloque, pero quien sabe cuál era la pantalla activa es el renderer. Sin esta llamada, volver de
+// minimizar dejaría las doce pantallas del juego y de las instancias encendidas a la vez.
+if (window.pokeGrid.onDescansoCambiado) {
+  window.pokeGrid.onDescansoCambiado(() => aplicarDescanso());
 }
 updateLauncherButton.addEventListener('click', async () => {
   updateLauncherButton.disabled = true;

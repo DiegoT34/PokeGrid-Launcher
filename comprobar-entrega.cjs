@@ -10,8 +10,16 @@
 // hay que descomprimirlo. Lo natural es abrir el .exe, y ese .exe era viejo sin ninguna señal.
 //
 // Se entrego un ZIP correcto y se dijo «ya esta», y no estaba: lo que se podia ejecutar era otra
-// cosa. Este fichero comprueba las dos, y ademas que no haya NINGUN otro artefacto con la version
-// de hoy que se quede atras.
+// cosa. Este fichero comprueba LAS DOS, y por eso es el que se mira antes de decir que ya esta.
+//
+// LO QUE ESTE FICHERO NO COMPRUEBA, y antes este mismo comentario decia que si
+//
+// Decia «y ademas que no haya NINGUN otro artefacto con la version de hoy que se quede atras». No lo
+// hacia: no hay ninguna lista de ficheros en `dist`. Un comentario que promete una red que no existe
+// es peor que no tenerla, porque el que lo lee se cree protegido y no lo esta. Se corrige aqui en
+// lugar de anadir la comprobacion porque hoy no haria falta: cada entrega cambia el numero de
+// version, y los artefactos de la anterior se conservan a proposito. Si alguna vez se compila dos
+// veces la misma version, esto hay que mirarlo otra vez.
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -24,6 +32,21 @@ const CARPETA = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil`
 // Un cambio de hoy por cada cosa que se hizo. Si alguno falta en un artefacto, ese artefacto es
 // viejo por muy reciente que sea su fecha.
 const DE_HOY = [
+  // 0.31.0 — dormir lo que no se mira
+  ['la regla de duermete, escrita en el renderer', 'aplicarDescanso'],
+  ['que una pantalla duerme si no es la pestaña abierta', 'panelEstaEnPantalla'],
+  ['el cierre que de verdad destruye el proceso', 'destruirPanelDeVerdad'],
+  ['la llamada a destroy que no existia', 'webview.destroy()'],
+  ['borrar la particion de una instancia quitada', 'instancia:borrar-particion'],
+  ['que al minimizar se duerma todo', 'dormirTodosLosInvitados'],
+  ['los sondeos solo con la pantalla a la vista', 'panel.captureLogOpen && panelEstaEnPantalla'],
+  ['el analizador tambien', 'panel.huntOpen && panelEstaEnPantalla'],
+  ['y el sondeo de farmeo tambien', 'accountIndex === null && !panelEstaEnPantalla'],
+  ['el archivo de capturas ya no se copia entero cada tic', 'indiceEstable'],
+  ['el relleno del acceso tiene hora de expiration', '__pokeGridSubmitWatcherVence'],
+  ['el tope del archivo de iconos', 'ICONOS_EN_CACHE'],
+
+  // 0.30.0 — barra, diálogo y motor
   ['las pestañas se dimensionan a su nombre, no reparten', 'flex: 0 1 auto'],
   ['el minimo por pestaña', 'min-width: 132px'],
   ['y el maximo por pestaña', 'max-width: 240px'],
@@ -49,6 +72,18 @@ const DE_HOY = [
 // comentario: si un comentario explica lo que se quito, el texto aparece igual y la comprobacion
 // daria un fallo falso — que es tan malo como no comprobar.
 const PROHIBIDOS = [
+  // 0.31.0 — lo que se ha quitado para poder dormir lo que no se mira.
+  //
+  // Estas formas son DELIBERADAMENTE del codigo y no el texto suelto. `backgroundThrottling=no`
+  // aparece en un comentario de renderer.js que explica por que se quito —y buscarlo a pelo
+  // daria un fallo falso—, pero la forma de codigo que lo quita no aparece en ningun comentario.
+  // Una invariante que se cumple a si misma por su propio texto no vigila nada.
+  ['el interruptor global que hacia correr TODO', "appendSwitch('disable-renderer-backgrounding')"],
+  ['la preferencia que prohibia atenuar', 'backgroundThrottling: false'],
+  ['la preferencia en las webviews de instancia', "setAttribute('webpreferences', 'backgroundThrottling=no"],
+  ['el nombre de la API nueva, que se llamaba al reves', 'setPanelThrottling'],
+
+  // 0.30.0
   ['la linea que vaciaba el boton de ajustes', "instanceSettingsButton.innerHTML = launcherUiIcon('settings')"],
   ['el icono clavado en el primer sitio', 'if (iconosDeInstancia.has(instanceId)) return;'],
   ['el interruptor de ventanas emergentes', 'browserInstancePopups']

@@ -122,6 +122,48 @@ for (const [que, re, texto] of TEXTOS) {
   console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
 }
 
+// --- 0.31.0: dormir lo que no se mira --------------------------------------------
+// Medido antes: 22 procesos, 3.012 MB de trabajo, 6.726 MB privados sobre 8.070 MB de RAM, y 341 %
+// de CPU sostenidos, porque nada en el programa decia «duermete». Estas comprobaciones miran DENTRO
+// del paquete: que lo que se escribio hoy llegue al asar, y que lo que se quito no.
+//
+// Los patrones de lo que se quito son formas de CODIGO y no el texto suelto. `backgroundThrottling=no`
+// esta en un comentario de renderer.js que explica la razon, y buscarlo a pelo daria un fallo falso.
+const DESCANSO_QUE_SI = [
+  ['la regla de duermete', /function aplicarDescanso\(\)/, renderer],
+  ['que una pantalla duerme si no es la pestaña abierta', /function panelEstaEnPantalla\(panel\)/, renderer],
+  ['el cierre que destruye el proceso de verdad', /panel\.webview\.destroy\(\)/, renderer],
+  ['borrar la particion de una instancia quitada', /ipcMain\.handle\('instancia:borrar-particion'/, mainProceso],
+  ['la cola de particiones para el siguiente arranque', /function vaciarPendientesDeParticiones\(\)/, mainProceso],
+  ['que al minimizar se duerma todo', /mainWindow\.on\('minimize', dormirTodo\)/, mainProceso],
+  ['el sondeo de capturas solo con la pantalla a la vista', /if \(!panelEstaEnPantalla\(panel\)\) return;/, renderer],
+  ['el registro de capturas tambien', /panel\.captureLogOpen && panelEstaEnPantalla\(panel\)/, renderer],
+  ['el analizador tambien', /panel\.huntOpen && panelEstaEnPantalla\(panel\)/, renderer],
+  ['el sondeo de farmeo tambien', /accountIndex === null && !panelEstaEnPantalla\(panel\)/, renderer],
+  ['el archivo de capturas ya no se copia entero cada tic', /const indiceEstable = \(\) => \{/, renderer],
+  ['el relleno del acceso tiene expiration', /__pokeGridSubmitWatcherVence/, renderer],
+  ['el tope del archivo de iconos', /const ICONOS_EN_CACHE = \d+;/, mainProceso],
+  ['el puente para dormir una pantalla', /duermirPanel:/, preload]
+];
+const DESCANSO_QUE_NO = [
+  ['el interruptor global que hacia correr TODO', /appendSwitch\('disable-renderer-backgrounding'\)/, mainProceso + renderer],
+  ['la preferencia que prohibia atenuar', /backgroundThrottling: false/, mainProceso],
+  ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
+  ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
+];
+
+console.log('\n0.31.0 — dormir lo que no se mira:');
+for (const [que, re, texto] of DESCANSO_QUE_SI) {
+  const ok = re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
+for (const [que, re, texto] of DESCANSO_QUE_NO) {
+  const ok = !re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'SE QUITA'} ${que}${ok ? '' : '  — sigue en el paquete'}`);
+}
+
 // --- Lo del selector de Pokémon ------------------------------------------------
 // El sondeo que lo repintaba. El patrón mira el bloque entero del sondeo, porque lo que
 // importa es que NO aparezca un `renderFarmPicker` ahí, se pinte como se pinte.
