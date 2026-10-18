@@ -80,15 +80,18 @@ const QUE_SI = [
     ['el numero de la cuenta se escribe por posicion', /row\.dataset\.accountIndex = String\(index \+ 1\)/, renderer],
 
     // ---- 0.36.0: sesiones compartidas, farmeo en pestañas y los botones agrupados
-    ['las sesiones de instancia son dos', /const SESIONES_DE_INSTANCIA = Object\.freeze\(\['propia', 'compartida'\]\)/, renderer],
-    ['y el valor por defecto es aislada', /const SESION_POR_DEFECTO = 'propia'/, renderer],
-    ['la compartida NO lleva el prefijo que se borra al cerrar', /const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida'/, renderer],
+    // ---- 0.37.0: perfiles de sesion. Sustituyen a las siete invariantes de la 0.36.0 que pedian el
+    // interruptor de sesion: esas ya no se pueden cumplir, porque lo que hay ahora son perfiles.
+    ['el perfil por defecto es el Principal', /const PERFIL_POR_DEFECTO = 'principal'/, renderer],
+    ['la particion de un perfil', /function perfilParticion\(perfilId\)/, renderer],
+    ['y lleva el prefijo que NO se borra al cerrar una ventana', /persist:pokegrid-perfil-\$\{id \|\| PERFIL_POR_DEFECTO\}/, renderer],
     ['y el borrado sigue filtrando solo por el prefijo de instancia', /\.filter\(\(particion\) => particion\.startsWith\('persist:pokegrid-instance-'\)\)/, renderer],
-    ['la particion respeta la opcion', /opciones\.sesion === 'compartida'\) return PARTICION_COMPARTIDA/, renderer],
+    ['la particion sale del perfil y no del id de la ventana', /function browserInstancePartition\(instanceId, index, opciones = \{\}\) \{\s*return perfilParticion\(opciones && opciones\.perfilId\);/, renderer],
     ['y se pasa al crear la pantalla', /browserInstancePartition\(instance\.id, index, instance\)/, renderer],
-    ['el interruptor existe en el HTML', /id="browserInstanceSesionCompartida"/, html],
-    ['y se guarda al crear la ventana', /browserInstanceSesionCompartida\?\.checked \? 'compartida'/, renderer],
-    ['el texto explica la consecuencia, no solo el estado', /explicarSesionCompartida\(browserInstanceSesionCompartida\.checked\)/, renderer],
+    ['el perfil se rellena al leer la ventana, por el almacen', /window\.pokeGridPerfiles\?\.resolver\(opciones\.perfilId\)/, renderer],
+    ['el almacen de perfiles es un fichero propio', /<script src="perfiles-sesion\.js"><\/script>/, html],
+    ['y va antes que el renderer, que lo usa al arrancar', /<script src="perfiles-sesion\.js"><\/script>\s*<script src="renderer\.js">/, html],
+    ['cuantas ventanas usa un perfil se responde desde el renderer', /window\.pokeGridPerfiles\.conCuantasVentanas = /, renderer],
     ['el farmeo decide una vez por pasada si lee todas', /const leerTodas = farmeoEstaEnUso\(\);/, renderer],
     ['y se averigua por el selector o por una cuenta farmeando', /panel\.farmRunState === 'ok' \|\| panel\.farmRunState === 'busy'/, renderer],
     ['la guarda respeta ese decision', /!leerTodas && !panelEstaEnPantalla\(panel\)/, renderer],

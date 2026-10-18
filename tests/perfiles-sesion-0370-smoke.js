@@ -136,7 +136,6 @@ app.whenReady().then(async () => {
     comprobar('y no toca las cuentas del juego',
       PREFIJO_DE_BORRADO !== 'persist:pokegrid-'
         && !`persist:pokegrid-cuenta-7`.startsWith(PREFIJO_DE_BORRADO));
-
     console.log('\n0.37.0 — `browserInstancePartition` usa el perfil:\n');
 
     const browserInstancePartition = sacarFuncion('function browserInstancePartition', ['perfilParticion'])(
@@ -187,12 +186,24 @@ app.whenReady().then(async () => {
 
     console.log('\n0.37.0 — lo que se quitó de la 0.36.0:\n');
 
-    // Las constantes ya no estan. El interruptor de la interfaz y el campo `sesion` al crear una
-    // ventana se comprueban en la Tarea 3, que es la que los borra: aqui solo se quitan las que
-    // hacen falta para que las particiones dejen de depender de ellas.
+    comprobar('ya no queda el interruptor de sesion', !renderer.includes('browserInstanceSesionCompartida'));
     comprobar('ni sus constantes', !renderer.includes('SESIONES_DE_INSTANCIA'));
     comprobar('ni el valor por defecto de sesion', !renderer.includes("SESION_POR_DEFECTO = 'propia'"));
     comprobar('ni la sesion compartida', !renderer.includes('PARTICION_COMPARTIDA'));
+    comprobar('ni el texto que lo explicaba', !renderer.includes('explicarSesionCompartida'));
+    comprobar('ni el campo `sesion` al crear una ventana',
+      !/sesion:\s*browserInstance/.test(renderer) && !/opciones\.sesion/.test(renderer));
+
+    // Y que no quede en el HTML ni en el CSS. Un interruptor al que ya no escucha nadie se ve bien en
+    // la pagina y no hace nada, que es la forma mas traicionera de romper una cosa: nadie lo nota
+    // hasta que lo pulsa.
+    const html = fs.readFileSync(path.join(RAIZ, 'src', 'index.html'), 'utf8');
+    const estilos = fs.readFileSync(path.join(RAIZ, 'src', 'styles.css'), 'utf8');
+    comprobar('el interruptor no esta tampoco en el HTML',
+      !html.includes('browserInstanceSesionCompartida') && !html.includes('switch-line'));
+    comprobar('ni su CSS', !estilos.includes('switch-line') && !estilos.includes('browser-instance-sesion-field'));
+    comprobar('pero el texto de ayuda de otros campos sigue existiendo',
+      estilos.includes('.field-help'), 'no se deberia haber borrado .field-help');
 
     console.log('\n0.36.0 — farmeo en modo pestañas (trasplantado, no es de perfiles):\n');
 

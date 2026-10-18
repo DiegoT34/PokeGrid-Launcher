@@ -103,11 +103,17 @@ app.whenReady().then(async () => {
       comprobar(dialogo.enNavegador.nombreOculto && dialogo.enNavegador.nombreObligatorio === false,
         'en modo navegador no se pregunta el nombre: lo pone la página',
         JSON.stringify(dialogo.enNavegador));
-      comprobar(!dialogo.enNavegador.enlaceOculto && dialogo.enNavegador.enlaceObligatorio === false,
-        'y el enlace se ve, aunque no sea obligatorio', JSON.stringify(dialogo.enNavegador));
-      comprobar(!dialogo.enInstancia.nombreOculto && dialogo.enInstancia.nombreObligatorio === true
+      // En modo navegador se esconde el enlace TAMBIEN, no solo el nombre. Lo que pide esta prueba
+      // —que el enlace se vea y no sea obligatorio— era como estaba antes de que se escondiera; se
+      // esconde porque en ese modo no hay nada que escribir: se arranca en el buscador. Y el nombre
+      // NO lleva `required` en ningun modo, a proposito: antes se escribia «Ej. Poke Idle World» de
+      // ejemplo y todas las pestañas acababan con un nombre de ejemplo.
+      comprobar(dialogo.enNavegador.enlaceOculto && dialogo.enNavegador.enlaceObligatorio === false,
+        'y el enlace tampoco: en ese modo se arranca en el buscador', JSON.stringify(dialogo.enNavegador));
+      comprobar(!dialogo.enInstancia.nombreOculto && dialogo.enInstancia.nombreObligatorio === false
         && !dialogo.enInstancia.enlaceOculto && dialogo.enInstancia.enlaceObligatorio === true,
-        'y en modo instancia se piden los dos', JSON.stringify(dialogo.enInstancia));
+        'y en modo instancia solo el enlace es obligatorio: el nombre se pone a mano o lo pone la página',
+        JSON.stringify(dialogo.enInstancia));
       comprobar(dialogo.marcadoNavegador && !dialogo.marcadoInstancia,
         'el botón elegido queda marcado', JSON.stringify(dialogo));
     }

@@ -159,8 +159,7 @@ const browserInstanceModeInstancia = document.querySelector('#browserInstanceMod
 const browserInstanceModeNavegador = document.querySelector('#browserInstanceModeNavegador');
 const browserInstanceNameField = document.querySelector('.browser-instance-name-field');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
-const browserInstanceSesionCompartida = document.querySelector('#browserInstanceSesionCompartida');
-const browserInstanceSesionHelp = document.querySelector('#browserInstanceSesionHelp');
+
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
 const instanceSettingsShortcut = document.querySelector('#instanceSettingsShortcut');
@@ -6311,16 +6310,9 @@ async function refreshFarmData() {
 // Se lee todo cuando el farmeo esta EN USO —el selector abierto o alguna cuenta farmeando—, y solo
 // entonces. Quitar la guarda a secas seria devolver el gasto de CPU y memoria que la 0.31.0 quito, y
 // se notaria justo cuando no se esta farmeando, que es la mayor parte del tiempo.
-// Lo que dice el interruptor de sesion compartida. Se escribe aqui y no en el HTML porque el texto
-// tiene que describir lo que va a pasar de verdad, que depende de si hay mas ventanas marcadas:
-// decir «compartida» cuando no hay con quien compartir es mentir.
-function explicarSesionCompartida(marcada) {
-  const campo = browserInstanceSesionHelp;
-  if (!campo) return;
-  campo.textContent = marcada
-    ? 'Todas las ventanas marcadas comparten sesion: entras una vez y ya lo tienes en las demas.'
-    : 'Esta ventana va sola: puedes tener cuentas distintas en cada una.';
-}
+// Lo que se puso aqui era el texto del interruptor de sesion compartida de la 0.36.0, que ya no
+// existe. Se ha ido con el: un perfil ya dice con quien se comparte, y un interruptor al lado
+// preguntando lo mismo haria que hubiera dos respuestas a la misma pregunta.
 
 // QUE SE PUEDA LEER UNA PANTALLA «DORMIDA»: `duermirPanel` pone la atenuacion de fondo, que en
   // Electron solo ralentiza los temporizadores y las animaciones de una pantalla que no se ve. NO la
@@ -10652,10 +10644,6 @@ function openBrowserInstanceModal() {
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
   browserInstanceMode.value = MODO_POR_DEFECTO;
-  // El interruptor de sesion se desmarca al abrir: si no, marcaste una vez y todas las siguientes
-  // ventanas nacen compartidas sin haberlo pedido.
-  browserInstanceSesionCompartida.checked = false;
-  explicarSesionCompartida(false);
   // Sin esta llamada, los campos se quedaban como estaban de la ultima vez. Con el modo por defecto
   // en «navegador», la URL seguia siendo obligatoria y ambos campos a la vista, que es justo lo que
   // se pidio quitar. Los valores se limpian arriba, pero el modo hay que aplicarlo.
@@ -11738,13 +11726,6 @@ for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]
 }
 sincronizarModoElegido();
 
-// El interruptor de sesion compartida. Solo cambia el texto de ayuda: la sesion se aplica al crear la
-// ventana, y cambiarla despues obligaria a reconstruir las pantallas —que es lo que hace perder las
-// webs abiertas— asi que en el modal solo se elige al principio.
-browserInstanceSesionCompartida?.addEventListener('change', () => {
-  explicarSesionCompartida(browserInstanceSesionCompartida.checked);
-});
-
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
   browserInstanceMessage.classList.remove('is-ok');
@@ -11760,9 +11741,10 @@ browserInstanceForm.addEventListener('submit', (event) => {
       // el motor tiene su boton en la barra de cada pantalla.
       buscador: BUSCADOR_POR_DEFECTO,
       apertura: APERTURA_POR_DEFECTO,
-    // La sesion se decide aqui y no se deduce de nada: se elige ventana a ventana. Apagada por
-    // defecto, que es como ha funcionado siempre.
-    sesion: browserInstanceSesionCompartida?.checked ? 'compartida' : SESION_POR_DEFECTO,
+      // El perfil lo elige el selector de arriba. Hasta la 0.37.0, este hueco lo ocupaba
+      // `sesion: 'propia' | 'compartida'`: un interruptor que solo sabia decir «estas dos comparten»,
+      // y que no tenia ni nombres ni manera de elegir entre varias sesiones. El perfil sustituye a
+      // los dos, no se lo suma.
       // En modo navegador el enlace es opcional: si se escribe, se arranca ahi; si no, en el
       // buscador. El campo se esconde en cuanto se elige ese modo, asi que aqui llega vacio.
       inicio: browserInstanceUrl.value

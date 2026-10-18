@@ -122,6 +122,10 @@ app.whenReady().then(async () => {
     }
 
     console.log('\\n--- el modal de creación ---');
+    // El modo se elige con DOS BOTONES, no con un desplegable: `#browserInstanceMode` es un select
+    // oculto que solo guarda el valor. Esta prueba escribia ahi y disparaba un `change` que nadie
+    // escucha, asi que se quedaba en el estado del modo anterior y fallaba en ambas. Se pulsan los
+    // botones de verdad, que es lo que hace la persona.
     const modal = await ventana.webContents.executeJavaScript(`(() => {
       openBrowserInstanceModal();
       const leer = () => ({
@@ -131,11 +135,9 @@ app.whenReady().then(async () => {
         hayCampoDeBuscador: Boolean(document.querySelector('#browserInstanceBuscador')),
         hayCampoDeReparto: Boolean(document.querySelector('#browserInstanceApertura'))
       });
-      browserInstanceMode.value = 'navegador';
-      browserInstanceMode.dispatchEvent(new Event('change'));
+      document.querySelector('#browserInstanceModeNavegador').click();
       const enNavegador = leer();
-      browserInstanceMode.value = 'instancia';
-      browserInstanceMode.dispatchEvent(new Event('change'));
+      document.querySelector('#browserInstanceModeInstancia').click();
       const enInstancia = leer();
       closeBrowserInstanceModal();
       return { enNavegador, enInstancia };
@@ -146,12 +148,17 @@ app.whenReady().then(async () => {
     });
 
     if (modal) {
-      comprobar(modal.enNavegador.enlaceOculto === false
+      // En modo navegador se esconden LOS DOS campos, no solo el nombre. Lo que dice el comentario de
+      // `sincronizarModoElegido` es que en ese modo no hay nada que escribir: se arranca en el
+      // buscador y el nombre lo pone la pagina. Preguntar los datos que se van a sustituir solos es
+      // hacer trabajar al usuario para nada. Esta comprobacion pedia el enlace VISIBLE, que era como
+      // estaba antes de ese cambio; el campo se esconde y lo que se corrige es la prueba.
+      comprobar(modal.enNavegador.enlaceOculto === true
         && modal.enNavegador.enlaceObligatorio === false,
-        'en modo navegador el enlace se ve pero deja de ser obligatorio: si lo escribes, arranca ahí',
+        'en modo navegador no se pide el enlace: se arranca en el buscador y se navega desde ahi',
         JSON.stringify(modal.enNavegador));
       comprobar(modal.enNavegador.nombreOculto === true,
-        'y el nombre no se pregunta, porque lo pone la página', JSON.stringify(modal.enNavegador));
+        'y el nombre tampoco, porque lo pone la página', JSON.stringify(modal.enNavegador));
       comprobar(modal.enInstancia.enlaceOculto === false && modal.enInstancia.enlaceObligatorio === true
         && modal.enInstancia.nombreOculto === false,
         'y en modo instancia se piden los dos', JSON.stringify(modal.enInstancia));
