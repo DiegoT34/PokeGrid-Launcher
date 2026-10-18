@@ -8427,20 +8427,16 @@ const MODOS_DE_APERTURA = Object.freeze(['auto', 'panel', 'ventana']);
 const MODOS_DE_INSTANCIA = Object.freeze(['navegador', 'instancia']);
 const MODO_POR_DEFECTO = 'instancia';
 
-// La sesion de una instancia, desde la 0.36.0. «propia» es como ha funcionado siempre y es el valor
-// por defecto; «compartida» hace que varias ventanas usen la misma sesion y asi entras una vez en
-// Google, en el correo o en el banco y ya lo tienes en las demas.
+// El perfil por defecto de las ventanas del navegador, desde la 0.37.0. Lo sustituye al interruptor
+// `sesion: 'propia' | 'compartida'` de la 0.36.0: aquel era una opcion por ventana que solo sabia
+// decir «estas dos comparten», y lo que se quiere es lo que hacen los perfiles de Chrome —varios,
+// con nombre, y elegir con cual trabaja cada ventana—.
 //
-// Lo que no venga se queda en `propia`. Una ventana creada antes de esto debe seguir viendo lo mismo
-// al reiniciar: cambiarle la sesion sin querer seria perder los sitios donde habias entrado.
-const SESIONES_DE_INSTANCIA = Object.freeze(['propia', 'compartida']);
-const SESION_POR_DEFECTO = 'propia';
-
-// El nombre de la sesion compartida. NO lleva el prefijo `instance-` a proposito: el borrado de
-// particiones al cerrar una ventana filtra por `persist:pokegrid-instance-`, y si esta lo llevara,
-// cerrarle la ventana a una le borraria las cookies a todas las demas. Se explica en
-// `browserInstancePartition`.
-const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida';
+// El valor vive en `src/perfiles-sesion.js`, que es quien crea el perfil y garantiza que exista. Se
+// repite aqui a proposito y no se pide al almacen, porque `perfilParticion` lo recibe como parametro:
+// asi, si los dos se desincronizaran, la particion seguiria siendo la que diga el parametro y no
+// dependeria de que ese fichero se haya cargado antes o despues.
+const PERFIL_POR_DEFECTO = 'principal';
 
 function normalizarOpcionesDeInstancia(valor) {
   const opciones = valor && typeof valor === 'object' ? valor : {};
@@ -8458,8 +8454,12 @@ function normalizarOpcionesDeInstancia(valor) {
     ? opciones.apertura
     : APERTURA_POR_DEFECTO;
   const inicio = String(opciones.inicio || '').slice(0, 1000);
-  const sesion = SESIONES_DE_INSTANCIA.includes(opciones.sesion) ? opciones.sesion : SESION_POR_DEFECTO;
-  return { modo, buscador, apertura, inicio, sesion };
+  // El perfil se resuelve SIEMPRE a traves del almacen, incluso cuando ya viene `principal`. Asi una
+  // ventana cuyo perfil se haya borrado a mano del almacenamiento cae en el Principal en vez de
+  // quedarse apuntando a un perfil que no existe, que es lo que pasaria si aqui solo se comprobara
+  // que el campo venga informado.
+  const perfilId = window.pokeGridPerfiles?.resolver(opciones.perfilId) || PERFIL_POR_DEFECTO;
+  return { modo, buscador, apertura, inicio, perfilId };
 }
 
 // El modo se lee con esta pregunta y no comparando el campo de antes, porque un sitio u otro
@@ -8554,32 +8554,52 @@ function loadBrowserInstances() {
 function saveBrowserInstances() {
   localStorage.setItem(BROWSER_INSTANCES_KEY, JSON.stringify(browserInstances));
 }
-// La particion de una pantalla de instancia.
+// La particion de un perfil de sesion.
 //
-// DOS COSAS QUE NO SON INTERCAMBIABLES, Y POR QUE ESTAN EN ESTA FUNCION:
+// EL NOMBRE DE ESTA PARTICION ES UNA DECISION DE SEGURIDAD, NO UN GUSTO.
 //
-//  1. Cada ventana tiene su propia sesion —`persist:pokegrid-instance-…`— y eso es lo que permite
-//     tener dos cuentas distintas de la misma web en dos ventanas a la vez.
+// Se llama `persist:pokegrid-perfil-<id>` y el `perfil-` importa mas que ninguna otra cosa de aqui.
+// Al cerrar una ventana se borra su particion del disco, y ese borrado filtra por el prefijo
+// `persist:pokegrid-instance-`. Como esta no empieza por ahi, el borrado la ignora por CONSTRUCCION y
+// no por una condicion que alguien pueda olvidar anadir dentro de tres meses.
 //
-//  2. Una ventana puede pedir la sesion COMPARTIDA: todas las que la piden usan la misma, y con eso
-//     entras una vez en Google, en el correo o en el banco y ya lo tienes en las demas. Sin eso, cada
-//     ventana pide su correo otra vez, que es lo que hacia.
-//
-// EL NOMBRE DE LA PARTICION COMPARTIDA ES UNA DECISION DE SEGURIDAD, NO UN GUSTO.
-//
-// Al cerrar una instancia se borra su particion del disco para no dejar folders sin usar, y ese
-// borrado filtra por el prefijo `persist:pokegrid-instance-`. Si la compartida se llamara
-// `instance-compartida`, entraria en ese filtro y al cerrar UNA ventana se le borrarian las cookies a
-// TODAS las demas. Por eso se llama `compartida`: no casa con el prefijo de borrado, asi que el
-// borrado la ignora por construccion y no por una condicion que alguien pueda olvidar.
+// Si se llamara `persist:pokegrid-instance-perfil-…`, cerrarle la ventana a una le borraria las
+// cookies a TODAS las demas de su perfil. Ese es el fallo que hace perder la sesion sin aviso, y por
+// eso la proteccion esta en el nombre y no en un `if`.
 //
 // Y las cuentas del juego NO pasan por aqui: usan `persist:pokegrid-<cuenta>` y quedan aisladas
 // siempre. Es la funcion del launcher y no se toca por esto.
-function browserInstancePartition(instanceId, index, opciones = {}) {
-  if (opciones && opciones.sesion === 'compartida') return PARTICION_COMPARTIDA;
-  const safeId = String(instanceId).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
-  return `persist:pokegrid-instance-${safeId}-${index + 1}`;
+function perfilParticion(perfilId) {
+  const id = String(perfilId || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .slice(0, 70);
+  return `persist:pokegrid-perfil-${id || PERFIL_POR_DEFECTO}`;
 }
+// La particion de una pantalla de instancia.
+//
+// Desde la 0.37.0 sale del perfil y solo del perfil. Dos ventanas con el mismo perfil comparten
+// sesion —entras una vez en Google y ya lo tienes en las demas— y dos con perfiles distintos quedan
+// aisladas, que es lo que permite tener dos cuentas de la misma web.
+//
+// `instanceId` e `index` ya no se usan. Se quedan en la firma porque quien llama los pasa y cambiarlos
+// obligaria a tocar el llamador, el filtro de borrado y `removeBrowserInstance`; no compensa romper
+// una firma que ya existe para ganar un parametro.
+function browserInstancePartition(instanceId, index, opciones = {}) {
+  return perfilParticion(opciones && opciones.perfilId);
+}
+
+// Cuantas ventanas usan un perfil. Lo necesita el almacen para no dejar ventanas sin sesion al borrar
+// uno. Se rellena aqui —y no en `src/perfiles-sesion.js`— porque aqui es donde se sabe que ventanas
+// hay: el almacen guarda perfiles y no tiene por que saber nada de ventanas del navegador.
+//
+// Compara por PARTICION y no por id a proposito. Comparando particiones no depende de que los dos
+// lados lleguen a normalizar el mismo id de la misma manera, y el resultado es el mismo que ve el
+// usuario: dos ventanas que comparten sesion cuentan como dos ventanas del mismo perfil.
+window.pokeGridPerfiles.conCuantasVentanas = (perfilId) => {
+  const buscado = perfilParticion(perfilId);
+  return browserInstances.filter((fila) => perfilParticion(fila.perfilId) === buscado).length;
+};
 function setConnectionVisual(panel, state, text) {
   if (Number.isInteger(panel.index)) {
     setPanelState(panel, state, text);
