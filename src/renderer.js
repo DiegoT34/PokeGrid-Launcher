@@ -8996,6 +8996,13 @@ function panelEstaEnPantalla(panel) {
 }
 
 let descansoPendiente = 0;
+let intentosDeDescanso = 0;
+// Cuantos reintentos se conceden a una pantalla que todavia no tiene id. Con este tope y no sin el,
+// porque hay pantallas que NO LLEGAN a tenerlo nunca: una pagina cuya carga falla con un error de DNS
+// no emite dom-ready, `getWebContentsId()` sigue lanzando, y un reintento sin limite se convierte en un
+// bucle eterno de 700 ms por el que solo se para al cerrar el programa. Diez intentos son siete
+// segundos, de sobra para una carga normal.
+const INTENTOS_DE_DESCANSO = 10;
 function aplicarDescanso() {
   // Antes de que una pantalla llegue a dom-ready, getWebContentsId LANZA. Se guarda el resultado y se
   // reintenta cuando ya exista, en vez de tragarse el error y dejar esa pantalla dormida para
@@ -9014,16 +9021,22 @@ function aplicarDescanso() {
       continue;
     }
     try {
-      // OJO: se pasa lo CONTRARIO de «despierta». En Electron, poner la atenuacion a true es
+      // OJO: se pasa lo CONTRATO de «despierta». En Electron, poner la atenuacion a true es
       // echarse a dormir. La primera version pasaba `despierta` tal cual y por eso dormia la
       // pantalla abierta y despertaba las ocultas: justo lo contrario de lo pedido. La prueba lo
-      // cazó leyendo el estado real del webContents, no una variable del launcher.
+      // cazo leyendo el estado real del webContents, no una variable del launcher.
       window.pokeGrid?.duermirPanel?.(id, !despierta)?.catch?.(() => {});
     } catch { /* el puente no esta todavia: se reintenta en la siguiente pasada */ }
   }
-  if (pendiente > 0) {
-    window.clearTimeout(descansoPendiente);
+  window.clearTimeout(descansoPendiente);
+  if (pendiente > 0 && intentosDeDescanso < INTENTOS_DE_DESCANSO) {
+    intentosDeDescanso++;
     descansoPendiente = window.setTimeout(() => aplicarDescanso(), 700);
+  } else {
+    // Se agoto. Se suelta el contador para que la proxima pantalla que aparezca tenga su机会 entera:
+    // si no, el tope se gastaria una vez y las siguientes pantallas con id tardio se quedarian
+    // dormidas sin haberlo intentado casi nunca.
+    intentosDeDescanso = 0;
   }
 }
 
