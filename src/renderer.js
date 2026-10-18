@@ -601,20 +601,9 @@ function proxyHuella(account) {
     String(proxy.username || '').trim()
   ]);
 }
-// ¿Hay que recargar la sesión de una cuenta? applyAccountProxies ya llama a
-// session.setProxy, y eso solo afecta a las conexiones nuevas: los sockets que
-// Chromium tiene abiertos siguen saliendo por la IP anterior, así que una cuenta ya
-// cargada no nota el cambio hasta que su webview se recarga. Son dos los motivos que
-// obligan a recargar, y hacen falta los dos:
-//   1. el destino cambia (si está activo, protocolo, host, puerto o usuario), y
-//   2. solo cambia la clave del proxy, que es lo único que Chromium va a rehacer en
-//      la sesión cuando el destino es el mismo de siempre.
-// `previous` y `next` son la misma cuenta antes y después de guardar.
-function proxyCambiado(previous, next) {
-  if (!previous || !next) return false;
-  if (proxyHuella(previous) !== proxyHuella(next)) return true;
-  return String(previous.proxy?.password || '') !== String(next.proxy?.password || '');
-}
+// `proxyCambiado` se fue en la 0.35.0 con su bloque de configuracion. Antes decidia si una sesion
+// cargada tenia que recargarse porque habia cambiado el proxy; sin campos de proxy no hay cambio que
+// detectar. `proxyHuella` se queda porque `applyProxyOutcomeToPanels` la usa al comparar destinos.
 function normalizeAccounts(value) {
   const rows = Array.isArray(value) ? value : [];
   if (rows.length > MAX_ACCOUNTS) throw new Error(`Máximo ${MAX_ACCOUNTS} cuentas por launcher.`);
@@ -3850,7 +3839,7 @@ function captureDetailKeyOf(capture) {
   return String(capture?.key || capture?.id || capture?.captureNumber || '');
 }
 // Cuando llega una captura nueva, renderCaptureLog tira la lista entera. Antes
-// eso关闭aba también el detalle que estabas leyendo, sin avisar. Aquí se guarda
+// eso ademas cerraba también el detalle que estabas leyendo, sin avisar. Aquí se guarda
 // la clave antes de tirar, y al final se vuelve a abrir si esa captura sigue
 // estando en la lista.
 function reabrirCaptureDetail(panel, key) {
@@ -8465,7 +8454,21 @@ function normalizeBrowserInstance(value, fallbackId = '') {
   try {
     const id = String(value?.id || fallbackId || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
     if (!id || id === PRIMARY_BROWSER_INSTANCE_ID) return null;
-    const name = String(value?.name || 'Otro juego').trim().slice(0, 48) || 'Otro juego';
+    // El nombre es OPCIONAL desde la 0.35.0. Antes ponia un texto fijo que decia «juego», y ese texto
+  // mentia: no era un juego, era un sitio cualquiera, y además era el mismo en todas las pestañas.
+  // Ahora, si no hay nombre, la pestaña lo toma del titulo de la pagina a la que apunte la url, que es
+  // justo lo que se espera al abrir una: la pestaña se llama como la pagina que enseña. 'Otro' queda
+  // solo para cuando no hay nombre NI se puede saber el titulo, que es el navegador antes de navegar.
+  const nombrePuesto = String(value?.name || '').trim().slice(0, 48);
+  const delDominio = (() => {
+    try {
+      const host = new URL(String(value?.url || '')).hostname.replace(/^www\./i, '');
+      return host ? host.split('.')[0] : '';
+    } catch {
+      return '';
+    }
+  })();
+  const name = nombrePuesto || delDominio || 'Otro';
     const count = Math.max(1, Math.min(6, Math.round(Number(value?.count) || 1)));
     const opciones = normalizarOpcionesDeInstancia(value);
     // Con estilo navegador se puede arrancar en el buscador, y entonces no hay enlace. El esquema
@@ -9161,10 +9164,17 @@ function renderBrowserInstanceTabs() {
         instanceTabs.querySelectorAll('.is-destino').forEach((n) => n.classList.remove('is-destino'));
       });
       // `dragover` tiene que decir que si, o el navegador no deja soltar encima.
+      // Y ademas marca la pestaña como destino: sin esa marca el arrastre no dice nada, y no hay
+      // forma de saber sobre cual se va a soltar. La marca se pone aqui y se quita en `dragend`,
+      // que es el unico sitio que sabe cuando se acaba, tambien si se suelta fuera de la barra.
       shell.addEventListener('dragover', (evento) => {
         if (!instanciaArrastrada || instanciaArrastrada === instance.id) return;
         evento.preventDefault();
         evento.dataTransfer.dropEffect = 'move';
+        shell.classList.add('is-destino');
+      });
+      shell.addEventListener('dragleave', () => {
+        shell.classList.remove('is-destino');
       });
       shell.addEventListener('drop', (evento) => {
         if (!instanciaArrastrada) return;
@@ -9270,7 +9280,7 @@ function aplicarDescanso() {
     intentosDeDescanso++;
     descansoPendiente = window.setTimeout(() => aplicarDescanso(), 700);
   } else {
-    // Se agoto. Se suelta el contador para que la proxima pantalla que aparezca tenga su机会 entera:
+// Se agoto. Se suelta el contador para que la proxima pantalla que aparezca no vea un numero que ya no vale.
     // si no, el tope se gastaria una vez y las siguientes pantallas con id tardio se quedarian
     // dormidas sin haberlo intentado casi nunca.
     intentosDeDescanso = 0;
@@ -9846,7 +9856,11 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     menosPantallaButton,
     fullscreenButton
   );
-  panelbar.append(identity, masPantallaButton, menosPantallaButton, actions);
+  // El + y el - van DESPUES de `actions`, no antes. Antes iban entre el nombre de la instancia y los
+  // botones de la derecha, que es el hueco mas a la izquierda de la barra: se veian pegados al
+  // nombre, en mitad de la pantalla, y no se entendian de que eran. Ahora se juntan a los demas
+  // botones de la pantalla, que es donde ya se busca uno cuando se quiere algo asi.
+  panelbar.append(identity, actions, masPantallaButton, menosPantallaButton);
   const host = document.createElement('div');
   host.className = 'browser-instance-webview-host';
   const webview = document.createElement('webview');
@@ -10505,16 +10519,23 @@ function cerrarAjustesDeInstancia() {
 // En modo instancia es obligatorio, que es justo lo que lo distingue.
 function sincronizarModoElegido() {
   const conUrl = browserInstanceMode.value !== 'navegador';
-  // El enlace se ve SIEMPRE, y solo es obligatorio en modo instancia. En modo navegador es
-  // opcional: si lo escribes, la pestaña arranca ahi; si no, en el buscador. Antes se ocultaba y
-  // ademas se ignoraba su valor, que es la peor combinacion: un campo que no se ve y que tampoco
-  // hace nada.
+  // En modo navegador NO se preguntan ni el nombre ni la direccion: se arranca en el buscador y de ahi
+  // se navega, y el nombre lo pone la pagina en la que estes. Preguntar las dos cosas es pedir datos
+  // que se van a sustituir solos en cuanto cargue la pagina.
+  //
+  // Antes el enlace se veia SIEMPRE y solo era opcional. Era la peor combinacion: un campo que
+  // ocupa sitio, que hay que decidir si se rellena o no, y que ademas no hacia falta. Ahora los dos
+  // campos se esconden juntos, que es lo que hace falta para que el formulario diga lo que va a hacer.
+  browserInstanceUrlField.hidden = !conUrl;
   browserInstanceUrl.required = conUrl;
-  // El nombre tampoco se pregunta en modo navegador: lo pone la pagina en la que estes. Si se
-  // dejara visible y obligatorio, no habria nada que escribir que no fuese a ser sustituido en
-  // cuanto la pagina cargara.
   browserInstanceNameField.hidden = !conUrl;
-  browserInstanceName.required = conUrl;
+  // Al cambiar a navegador se vacia la URL. Si no, el campo se esconde pero conserva lo que habia, y
+  // la pestaña arranca ahi en silencio: un destino que el usuario no puede ver ni cambiar. Es peor que
+  // no arrancar en ningun sitio, porque no hay forma de saber desde la pantalla por donde va.
+  if (!conUrl) browserInstanceUrl.value = '';
+  // El nombre NO lleva `required` en ningun modo. Antes era obligatorio y se escribia «Ej. Poke Idle
+  // World» de ejemplo, con lo que toda pestaña acababa con un nombre de ejemplo si no se cambiaba.
+  // Ahora, si se deja vacio, se usa el dominio de la URL; cuando se escribe, gana lo escrito.
   // Y los dos botones dicen cual esta elegido, tambien para quien navega con teclado.
   for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]) {
     if (!boton) continue;
@@ -10531,6 +10552,10 @@ function openBrowserInstanceModal() {
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
   browserInstanceMode.value = MODO_POR_DEFECTO;
+  // Sin esta llamada, los campos se quedaban como estaban de la ultima vez. Con el modo por defecto
+  // en «navegador», la URL seguia siendo obligatoria y ambos campos a la vista, que es justo lo que
+  // se pidio quitar. Los valores se limpian arriba, pero el modo hay que aplicarlo.
+  sincronizarModoElegido();
   browserInstanceBackdrop.hidden = false;
   browserInstanceName.focus();
 }
@@ -11005,6 +11030,9 @@ function renderAccountRow(account, index) {
   const row = document.createElement('div');
   row.className = 'account-row';
   row.dataset.accountId = String(Number(account.id) || index + 1);
+  // El numero que se pinta en la ficha, por posicion y no por id: los ids nunca se renumeran (quitar
+  // una cuenta no mueve los de las demas), asi que usarlos dejaria huecos ysaltos que no existen.
+  row.dataset.accountIndex = String(index + 1);
   row.innerHTML = `
     <label class="field">
       <span>NOMBRE DEL PANEL</span>
@@ -11017,32 +11045,13 @@ function renderAccountRow(account, index) {
     <label class="field">
       <span>CONTRASEÑA</span>
       <input data-index="${index}" data-field="password" maxlength="300" type="password" autocomplete="new-password" placeholder="Contraseña">
-    </label>
-    <details class="account-proxy-details">${account.proxy?.enabled ? ' open' : ''}
-      <summary>VPN / IP distinta</summary>
-      <div class="account-proxy-grid">
-        <label><span>Protocolo</span>
-          <select data-index="${index}" data-field="proxy.protocol">
-            <option value="">Sin proxy (IP del equipo)</option>
-            <option value="http">HTTP</option>
-            <option value="socks5">SOCKS5</option>
-          </select>
-        </label>
-        <label><span>Host</span><input data-index="${index}" data-field="proxy.host" maxlength="253" placeholder="127.0.0.1"></label>
-        <label><span>Puerto</span><input data-index="${index}" data-field="proxy.port" type="number" min="1" max="65535" placeholder="1080"></label>
-        <label><span>Usuario (opcional)</span><input data-index="${index}" data-field="proxy.username" maxlength="120" autocomplete="off"></label>
-        <label><span>Clave del proxy (opcional)</span><input data-index="${index}" data-field="proxy.password" type="password" maxlength="200" autocomplete="new-password"></label>
-      </div>
-    </details>`;
+    </label>`;
+  // El desplegable de configuracion de proxy se fue en la 0.35.0. Era el proxy HTTP/SOCKS5 por cuenta, que
+  // seguia funcionando, pero el nombre fazia pensar que era el VPN que ya se habia eliminado en la
+  // 0.33.0 y no hacia falta. Se quita entero: el bloque, su CSS y el codigo que lo rellenaba.
   row.querySelector('[data-field="label"]').value = account.label || '';
   row.querySelector('[data-field="username"]').value = account.username || '';
   row.querySelector('[data-field="password"]').value = account.password || '';
-  const proxy = account.proxy && typeof account.proxy === 'object' ? account.proxy : defaultProxy();
-  row.querySelector('[data-field="proxy.protocol"]').value = ['http', 'socks5'].includes(proxy.protocol) ? proxy.protocol : '';
-  row.querySelector('[data-field="proxy.host"]').value = proxy.host || '';
-  row.querySelector('[data-field="proxy.port"]').value = Number(proxy.port) > 0 ? String(proxy.port) : '';
-  row.querySelector('[data-field="proxy.username"]').value = proxy.username || '';
-  row.querySelector('[data-field="proxy.password"]').value = proxy.password || '';
   const removeButton = document.createElement('button');
   removeButton.type = 'button';
   removeButton.className = 'account-row-remove icon-button';
@@ -11325,22 +11334,12 @@ accountsForm.addEventListener('submit', async (event) => {
   const nextAccounts = rowElements.map((rowEl) => {
     const existingId = Number(rowEl.dataset.accountId);
     const id = (Number.isInteger(existingId) && existingId > 0) ? existingId : (nextId += 1);
-    const account = { id, label: '', username: '', password: '', proxy: defaultProxy() };
+    const account = { id, label: '', username: '', password: '' };
     rowEl.querySelectorAll('input[data-field], select[data-field]').forEach((control) => {
-      const value = control.value.trim();
-      if (control.dataset.field.startsWith('proxy.')) account.proxy[control.dataset.field.slice(6)] = value;
-      else account[control.dataset.field] = value;
+      account[control.dataset.field] = control.value.trim();
     });
-    // El proxy se considera activo cuando el usuario completó protocolo + host + puerto.
-    const p = account.proxy;
-    p.enabled = Boolean(p.protocol && p.host && Number(p.port) >= 1);
     return account;
   });
-  // Las cuentas de antes del guardado, para poder distinguir "no ha cambiado nada"
-  // de "ha cambiado el proxy". Se guardan por id porque es la clave estable de una
-  // cuenta, y se desechan al terminar el guardado: no viven más de lo que dura esta
-  // llamada.
-  const previousById = new Map(accounts.map((account) => [Number(account.id), account]));
   const result = await window.pokeGrid.saveAccounts(nextAccounts);
   if (!result.ok) {
     setModalMessage(result.error || 'No fue posible guardar las cuentas.');
@@ -11360,42 +11359,22 @@ accountsForm.addEventListener('submit', async (event) => {
   // cambio hasta que su webview se recarga, así que se recargan solo las que han
   // cambiado de proxy. Cuando la estructura cambia no hace falta: los paneles se
   // reconstruyen y sus webviews ya salen por la conexión nueva.
-  const proxyRecargadas = [];
-  if (!structureChanged) {
-    accounts.forEach((account) => {
-      if (!proxyCambiado(previousById.get(Number(account.id)), account)) return;
-      const panel = panelForAccountId(account.id);
-      if (!panel || panel.destroyed) return;
-      clearConnectionTimers(panel);
-      panel.connectionFailures = 0;
-      markProxyReloading(panel, account);
-      loadConnectionPanel(panel, webviewCurrentUrl(panel), {
-        reason: 'Cambio de proxy',
-        statusText: panel.proxyStatusText
-      });
-      proxyRecargadas.push(Number(account.id));
-    });
-  }
+  //
+  // Se fue en la 0.35.0 con el bloque de configuracion: sin campos de proxy no hay ningun cambio que
+  // detectar, y esta recarga nunca se ejecutaba. Se deja el comentario porque explica por que no hace
+  // falta recargar nada al guardar: las cuentas guardadas no llevan proxy.
   if (structureChanged) rebuildGamePanels();
   else refreshPanelNames();
-  // El resultado de aplicar el proxy se reparte por panel, no por fila del modal: el
-  // modal se cierra enseguida y una fila que desaparece no informa a nadie.
-  applyProxyOutcomeToPanels(result.proxyResults);
-  // El texto va entero a setModalMessage: el += de antes leía de modalMessage y
-  // hacía que este bloque dependiera de que nadie hubiera escrito entre medias.
-  const proxyFailures = (result.proxyResults || []).filter((entry) => !entry.ok);
-  const avisoFallos = proxyFailures.length
-    ? ` · Proxy no aplicado en ${proxyFailures.length} cuenta(s), se avisa en su panel.`
-    : '';
+  // El aviso de proxy se fue en la 0.35.0 con su bloque de configuracion: sin proxy que aplicar no hay
+  // fallos que avisar.
+  const avisoFallos = '';
   // El proceso principal devuelve lo que no pudo dejar la copia anterior. No se
   // descarta: son las cuentas las que se acabaron de guardar, y que la red de seguridad
   // no exista es justo lo que el usuario tiene que saber antes de cerrar el modal.
   const avisoCopia = (result.avisos || []).length ? ` · ${result.avisos.join(' ')}` : '';
   const cierre = structureChanged
     ? 'Cuentas guardadas y paneles actualizados.'
-    : proxyRecargadas.length
-      ? `Cuentas guardadas. Recargando ${proxyRecargadas.length} ${proxyRecargadas.length === 1 ? 'sesión' : 'sesiones'} para aplicar la nueva conexión.`
-      : 'Cuentas guardadas de forma segura.';
+    : 'Cuentas guardadas de forma segura.';
   // Con el aviso de la copia el mensaje no puede ir en verde: el guardado está bien,
   // pero la red de seguridad no.
   setModalMessage(cierre + avisoFallos + avisoCopia, !avisoCopia);
@@ -11671,7 +11650,7 @@ browserInstanceForm.addEventListener('submit', (event) => {
       buscador: BUSCADOR_POR_DEFECTO,
       apertura: APERTURA_POR_DEFECTO,
       // En modo navegador el enlace es opcional: si se escribe, se arranca ahi; si no, en el
-      // buscador. Antes se ignoraba lo que se escribiera, que es peor que no pedirlo.
+      // buscador. El campo se esconde en cuanto se elige ese modo, asi que aqui llega vacio.
       inicio: browserInstanceUrl.value
     });
     if (!instance) throw new Error('No se pudo crear la instancia con esos datos.');

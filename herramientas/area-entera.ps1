@@ -10,7 +10,7 @@
 # asi que el script no falla nunca: escribe el resultado de cada una y sigue, para que se vea el
 # panorama entero en vez de solo el primer fallo.
 $ErrorActionPreference = 'Continue'
-$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0340.txt'
+$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0350.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 

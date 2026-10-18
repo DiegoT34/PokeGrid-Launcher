@@ -101,7 +101,10 @@ input:focus-visible {
 
 /* El logo ya no tiene texto al lado, asi que este ancho era del nombre que se fue. Reservaba
    205 px de barra para una cadena vacia, y con ella empujaba las pestanas hacia la derecha. */
-.brand { gap: 8px; flex: 0 0 auto; }
+/* El logo de la esquina y su hueco se fueron en la 0.35.0: el marcado ya no esta, y estas reglas solo
+   se quedan porque `.brand` aparece en la lista de arriba con el resto de cabeceras. Si alguien lo
+   vuelve a poner en el HTML, sale sin estilo y se ve en seguida: es mejor que un hueco fantasma. */
+.brand { gap: 8px; flex: 0 0 auto; display: none; }
 .brand strong { display: block; letter-spacing: 0.09em; font-size: 12px; }
 .brand small { display: block; color: var(--muted); font-size: 9px; margin-top: 1px; }
 
@@ -342,6 +345,10 @@ input:focus-visible {
 .global-actions > .button-reload { --toolbar-accent: #57b9e2; }
 .global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #7e96df; }
 .global-actions .notification-bell { font-size: 12px; }
+/* La campana paso de emoji a SVG en la 0.35.0. `.top-action-icon` ya le da el cuadrado de 21 px, asi
+   que aqui solo hace falta que el trazo se vea igual de limpio que en los demas iconos del launcher. */
+.global-actions .notification-bell svg,
+.top-action-icon svg { width: 13px; height: 13px; }
 
 .notification-button,
 .notification-text-button {
@@ -371,6 +378,7 @@ input:focus-visible {
 .notification-button:hover,
 .notification-button[aria-expanded="true"] { border-color: rgba(255, 208, 49, .72); background: linear-gradient(145deg, rgba(56, 50, 28, .96), rgba(10, 29, 42, .98)); transform: translateY(-1px); }
 .notification-bell { font-size: 14px; }
+.notification-bell svg { width: 15px; height: 15px; }
 .notification-badge {
   min-width: 18px;
   height: 18px;
@@ -529,7 +537,15 @@ input:focus-visible {
 
 .notification-panel {
   position: fixed;
-  z-index: 180;
+  /* El panel salia POR DEBAJO de la barra (180 contra 220), asi que el boton de la campana se
+     dibujaba encima de su propio titulo: «NOTIFICACIONES» con una campana en medio de las letras.
+     No era un problema de margenes sino de orden: el panel es un desplegable de la barra y tiene que
+     ir por ENCIMA de ella.
+
+     Se queda en 235 a proposito: por encima de la barra (220) y del velo del menu (200), y por debajo
+     de los modales —el selector de farmeo (245), el de cuentas (260) y el centro de scripts (265)—,
+     que si deben taparlo. */
+  z-index: 235;
   top: 54px;
   right: 8px;
   width: min(560px, calc(100vw - 16px));
@@ -2155,43 +2171,21 @@ body.instancia-pantalla-completa .browser-instance-identity { display: none; }
   line-height: 1;
 }
 .account-row-remove:hover { color: #fff; border-color: var(--line); background: rgba(255, 90, 90, .18); }
-.account-proxy-details {
-  grid-column: 1 / -1;
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: rgba(255,255,255,.02);
-}
-.account-proxy-details summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  user-select: none;
-}
-.account-proxy-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
-.account-proxy-grid label { display: grid; gap: 5px; min-width: 0; }
-.account-proxy-grid span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
-.account-proxy-grid input,
-.account-proxy-grid select {
-  width: 100%;
-  min-width: 0;
-  height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0 10px;
-  background: #090e16;
-  color: var(--text);
-}
-.account-proxy-grid input:focus,
-.account-proxy-grid select:focus { border-color: rgba(255, 116, 94, .75); outline: none; }
-@media (max-width: 760px) {
-  .account-proxy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+/* El bloque «VPN / IP distinta» se fue en la 0.35.0. Con el se fueron la rejilla de cinco columnas
+   del proxy y sus campos, que ya no se aplican: se quedan por si alguien los vuelve a poner. */
 .account-row-actions { display: flex; justify-content: flex-end; margin-top: 2px; }
 
 .field { display: grid; gap: 5px; }
+
+/* ESTA ES LA CAUSA por la que los campos del modal de nueva pestaña NO se escondian.
+   `.field` pone `display: grid`, y una regla con una CLASE gana siempre al `[hidden]` que el navegador
+   aplica por defecto. Es decir: el JavaScript ponia `hidden = true` sobre el campo, el DOM lo tenia
+   marcado como oculto, y el campo seguia a la vista. Lo unico que fallaba era el estilo.
+
+   Por eso el aviso es global y no del modal: cualquier `hidden` sobre cualquier elemento con un
+   `display` propio tiene el mismo problema, y el de aqui fue el primero en notarse. Con
+   `display: none !important` el atributo vuelve a mandar, que es lo que significa `hidden`. */
+[hidden] { display: none !important; }
 .field span { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 .field input {
   width: 100%;
@@ -2279,6 +2273,12 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .scripts-security-note > .launcher-ui-icon { width: 16px; height: 16px; flex: none; color: #ffd45d; }
 .scripts-view-tab .launcher-ui-icon { width: 14px; height: 14px; flex: none; }
 .script-drop-zone > .launcher-ui-icon { width: 22px; height: 22px; }
+/* El texto de la zona de arrastrar va en una columna con sus dos lineas. Sin este envoltorio, el
+   `<strong>` y el `<small>` son dos celdas de la rejilla y la de abajo se estrecha tanto que parte la
+   extension «.user.js» en varias lineas. */
+.script-drop-text { display: grid; gap: 1px; min-width: 0; }
+.script-drop-text strong { font-size: 8px; }
+.script-drop-text small { color: #6d87a0; font-size: 7px; }
 .scripts-security-note p { margin: 0; line-height: 1.35; }
 .scripts-security-note strong { color: #ffe598; }
 .scripts-view-tabs {
@@ -2511,11 +2511,15 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .script-drop-zone {
   min-height: 58px;
   margin-top: 9px;
-  padding: 7px;
+  padding: 7px 9px;
   display: grid;
+  /* El icono ocupa una columna y el texto va APILADO en la otra. Antes el texto era un solo hijo y
+     cabia en una fila; al cambiar el emoji por un SVG, con el `<small>` de la extension aparte, el
+     texto se partia en tres filas y salia «.js / .user / .js / rb updates», una letra por linea.
+     Se agrupa el texto en una columna con sus dos lineas dentro, que es lo que se quiere ver. */
   grid-template-columns: 25px minmax(0, 1fr);
   align-items: center;
-  column-gap: 7px;
+  column-gap: 8px;
   border: 1px dashed #3e5d7e;
   border-radius: 8px;
   background: rgba(10, 27, 43, .72);
@@ -7404,6 +7408,185 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .goal-manager-modal ::-webkit-scrollbar-thumb:hover { background: #2f4c69; }
 .goal-builder-modal ::-webkit-scrollbar-corner,
 .goal-manager-modal ::-webkit-scrollbar-corner { background: #081320; }
+
+/* ================================================================================================
+   REDISENO DE LA INTERFAZ DE CUENTAS — 0.35.0
+   ------------------------------------------------------------------------------------------------
+   Va al final, por lo mismo que el bloque de la 0.34.0: es una capa, no una reescritura, y se
+   quita borrando este trozo.
+
+   QUE SE PRETENDE
+
+   Cada cuenta era una fila con tres campos del mismo tamano y un borde flojo, y con veinte cuentas
+   la pantalla era una lista gris sin ritmo: no se ve donde acaba una y empieza otra. Ahora cada cuenta
+   es una ficha con su numero y sus campos con nombre encima de cada uno. Y al quitarse el bloque de
+   proxy, la fila se queda mucho mas corta: se aprovecha para dar aire y para que la etiqueta de cada
+   campo se lea sin effort.
+   ================================================================================================ */
+
+/* El modal de cuentas es el unico que vive dentro de `#modalBackdrop` y no tiene id propio, asi que
+   se llega por el contenedor. Antes se buscaba una clase propia del modal que no existe en ningun
+   sitio: una regla con un nombre que no esta en el HTML no hace nada, y se ve como si el rediseno no
+   estuviera puesto. */
+#modalBackdrop .modal-heading {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #0b1522;
+}
+#modalBackdrop .modal-heading h1 { margin: 2px 0 4px; letter-spacing: .01em; }
+
+/* Cada cuenta, como ficha: numero a la izquierda y campos con nombre encima de cada uno. */
+.account-row {
+  grid-template-columns: 30px minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(150px, .9fr);
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0c1522;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.account-row:hover { border-color: #2b4f74; background: #0e1a2a; }
+
+/* El numero de la cuenta. Antes no habia nada que dijera «esta es la tercera», y habia que contarlas
+   con el dedo en una lista larga. El numero se escribe desde JS: un contador, no el id, que puede
+   venir saltado de una cuenta borrada. */
+.account-row::before {
+  content: attr(data-account-index);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #24405e;
+  border-radius: 7px;
+  background: #0a1420;
+  color: #7fa8cc;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Las etiquetas de los campos, mas grandes y con mas aire: son la unica pista de que va el campo. */
+.account-row .field { gap: 4px; }
+.account-row .field > span {
+  color: #7e97ad;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+.account-row .field input {
+  height: 34px;
+  border-color: #22384f;
+  border-radius: 8px;
+  background: #07131e;
+}
+.account-row .field input:focus { border-color: #3f7ea6; outline: none; }
+
+/* El boton de quitar, en la esquina de arriba a la derecha y sin flotar sobre el campo. */
+.account-row-remove {
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border-color: #22384f;
+  background: #0a1420;
+  color: #6d8098;
+}
+.account-row-remove:hover { color: #fff; border-color: #8a3a44; background: rgba(200, 60, 72, .2); }
+
+@media (max-width: 860px) {
+  .account-row { grid-template-columns: 30px minmax(0, 1fr); }
+}
+
+/* ================================================================================================
+   LAS PESTANAS Y EL ARRASTRE — 0.35.0
+   ------------------------------------------------------------------------------------------------
+   Como el resto: una capa al final, que se quita borrando este bloque.
+
+   QUE SE PIDE
+
+   El arrastre, como el de Chrome pero mas suave. En Chrome la pestaña que mueves se transparenta y la
+   de destino se levanta un poco con una linea de color: son dos pistas, y con las dos se sabe que se
+   esta moviendo y donde va a caer sin mirar nada.
+
+   Aqui la marca de destino existia en el CSS pero NUNCA se ponia, porque el arrastre no la anadia:
+   se veía una pestaña arrastrandose sin mas. Y la marca de la activa era solo un color de fondo
+   distinto, lo que obliga a leer los nombres para saber donde estas.
+
+   Y NINGUN brillo: el relieve es un borde y un fondo, como en el resto del rediseño.
+   ================================================================================================ */
+
+/* La barra: pestañas pegadas al borde inferior, sin hueco que las separe del panel. */
+.instance-tabs {
+  gap: 3px;
+  align-items: stretch;
+  padding: 0;
+  background: #080d15;
+  border-bottom: 1px solid #1b2a3c;
+}
+
+.instance-tab-shell {
+  position: relative;
+  min-width: 128px;
+  max-width: 230px;
+  height: 36px;
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #9db0c4;
+  overflow: hidden;
+  transition: transform .14s ease, background-color .14s ease, color .14s ease;
+}
+.instance-tab-shell:hover { background: rgba(255, 255, 255, .045); color: #cfdeeb; }
+
+/* La activa: fondo mas claro y una linea de color ABAJO, pegada al panel. Con ocho pestañas abiertas
+   es lo unico que dice «estas aqui» sin tener que leer los nombres. */
+.instance-tab-shell.is-active {
+  background: #131f2e;
+  border-color: #22394f;
+  border-bottom: 1px solid #131f2e;
+  color: #eef5fb;
+}
+.instance-tab-shell.is-active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: #4cc2e8;
+}
+.instance-tab-shell.is-active .instance-tab { font-weight: 700; }
+
+/* --- El arrastre: las dos pistas, la que se mueve y la que va a recibir. --- */
+
+/* La que se arrastra: se aplana y baja de opacidad. Sin cambio de tamano, que deja un hueco raro
+   cuando hay muchas pestañas. */
+.instance-tab-shell.is-arrastrando {
+  opacity: .42;
+  transform: scale(.985);
+}
+
+/* La de destino: se levanta y se marca con un fondo tenue. Un fondo, y no un color de borde entero,
+   porque un borde fuerte tapa el nombre y deja de saber que hay debajo. */
+.instance-tab-shell.is-destino {
+  background: rgba(76, 194, 232, .12);
+  border-color: #3f89ad;
+  color: #d6ecf7;
+  transform: translateY(-2px);
+}
+
+/* Sin animacion para quien ha pedido menos movimiento en el sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .instance-tab-shell,
+  .instance-tab-shell.is-arrastrando,
+  .instance-tab-shell.is-destino { transition: none; transform: none; }
+}
 
 @media (max-width: 430px) {
   .farm-pokemon-smart-option { grid-template-columns: 30px minmax(0, 1fr) 44px; padding: 8px; }

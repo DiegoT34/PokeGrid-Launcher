@@ -18,11 +18,13 @@
           <i id="hamburgerAvisoDotActualizador" class="hamburger-aviso-dot" hidden></i>
         </span>
       </button>
-      <!-- Solo el logo. El nombre se queda en el aria-label para quien lee con lector de pantalla;
-           el contador de cuentas y juegos vivia en el <small> que se ha ido con el texto. -->
-      <div class="brand" aria-label="IDLE POKE LAUNCHER">
-        <span class="brand-mark" aria-hidden="true"></span>
-      </div>
+      <!-- El logo de la esquina se fue en la 0.35.0. Ocupaba 34 px de alto por su cuenta, y lo unico
+           que habia al lado era el menu: la barra de pestanas empezaba mas alla, con lo que se perdia
+           sitio justo donde mas falta hace, que es ver de un vistazo cuantas pestanas hay abiertas.
+
+           El nombre del launcher no se pierde: pasa al aria-label de la barra de pestanas, que es lo
+           que lee el lector de pantalla. El icono de la ventana (`<link rel="icon">`) sigue siendo el
+           mismo, porque ese no ocupa sitio dentro de la ventana. -->
 
       <div id="instanceTabbar" class="instance-tabbar" aria-label="Instancias del navegador">
         <button id="instanceTabsBack" class="instance-tabs-scroll" type="button" aria-label="Pestañas anteriores" title="Pestañas anteriores" hidden>&lsaquo;</button>
@@ -38,11 +40,11 @@
           <span>MEN&Uacute; PRINCIPAL</span>
           <small>Herramientas del launcher</small>
         </header>
-        <button id="farmButton" class="button button-farm" type="button"><span class="top-action-icon" aria-hidden="true">&#127919;</span><span>Modo farmeo</span></button>
+        <button id="farmButton" class="button button-farm" type="button"><span class="top-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>Modo farmeo</span></button>
         <button id="pokepediaButton" class="button button-pokepedia" type="button" title="Abrir Pokepedia en una ventana independiente"><span class="top-action-icon" aria-hidden="true">&#9672;</span><span>Pokepedia</span></button>
         <button id="scriptsButton" class="button button-scripts" type="button"><span class="top-action-icon is-code" aria-hidden="true">&lt;/&gt;</span><span>Scripts</span><span id="scriptsMenuBadge" class="menu-update-badge is-scripts" hidden>0</span></button>
         <button id="notificationButton" class="notification-button" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Abrir notificaciones">
-          <span class="notification-bell top-action-icon" aria-hidden="true">&#128276;</span>
+          <svg class="notification-bell top-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
           <span class="notification-button-label">Notificaciones</span>
           <span id="notificationBadge" class="notification-badge" hidden>0</span>
         </button>
@@ -131,23 +133,26 @@
                formulario, asi que va arriba y no al final. -->
           <div class="browser-instance-modo" role="radiogroup" aria-label="Qu&eacute; quieres abrir">
             <button id="browserInstanceModeInstancia" class="modo-opcion is-elegido" type="button" role="radio" aria-checked="true" data-modo="instancia">
-              <strong>Un juego</strong>
+              <strong>Url &uacute;nica</strong>
               <small>Una direcci&oacute;n fija. Todas sus pantallas abren esa misma p&aacute;gina, cada una con su sesi&oacute;n.</small>
             </button>
             <button id="browserInstanceModeNavegador" class="modo-opcion" type="button" role="radio" aria-checked="false" data-modo="navegador">
               <strong>Un navegador</strong>
-              <small>Navegaci&oacute;n normal, con barra y buscador. El nombre lo pone la p&aacute;gina en la que est&eacute;s.</small>
+              <small>Navegaci&oacute;n normal, con barra y buscador. Se abre en el buscador y el nombre lo pone la p&aacute;gina en la que est&eacute;s.</small>
             </button>
           </div>
           <!-- El valor del modo vive aqui. Los dos botones de arriba solo lo escriben y avisan. -->
           <input type="hidden" id="browserInstanceMode" value="instancia">
+          <!-- Estos dos campos se esconden en cuanto se elige «Un navegador»: ahi no hay nada que
+               escribir. El nombre vuelve a ser opcional porque, si no se pone, se usa el de la
+               pagina a la que apunte la URL. -->
           <label class="field browser-instance-name-field">
-            <span>NOMBRE</span>
-            <input id="browserInstanceName" maxlength="48" required placeholder="Ej. Poke Idle World">
+            <span>NOMBRE <small class="field-opcional">(opcional)</small></span>
+            <input id="browserInstanceName" maxlength="48" placeholder="Nombre de la pestaña">
           </label>
           <label class="field browser-instance-url-field">
-            <span>DIRECCI&Oacute;N <small class="field-opcional">(en navegador, opcional)</small></span>
-            <input id="browserInstanceUrl" type="url" maxlength="1000" required inputmode="url" placeholder="https://juego.example/">
+            <span>DIRECCI&Oacute;N</span>
+            <input id="browserInstanceUrl" type="url" maxlength="1000" required inputmode="url" placeholder="https://sitio/pagina">
           </label>
           <label class="field">
             <span>PANTALLAS / CUENTAS</span>
@@ -388,8 +393,10 @@
             </form>
             <div id="scriptDropZone" class="script-drop-zone" tabindex="0" role="button" aria-label="Arrastra aqu&iacute; archivos userscript para instalarlos o actualizarlos">
               <svg class="launcher-ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>
-              <strong>Arrastra scripts aqu&iacute;</strong>
-              <small>.js o .user.js &middot; instala y actualiza</small>
+              <span class="script-drop-text">
+                <strong>Arrastra scripts aqu&iacute;</strong>
+                <small>.js o .user.js &middot; instala y actualiza</small>
+              </span>
             </div>
             <div class="scripts-list-head">
               <strong>Instalados</strong>

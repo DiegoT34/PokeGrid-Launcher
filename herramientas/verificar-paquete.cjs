@@ -168,6 +168,60 @@ const DESCANSO_QUE_NO = [
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
 
+console.log('\n0.35.0 — la barra, el arrastre, las cuentas y el modal de nueva pestaña:');
+const BARRA_5350 = [
+  // El panel de notificaciones salia POR DEBAJO de la barra que lo abre: la campana se dibujaba
+  // encima del propio titulo. El orden, no los margenes.
+  ['el panel de notificaciones va por encima de la barra', /notification-panel \{[^}]*z-index: 235/.test(styles)],
+  ['y por debajo de los modales', /\.modal-backdrop \{[^}]*z-index: 260/.test(styles)],
+  ['la campana es un SVG, no un emoji', !/&#128276;/.test(html)],
+
+  // El `[hidden]` global. Sin el, los campos ocultos del modal se veian: una clase con `display`
+  // gana siempre al `[hidden]` del navegador.
+  ['el atributo hidden vuelve a mandar', /\[hidden\] \{ display: none !important; \}/.test(styles)],
+
+  // El arrastre: la marca de destino existia en el CSS y nunca se ponia.
+  ['la marca de destino se pone al arrastrar', /shell\.classList\.add\('is-destino'\)/.test(renderer)],
+  ['y se quita al salir de la pestana', /shell\.classList\.remove\('is-destino'\)/.test(renderer)],
+  ['la marca se quita al acabar el arrastre', /classList\.remove\('is-arrastrando'\)/.test(renderer)],
+  ['el destino se ve levantada y con fondo', /\.instance-tab-shell\.is-destino \{[^}]*translateY/.test(styles)],
+  ['y respeta menos movimiento', /prefers-reduced-motion/.test(styles)],
+
+  // Los mas y menos, junto a los botones de la pantalla.
+  ['los mas y menos van detras de los botones de la pantalla', /panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/.test(renderer)],
+
+  // El modal de nueva pestaña.
+  ['«Un juego» ahora es «Url única»', /Url &uacute;nica/.test(html) && !/Un juego<\/strong>/.test(html)],
+  ['la URL de ejemplo ya no es un juego', !/juego\.example/.test(html)],
+  ['el nombre de la pestaña es opcional', /placeholder="Nombre de la pestaña"/.test(html)],
+  ['y no es obligatorio en ningun modo', !/browserInstanceName\.required/.test(renderer)],
+  ['el nombre vacio sale del dominio', /const delDominio = \(\(\) => \{/.test(renderer)],
+  ['en modo navegador se esconden los dos campos', /browserInstanceUrlField\.hidden = !conUrl/.test(renderer)],
+  ['y el modal aplica el modo al abrirse', /sincronizarModoElegido\(\);[\s\S]{0,80}browserInstanceBackdrop\.hidden = false/.test(renderer)],
+
+  // El bloque de proxy por cuenta, fuera entero.
+  ['el desplegable de VPN / IP no esta', !/VPN \/ IP distinta/.test(renderer)],
+  ['ni sus campos', !/data-field="proxy\./.test(renderer)],
+  ['ni su CSS', !/account-proxy-grid/.test(styles)],
+  ['ni el aviso de proxy al guardar', !/Proxy no aplicado en/.test(renderer)],
+
+  // La zona de arrastrar del centro de scripts: el texto en una columna, no tres celdas.
+  ['el texto de la zona de arrastrar va agrupado', /class="script-drop-text"/.test(html)],
+  ['y tiene su regla', /\.script-drop-text \{ display: grid/.test(styles)],
+
+  // El logo fuera.
+  ['el logo de la esquina no esta', !/<span class="brand-mark"/.test(html)]
+];
+// El bucle acepta las dos formas: una expresion regular contra el texto, o un booleano ya calculado.
+// La segunda se usa para las comprobaciones de «esto NO debe existir», que se escriben
+// `!/algo/.test(texto)` y devuelven `false`, no una expresion: sin esta distincion el bucle reventaba
+// con «re.test is not a function» a mitad de la lista, con todo lo anterior ya dado por bueno.
+for (const [que, re, texto] of BARRA_5350) {
+  const ok = typeof re === 'boolean' ? re : re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
+
 console.log('\n0.34.0 — pestañas de cuenta, sin brillos, iconos SVG y fuera el botón de Telegram:');
 const CUENTAS_ICONOS = [
   // Las pestañas de cuenta se mueven y el orden se guarda. Antes se arrastraban sin que pasara nada,
@@ -674,7 +728,11 @@ const VISTA_INSTANCIAS = [
   ['pero en ventana estrecha la barra sigue limitandose, que si no se come los botones', /@media \(max-width: 900px\)[\s\S]{0,600}\.instance-tabbar \{ max-width: calc\(100vw - 150px\)/.test(styles)],
   ['y no queda ninguna regla anulando el min-width que ya no existe, ni en las ventanas estrechas', !/\.brand \{[^}]*min-width: auto/.test(styles) && (styles.match(/\.brand \{[^}]*min-width: 205px/g) || []).length === 0],
   ['el icono cambia de sitio, no se queda clavado en el primero', /function avisoDeIcono\(datos, dataUrl, instanceId\)/.test(renderer) && /origenesDeIcono\.set\(instanceId, url\)/.test(renderer) && !/if \(iconosDeInstancia\.has\(instanceId\)\) return;/.test(renderer)],
-  ['de la cabecera solo queda el logo, con nombre accesible', !/brandSessionCount/.test(html) && !/<strong>IDLE POKE LAUNCHER<\/strong>/.test(html) && /class="brand" aria-label="IDLE POKE LAUNCHER"/.test(html)],
+  // La cabecera se dejo en la 0.35.0: el logo se fue, y el nombre del launcher tampoco esta a la vista
+  // en ningun sitio. Lo que se comprueba ahora es que NO quede el hueco del logo, y que la barra de
+  // pestanas —que es lo que se queda— siga con su nombre para quien lee con lector de pantalla.
+  ['de la cabecera no queda el logo ni su hueco', !/brandSessionCount/.test(html) && !/<strong>IDLE POKE LAUNCHER<\/strong>/.test(html) && !/class="brand-mark"/.test(html) && !/class="brand" aria-label/.test(html)],
+  ['y la barra de pestanas conserva el nombre accesible', /aria-label="Instancias del navegador"/.test(html)],
   ['el icono llega como data:, porque la CSP no deja meter imagenes remotas', /ipcMain\.handle\('instancia:icono'/.test(mainCodigo) && /const dataUrl = `data:\$\{limpio\};base64,/.test(mainCodigo)],
   ['y solo se acepta lo que el navegador pinta y no pasa de 256 KB', /const ICONO_MAXIMO_BYTES = 256 \* 1024/.test(iconosComunes) && /function esIconoAdmisible/.test(iconosComunes) && !/image\/svg\+xml/.test(iconosComunes)],
   ['la regla del icono se ejecuta desde el proceso principal, no esta declarada en un sitio muerto', /module\.exports = \{[\s\S]{0,300}esIconoAdmisible/.test(iconosComunes) && /require\('\.\/iconos-comunes'\)/.test(mainCodigo)],

@@ -64,6 +64,15 @@ const QUE_SI = [
     ['el logo se decide antes que el mapa de iconos', /PRIMARY_BROWSER_INSTANCE_ID \|\| esPestanaDeCuenta\(instanceId\)/, renderer],
     ['la marca de la pestaña activa sigue', /\.instance-tab-shell\.is-active \{[^}]*box-shadow/, styles],
     ['la franja del color del tipo sigue', /box-shadow: inset 4px 0 0 var\(--farm-type-color\)/, styles],
+
+    // ---- 0.35.0: modal de nueva pestaña, arrastres, cuentas y barra
+    ['en modo navegador se esconden los dos campos', /browserInstanceUrlField\.hidden = !conUrl/, renderer],
+    ['y el nombre tambien se esconde', /browserInstanceNameField\.hidden = !conUrl/, renderer],
+    ['el nombre vacio sale del dominio de la url', /const delDominio = \(\(\) => \{/, renderer],
+    ['la marca de destino se pone al arrastrar', /shell\.classList\.add\('is-destino'\)/, renderer],
+    ['y se quita al salir', /shell\.classList\.remove\('is-destino'\)/, renderer],
+    ['los mas y menos van detras de los botones', /panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/, renderer],
+    ['el numero de la cuenta se escribe por posicion', /row\.dataset\.accountIndex = String\(index \+ 1\)/, renderer],
     ['el icono de la lupa esta en la tabla', /search: '<circle cx="11"/, renderer],
     ['y se expone para el centro de scripts', /window\.launcherUiIcon = launcherUiIcon;/, renderer]
 ];
@@ -73,6 +82,14 @@ const QUE_NO = [
   ['la preferencia que prohibia atenuar', /backgroundThrottling: false/, mainProceso],
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer],
+
+    // ---- 0.35.0: lo que tiene que haber desaparecido
+    ['el nombre obligatorio del modal', /browserInstanceName\.required/, usuarios + renderer],
+    ['el nombre por defecto «Otro juego»', /'Otro juego'/, renderer],
+    ['el desplegable de VPN / IP por cuenta', /<summary>VPN \/ IP distinta<\/summary>/, renderer],
+    ['sus campos de proxy', /data-field="proxy\.protocol"/, renderer],
+    ['el boton de la marca de destino en el codigo viejo', /panelbar\.append\(identity, masPantallaButton, menosPantallaButton, actions\)/, renderer],
+    ['el logo de la esquina en el HTML', /<span class="brand-mark"/, html],
 
     // ---- 0.34.0: lo que tiene que haber desaparecido
     // Se busca la ETIQUETA del boton, no su id: el id sigue escrito en el comentario que explica que se

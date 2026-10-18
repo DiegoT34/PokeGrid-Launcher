@@ -59,10 +59,25 @@ for (const c of soloCss) console.log('  --    ' + c);
 
 // Un selector que no existe en el HTML no rompe nada, pero su regla no hace nada. Se avisa, que es lo
 // que sirve para no dar por puesto un rediseño que no se ve.
-const sinElemento = soloCss.filter((c) => !c.includes('ningun sitio'));
-console.log(`\nlas reglas de arriba sin elemento NO hacen nada: ${sinElemento.length}`);
-if (sinElemento.length) {
-  console.log('  Son estos, y hay que decidir si son规则 de estado (`.is-active` y compañía, que sí se' +
-    ' añaden por JavaScript) o nombres equivocados:');
-  for (const c of sinElemento) console.log('    ' + c.replace('  --    ', ''));
-}
+//
+// Hay una excepcion legitima: los que crea JAVASCRIPT. La barra de pestañas se pinta entera desde
+// `renderBrowserInstanceTabs`, asi que ni `instance-tab-shell` ni sus clases de arrastre estan en el
+// HTML, y sus reglas son correctas. Sin esta lista, el aviso que sirve se vuelve ruido y acabaria
+// ignorandose, que es peor que no avisar.
+const CREADOS_POR_JS = new Set([
+  'instance-tab',
+  'instance-tab-shell',
+  'is-arrastrando',
+  'is-destino',
+  'account-row-remove'
+]);
+
+const sinElemento = soloCss.filter((c) => !c.includes('ningun sitio') && !CREADOS_POR_JS.has(c.replace('  --    ', '')));
+const deJs = soloCss.filter((c) => CREADOS_POR_JS.has(c.replace('  --    ', '')));
+const malEscritos = soloCss.filter((c) => c.includes('ningun sitio'));
+
+console.log(`\nlas reglas sin elemento que no hacen nada: ${sinElemento.length + malEscritos.length}`);
+for (const c of malEscritos) console.log(`    MAL ESCRITO  ${c.replace('  --    ', '')}`);
+for (const c of sinElemento) console.log(`    REVISAR      ${c.replace('  --    ', '')}`);
+console.log(`\nlas que crea JavaScript y por eso no estan en el HTML: ${deJs.length}`);
+for (const c of deJs) console.log(`    js           ${c.replace('  --    ', '')}`);

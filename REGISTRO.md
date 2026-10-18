@@ -7,6 +7,91 @@ Las versiones van en orden. La carpeta `dist/` conserva todas; nada se sustituye
 
 ---
 
+## 0.35.0 — la barra, el arrastre, las cuentas y el modal de nueva pestaña
+
+### El título de Notificaciones tapado por la campana
+
+No era un problema de márgenes sino de **orden**. El panel tenía `z-index: 180` y la barra de la
+aplicación `220`: el panel salía **por debajo** de la barra que lo abre, y el botón se dibujaba encima
+de su propio título. Ahora el panel va en `235`, por encima de la barra (220) y por debajo de los
+modales (245, 260 y 265), que sí deben taparlo.
+
+### Los campos del modal que no se escondían
+
+El punto de partida era el pedido: «en modo navegador, fuera los dos campos». El código ya ponía
+`hidden = true` sobre ellos, y aun así **se veían**.
+
+La causa no era el JavaScript: es que `.field` tiene `display: grid`, y **una regla de clase gana
+siempre al `[hidden]` que aplica el navegador**. El DOM estaba correcto —el campo estaba marcado como
+oculto— y el estilo lo contradecía. El DOM decía una cosa y la pantalla otra.
+
+La arreglo es global y de una línea: `[hidden] { display: none !important; }`. Es global a propósito,
+porque el problema es de todos los sitios que usen `hidden` sobre algo con un `display` propio, no solo
+de este modal. Hay **55** asignaciones de `.hidden` en el programa y hasta ahora solo funcionaban las
+que no tenían un `display` competido.
+
+Comprobado antes de darlo por bueno: ninguna regla del CSS resucita algo marcado como `hidden`, y el
+único `:not([hidden])` del proyecto sigue funcionando.
+
+### El drag and drop del centro de scripts
+
+La zona de arrastrar es un `grid` de **dos** columnas: 25 px para el icono y el resto para el texto.
+Al cambiar el emoji por un SVG, el `<small>` de la extensión pasó a ser **una tercera celda**, se quedó
+con el ancho justo y partió `.user.js` en varias líneas: «.js / .user / .js / rb updates».
+
+El texto va ahora en un `<span>` que ocupa una columna con sus dos líneas dentro. No es un capricho: un `grid` trata cada hijo como una celda, y añadir un hijo cambia la rejilla.
+
+### El bloque de VPN / IP por cuenta
+
+**Aviso, porque es distinto de lo que parecía.** El guion de VPN (el `core` de WireGuard por cuenta) sí
+se eliminó en la 0.33.0. Pero este desplegable era **otra cosa**: el proxy HTTP/SOCKS5 por cuenta, que
+seguía vivo y aplicado en `main.js:311`. Se quita igualmente por indicación expresa, y con él: el
+código que lo rellenaba, el que lo guardaba, la recarga de sesiones al cambiarlo y sus reglas de CSS.
+
+### Los botones `+` y `−` de cada pantalla
+
+Estaban **entre el nombre de la instancia y los botones de la derecha**, o sea en mitad de la barra y
+pegados al nombre, sin que se entendiera de qué eran. Ahora van **detrás de `actions`**, juntos a los
+demás botones de la pantalla, que es donde ya se busca uno cuando se quiere algo así.
+
+### El logo de la esquina
+
+Fuera. Ocupaba 34 px de alto por su cuenta y lo único que había al lado era el menú: la barra de
+pestañas empezaba más allá, perdiendo sitio justo donde más falta hace para ver cuántas pestañas hay.
+El nombre del launcher no se pierde, pasa al `aria-label` de la barra. El icono de la ventana sigue
+siendo el mismo, porque ese no ocupa sitio dentro de la ventana.
+
+### El arrastre de las pestañas
+
+La marca de destino **existía en el CSS pero nunca se ponía**: el `dragover` no la añadía, así que se
+veía una pestaña arrastrándose sin más. Ahora hay las dos pistas, como en Chrome pero más suave: la que
+se mueve baja de opacidad, y la de destino se levanta y se marca con un fondo tenue.
+
+Un fondo y no un borde de color, porque un borde fuerte tapa el nombre y deja de saber qué hay debajo.
+Y todo el bloque respeta `prefers-reduced-motion`.
+
+El estilo de la pestaña también cambia: la activa ya no se distingue solo por el color de fondo —lo que
+obliga a leer los nombres—, sino que lleva una línea de color pegada al panel.
+
+### El modal de nueva pestaña
+
+- **«Un juego» → «Url única».** Decía «juego» cuando lo único que se pide es una dirección.
+- **En modo navegador se esconden los dos campos.** El código ya ocultaba el nombre, pero el comentario
+  decía «el enlace se ve SIEMPRE» y el campo nunca se ocultaba. Ahora van los dos juntos: si no hay nada
+  que escribir, no se pregunta.
+- **El nombre es opcional** y con el texto que corresponde: «Nombre de la pestaña». Si se deja vacío,
+  la pestaña lo toma del **dominio de la URL**; antes ponía «Otro juego», que además mentía y salía
+  idéntico en todas.
+- La URL de ejemplo ya no es `https://juego.example/` sino `https://sitio/pagina`.
+
+### La interfaz de cuentas
+
+Cada cuenta era una fila con tres campos del mismo tamaño y un borde flojo. Ahora es una ficha con su
+**número** —por posición y no por id, porque los ids nunca se renumeran y saltaban huecos—, los campos
+con nombre encima y la contraseña en su propia columna.
+
+---
+
 ## 0.34.0 — pestañas de cuenta que se mueven, iconos de verdad y fuera el brillo
 
 ### Pestañas de cuenta
