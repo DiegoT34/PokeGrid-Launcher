@@ -8439,8 +8439,12 @@ function recoveryDelay(attempt) {
 // statusText permite que quien llama deje su propio texto en la barra del panel en
 // vez del "motivo de carga" genérico, que es lo que necesita la recarga por cambio de
 // proxy para no quedarse tapada por su propio motivo.
-async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga', statusText = '' } = {}) {
+async function loadConnectionPanel(panel, rawUrl = '', { reason = 'Carga', statusText = '', porPaginaMuerta = false } = {}) {
   if (!panel || panel.destroyed || window.pokeGrid.previewMode) return false;
+  // El aviso de que esta carga viene de una pagina muerta. Lo consulta `recordarPaginaDelPanel` para
+  // no guardar la direccion a la que se cae cuando esa tampoco funciona, y lo pone CUALQUIER carga
+  // normal a false, asi que no se queda pegado: en cuanto navegas tu, se olvida.
+  panel.recuperandoDePaginaMuerta = Boolean(porPaginaMuerta);
   if (!navigator.onLine) {
     // Sin red no hay recarga posible, así que el panel no puede quedarse con el
     // texto de "recargando con la nueva conexión" para siempre.
@@ -9171,6 +9175,12 @@ function pintarBarraDeNavegacion(panel) {
 // tienen algunos paneles.
 function recordarPaginaDelPanel(panel) {
   if (!panel || panel.origen === 'enlace') return;
+  // Una recuperacion por pagina MUERTA no se recuerda. Al caer de una direccion caducada se guarda la
+  // de la instancia —que es lo correcto si esa pagina carga—, y si tambien esta muerta queda guardada
+  // una direccion que no existe: justo lo que esta funcion existe para evitar, porque se reintentaba
+  // en cada arranque. La marca se apaga sola en la siguiente carga de verdad, que es donde ya no
+  // importa: cualquier carga normal la borra.
+  if (panel.recuperandoDePaginaMuerta) return;
   if (!Number.isInteger(Number(panel.instanceIndex))) return;
   const actual = webviewCurrentUrl(panel);
   if (actual) recordarUltimaPagina(panel.instanceId, panel.instanceIndex, actual);
@@ -9573,10 +9583,18 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     // Una sola caida por pantalla, y no se vuelve a marcar. Sin esto, si la URL de la instancia
     // tampoco cargara, su fallo volveria a disparar esta misma caida y la pantalla se quedaria
     // rebotando entre las dos direcciones.
+    // Una sola caida por pantalla, y no se vuelve a marcar. Sin esto, si la URL de la instancia
+    // tampoco cargara, su fallo volveria a disparar esta misma caida y la pantalla se quedaria
+    // rebotando entre las dos direcciones.
+    //
+    // Lo que evita que quede guardada una direccion MUERTA no es esta linea, sino la marca
+    // `recuperandoDePaginaMuerta` que `recordarPaginaDelPanel` mira. Al caer a la de la instancia, el
+    // manejador de navegacion la Pondria de nuevo como pagina actual —bien hecho si esa pagina
+    // carga— y aqui solo hace falta no volver a caer otra vez.
     if (panel.caidaPorPaginaMuerta) return;
     panel.caidaPorPaginaMuerta = true;
     olvidarUltimaPagina(instance.id, index);
-    loadConnectionPanel(panel, inicioDeInstancia(instance), { reason: 'Volviendo al inicio' });
+    loadConnectionPanel(panel, inicioDeInstancia(instance), { reason: 'Volviendo al inicio', porPaginaMuerta: true });
   });
 
   attachResilientWebview(panel, {
