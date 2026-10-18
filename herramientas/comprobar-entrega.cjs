@@ -24,7 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const RAIZ = __dirname;
+const RAIZ = path.join(__dirname, '..');
 const VERSION = JSON.parse(fs.readFileSync(path.join(RAIZ, 'package.json'), 'utf8')).version;
 const ZIP = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil.zip`);
 const CARPETA = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil`);

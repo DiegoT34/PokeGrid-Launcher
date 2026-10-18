@@ -28,7 +28,10 @@
   // src/index.html en tests/multi-game-userscripts-static-smoke.js.
   const REQUIRED_SCRIPT_ELEMENTS = [
     '#scriptsButton', '#hamburgerAvisoDotShop', '#hamburgerAvisoDotNotas', '#hamburgerAvisoDotActualizador', '#scriptsMenuBadge', '#scriptsBackdrop',
-    '#closeScriptsButton', '#newScriptButton', '#importScriptButton', '#installTelegramAlertsButton',
+    // `#installTelegramAlertsButton` se quito en la 0.34.0. No hacia falta: `loadScripts` ya instala
+    // el modulo oficial en cada arranque (`updateBundledTelegramScript`), asi que el boton era una
+    // segunda puerta a lo mismo. El modulo sigue instalandose solo, que es lo que importa.
+    '#closeScriptsButton', '#newScriptButton', '#importScriptButton',
     '#scriptUrlForm', '#scriptUrlInput', '#scriptDropZone', '#scriptsList', '#scriptCount',
     '#scriptEditorForm', '#scriptEditorKicker', '#scriptEditorName', '#scriptEditorMeta',
     '#scriptEnabledInput', '#scriptAccountToggles', '#scriptCodeInput', '#scriptCodeEditor',
@@ -56,7 +59,6 @@
   const closeButton = document.querySelector('#closeScriptsButton');
   const newButton = document.querySelector('#newScriptButton');
   const importButton = document.querySelector('#importScriptButton');
-  const installTelegramButton = document.querySelector('#installTelegramAlertsButton');
   const urlForm = document.querySelector('#scriptUrlForm');
   const urlInput = document.querySelector('#scriptUrlInput');
   const dropZone = document.querySelector('#scriptDropZone');
@@ -410,7 +412,7 @@
       if (code !== codeInput.value) return { ok: false, stale: true };
       if (!result?.ok) throw Object.assign(new Error(result?.error || 'Sintaxis JavaScript no válida.'), { line: result?.line });
       syntaxStatus.className = 'is-ok';
-      syntaxStatus.textContent = `✓ Sintaxis correcta · ${code.split('\n').length} líneas`;
+      syntaxStatus.innerHTML = '<svg class="launcher-ui-icon is-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' + `Sintaxis correcta · ${code.split('\n').length} líneas`;
       syntaxStatus.title = '';
       codeEditor.classList.remove('has-syntax-error');
       if (announce) setMessage('Sintaxis JavaScript correcta. El script está listo para guardarse.', 'ok');
@@ -419,7 +421,7 @@
       const line = Number(error?.line) || null;
       const location = line ? `Línea ${line}: ` : '';
       syntaxStatus.className = 'is-error';
-      syntaxStatus.textContent = `✕ ${location}${error.message}`;
+      syntaxStatus.innerHTML = '<svg class="launcher-ui-icon is-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>' + `${location}${error.message}`;
       syntaxStatus.title = String(error.stack || error.message);
       codeEditor.classList.add('has-syntax-error');
       if (announce) setMessage(`Error de sintaxis. ${location}${error.message}`);
@@ -619,7 +621,7 @@
     if (!scriptShopCatalog) {
       const placeholder = document.createElement('div');
       placeholder.className = 'script-shop-empty';
-      placeholder.innerHTML = '<span aria-hidden="true">☁</span><strong>Conecta con la Shop para ver el catálogo</strong><small>El catálogo solo se consulta al abrir esta pestaña o pulsar Verificar.</small>';
+      placeholder.innerHTML = '<svg class="launcher-ui-icon is-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.78A6 6 0 1 0 6.5 19Z"/></svg><strong>Conecta con la Shop para ver el catálogo</strong><small>El catálogo solo se consulta al abrir esta pestaña o pulsar Verificar.</small>';
       scriptShopGrid.appendChild(placeholder);
       scriptShopSummary.textContent = '';
       renderScriptShopCategories([]);
@@ -683,16 +685,16 @@
       // una categoría pulsada, es el filtro la razón de que la lista esté vacía, y decir
       // «estás al día» con una pastilla pulsada parece que el filtro no se aplicó.
       if (!scriptShopCatalog.scripts.length) {
-        empty.innerHTML = '<span aria-hidden="true">📦</span><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
+        empty.innerHTML = '<svg class="launcher-ui-icon is-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5Z"/><path d="m3 8.5 9 4.5 9-4.5"/><path d="M12 13v7"/></svg><strong>La Shop está lista</strong><small>Los scripts aparecerán aquí cuando DiegoT34 los publique en el catálogo.</small>';
       } else if (scriptShopCategory) {
-        empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>Nada por aquí</strong><small>No hay nada en «'
+        empty.innerHTML = '<svg class="launcher-ui-icon is-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><strong>Nada por aquí</strong><small>No hay nada en «'
           + escapeHtml(categoryNameFor(categories)) + '»'
           + (enActualizaciones ? ' con actualizaciones pendientes' : '')
           + '. Prueba otra categoría.</small>';
       } else if (enActualizaciones) {
-        empty.innerHTML = '<span aria-hidden="true">✅</span><strong>Estás al día</strong><small>No hay actualizaciones pendientes de los scripts que tienes instalados.</small>';
+        empty.innerHTML = '<svg class="launcher-ui-icon is-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg><strong>Estás al día</strong><small>No hay actualizaciones pendientes de los scripts que tienes instalados.</small>';
       } else {
-        empty.innerHTML = '<span aria-hidden="true">⌕</span><strong>No hay resultados</strong><small>Prueba otra palabra.</small>';
+        empty.innerHTML = '<svg class="launcher-ui-icon is-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><strong>No hay resultados</strong><small>Prueba otra palabra.</small>';
       }
       scriptShopGrid.appendChild(empty);
       return;
@@ -704,12 +706,12 @@
       const card = document.createElement('article');
       card.className = `script-shop-card is-${state.key}${item.featured ? ' is-featured' : ''}`;
       const tags = (item.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join('');
-      const gameTags = scriptGameLabels(state.installed || item).map((game) => `<span class="is-game">🎮 ${escapeHtml(game)}</span>`).join('');
+      const gameTags = scriptGameLabels(state.installed || item).map((game) => `<span class="is-game"><svg class="launcher-ui-icon is-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 4 12 8-12 8Z"/></svg> ${escapeHtml(game)}</span>`).join('');
       const permissions = (item.permissions || []).map((permission) => `<li>${escapeHtml(permission)}</li>`).join('');
       const actionLabel = state.key === 'update' || state.key === 'modified' ? 'Actualizar' : 'Instalar';
       const busy = scriptShopBusyId === item.id;
       card.innerHTML = `
-        <div class="script-shop-card-icon" aria-hidden="true">${escapeHtml(item.icon || '📜')}</div>
+        <div class="script-shop-card-icon" aria-hidden="true">${item.icon ? escapeHtml(item.icon) : window.launcherUiIcon('book')}</div>
         <div class="script-shop-card-copy">
           <div class="script-shop-card-title">
             <div><span>${escapeHtml(item.category)}</span><h3>${escapeHtml(item.name)}</h3></div>
@@ -1293,33 +1295,9 @@ function renderScriptShopCategories(categories) {
     }
   }
 
-  async function importBundledTelegramAlerts() {
-    setMessage('Cargando el módulo oficial de alertas Telegram…');
-    const result = await window.pokeGrid.loadBundledTelegramAlerts();
-    if (!result.ok) {
-      setMessage(result.error || 'No se pudo cargar el módulo de Telegram.');
-      return;
-    }
-    const existing = scripts.find((script) => script.namespace === 'pokegrid.telegram-alerts');
-    showDraft({
-      ...(existing || {}),
-      code: result.code,
-      sourceUrl: result.sourceUrl,
-      accounts: existing?.accounts || accountRows.map(() => true),
-      enabled: true
-    });
-    selectedSnapshot = { ...(existing || {}), sourceUrl: result.sourceUrl };
-    // El mensaje dice cuántas cuentas hay de verdad: el launcher admite hasta
-    // 32 y esta pantalla no tenía el número a mano al escribir el texto.
-    const total = accountRows.length;
-    const destino = `${total} ${total === 1 ? 'cuenta' : 'cuentas'}`;
-    setMessage(
-      existing
-        ? `Actualización cargada. Pulsa “Guardar e instalar” para aplicarla ${total === 1 ? `en la ${destino}` : `en las ${destino}`}.`
-        : `Módulo cargado y preseleccionado ${total === 1 ? `para la ${destino}` : `para las ${destino}`}. Pulsa “Guardar e instalar”.`,
-      'ok'
-    );
-  }
+  // `importBundledTelegramAlerts` se quito en la 0.34.0, junto con el boton que la llamaba: abria el
+  // editor con el modulo oficial preseleccionado para que lo instalaras a mano, y ya no habia quien la
+  // llamara. El modulo se sigue instalando solo al arrancar, en `updateBundledTelegramScript`.
 
   async function fetchRemoteScript(event) {
     event.preventDefault();
@@ -1773,7 +1751,6 @@ ${script.code}
     dropZone.classList.remove('is-dragging');
     installDroppedFiles(event.dataTransfer.files);
   });
-  installTelegramButton.addEventListener('click', importBundledTelegramAlerts);
   urlForm.addEventListener('submit', fetchRemoteScript);
   editorForm.addEventListener('submit', saveEditor);
   deleteButton.addEventListener('click', deleteSelected);

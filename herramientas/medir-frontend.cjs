@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const raiz = __dirname;
+const raiz = path.join(__dirname, '..');
 const ficheros = [
   'renderer.js', 'game-theme.js', 'userscripts.js', 'notification-hub.js',
   'float-geometry.js', 'script-shop-view.js', 'script-shop-order.js',

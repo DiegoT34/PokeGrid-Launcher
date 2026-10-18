@@ -12,6 +12,18 @@
       --pg-gold-soft: rgba(227, 168, 47, .45);
       --pg-panel: rgba(8, 13, 21, .96);
       --pg-panel-2: rgba(15, 23, 34, .97);
+
+      /* Los iconos del tema van como mascara, en SVG y en linea.
+         En la 0.34.0 eran emoji con 'content: "..."', que es una fuente de texto: el dibujo salia del
+         tamaño y del color que quisiera la fuente del sistema, y en un equipo sin esa fuente salia un
+         cuadrado. Con 'mask' el dibujo lo pone el CSS y el color lo pone 'currentColor', que es lo que
+         hace que el icono siga al texto que tiene alrededor.
+
+         Va en 'data:' y no en una variable de texto porque una mascara necesita una imagen, y un SVG en
+         linea no se puede poner en una propiedad normal sin escribirlo entero cada vez que se usa.
+         No hay peticion de red: esta todo aqui dentro. */
+      --pg-icono-engranaje: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Ccircle cx="12" cy="12" r="3"/%3E%3Cpath d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/%3E%3C/svg%3E');
+      --pg-icono-espadas: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"%3E%3Cpath d="M14.5 17.5 3 6V3h3l11.5 11.5"/%3E%3Cpath d="M13 19l6-6"/%3E%3Cpath d="M16 16l4 4"/%3E%3Cpath d="M19 21l2-2"/%3E%3C/svg%3E');
     }
 
     .game-dock[data-pg-themed="true"] {
@@ -282,8 +294,16 @@
       text-shadow: 0 1px 2px #000 !important;
     }
 
+    /* El engranaje era 'content: "⚙"', que es una fuente de texto: sale del tamaño y del color que quiera
+       la fuente que tenga el sistema. Con 'mask' se pinta el mismo dibujo con las reglas del elemento,
+       sin depender de ninguna fuente. Es SVG dentro de CSS, no una imagen: no hay peticion de red. */
     .ah-panel[data-pg-auto-state="button"] .ah-head.pg-auto-needs-icon::before {
-      content: "⚙" !important;
+      content: "" !important;
+      width: 13px !important;
+      height: 13px !important;
+      background: currentColor !important;
+      -webkit-mask: var(--pg-icono-engranaje) center / contain no-repeat !important;
+      mask: var(--pg-icono-engranaje) center / contain no-repeat !important;
       margin-right: 5px !important;
       color: #e8b33d !important;
       filter: drop-shadow(0 0 5px rgba(227,168,47,.4)) !important;
@@ -1899,8 +1919,11 @@
     }
 
     [data-pg-capture-management="true"] .pg-cm-view-icon {
-      font-size: 14px !important;
-      line-height: 1 !important;
+      /* Antes era un simbolo y se dimensionaba con font-size. Ahora es un SVG, y un SVG sin width se
+         dibuja al tamano del viewport: necesita su ancho en pixeles. 14 px es lo que ocupaba antes. */
+      width: 14px !important;
+      height: 14px !important;
+      flex: none !important;
     }
 
     [data-pg-capture-management="true"] .pg-cm-content {
@@ -2228,7 +2251,12 @@
     }
 
     [data-pg-hunt-dialog="true"] .pg-hunt-title::before {
-      content: "⚔" !important;
+      content: "" !important;
+      width: 14px !important;
+      height: 14px !important;
+      background: currentColor !important;
+      -webkit-mask: var(--pg-icono-espadas) center / contain no-repeat !important;
+      mask: var(--pg-icono-espadas) center / contain no-repeat !important;
       position: absolute !important;
       top: 10px !important;
       left: 15px !important;
@@ -4895,19 +4923,31 @@
           switcher.setAttribute('role', 'group');
           switcher.setAttribute('aria-label', 'Tipo de visualización');
 
+          // Los iconos de la vista lineal y la de cuadros eran los simbolos ☷ y ▦, que son fuente de texto:
+          // salian del tamaño y del color de la fuente del sistema, y en un equipo sin ella, de un
+          // cuadrado. Ahora son SVG con trazo, como el resto del launcher. En la 0.34.0.
+          const PG_CM_VISTAS = {
+            linear: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+            grid: '<path d="M4 4h7v7H4z"/><path d="M13 4h7v7h-7z"/><path d="M4 13h7v7H4z"/><path d="M13 13h7v7h-7z"/>'
+          };
           const options = [
-            { view: 'linear', icon: '☷', label: 'Vista lineal' },
-            { view: 'grid', icon: '▦', label: 'Vista cuadros' }
+            { view: 'linear', label: 'Vista lineal' },
+            { view: 'grid', label: 'Vista cuadros' }
           ];
           options.forEach((option) => {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'pg-cm-view-button';
             button.dataset.pgView = option.view;
-            const icon = document.createElement('span');
-            icon.className = 'pg-cm-view-icon';
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('class', 'pg-cm-view-icon');
+            icon.setAttribute('viewBox', '0 0 24 24');
+            icon.setAttribute('fill', 'none');
+            icon.setAttribute('stroke', 'currentColor');
+            icon.setAttribute('stroke-width', '2');
+            icon.setAttribute('stroke-linecap', 'round');
             icon.setAttribute('aria-hidden', 'true');
-            icon.textContent = option.icon;
+            icon.innerHTML = PG_CM_VISTAS[option.view];
             const label = document.createElement('span');
             label.textContent = option.label;
             button.append(icon, label);

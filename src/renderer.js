@@ -83,6 +83,7 @@ function aplicarVistaDeCuentas(vista) {
   localStorage.setItem(VISTA_CUENTAS_KEY, elegida);
   if (elegida === VISTA_REJILLA) quitarEspaciosDeCuenta();
   rebuildGamePanels();
+  refrescarBotonDeAgrandarDeCuentas();
   renderBrowserInstanceTabs();
   // Y se deja abierta una pantalla que exista de verdad. Aqui estaba el fallo: se miraba si la activa
   // era valida contando la instancia principal, y en modo pestañas esa pantalla NO EXISTE —su
@@ -4451,10 +4452,14 @@ function createFarmSprite(target, size = 48) {
 }
 function huntAnalyzerSnapshotScript() {
   const readHuntAnalyzer = async () => {
-    // El juego decora sus valores con emojis: un 📦 antes del botín por hora, un ⭐
-    // antes de la XP, un ⏰ antes de las muertes. Al copiar su texto, el emoji
-    // pasaba también a nuestra tarjeta, con el mismo票价 que en la suya. Aquí se
+    // El juego decora sus valores con emojis: una caja antes del botín por hora, una estrella
+    // antes de la XP, un reloj antes de las muertes. Al copiar su texto, el emoji
+    // pasaba también a nuestra tarjeta, con el mismo tamaño que en la suya. Aquí se
     // quita. La información no se pierde: la tarjeta ya lleva su icono.
+    //
+    // Y por eso los emojis que salen en `inventario-simbolos` NO se cambian por SVG aquí: este filtro
+    // los quita, y un SVG puesto en su sitio estorbaría. Los que sí se ven en pantalla tienen su
+    // icono en `LAUNCHER_ICON_PATHS`, y se pintan con `launcherUiIcon`.
     const DECORATIVOS = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B50}]|[←-⇿⬀-⯿️]/gu;
     const clean = (value) => String(value || '')
       .replace(DECORATIVOS, ' ')
@@ -5136,7 +5141,24 @@ async function applyGameTheme(panel) {
     await panel.webview.executeJavaScript(window.pokeGridTheme.buildInstallScript());
   } catch {}
 }
+// El boton de agrandar de las cuentas solo tiene sentido en la rejilla, donde hay otras pantallas a
+// las que saltar. En modo pestañas cada cuenta esta sola, y un boton que agranda lo unico que se ve
+// no lleva a ninguna parte: se esconde, y se vuelve a enseyar al volver a la rejilla.
+function refrescarBotonDeAgrandarDeCuentas() {
+  const enPestanas = vistaDeCuentasEsPestanas();
+  for (const panel of panels) {
+    if (!panel.expandButton) continue;
+    panel.expandButton.hidden = enPestanas;
+    if (enPestanas && expandedPanel === panel) expandedPanel = null;
+  }
+  grid.classList.toggle('has-expanded', Boolean(expandedPanel));
+}
+
 function toggleExpanded(panel) {
+  // En modo pestañas la cuenta esta sola en su espacio: no hay rejilla a la que agrandarla. El boton
+  // esta oculto —ver `refrescarBotonDeAgrandarDeCuentas`—, pero el atajo de teclado y cualquier otra
+  // llamada podrian llegar aqui, y agrandar la unica pantalla que se ve no lleva a ningun sitio.
+  if (vistaDeCuentasEsPestanas()) return;
   const willExpand = expandedPanel !== panel;
   panels.forEach((item) => item.element.classList.remove('is-expanded'));
   expandedPanel = willExpand ? panel : null;
@@ -8168,6 +8190,9 @@ function escapeHtml(value) {
   })[character]);
 }
 const LAUNCHER_ICON_PATHS = Object.freeze({
+  // `search` se añadio en la 0.34.0 al cambiar el simbolo ⌕ por un SVG. Va con los demas y no aparte,
+  // porque un icono que solo existe en el HTML es un icono que nadie encuentra al buscarlo.
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   refresh: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
   pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
   reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/>',
@@ -8243,6 +8268,10 @@ function launcherUiIcon(name, className = '') {
   const paths = LAUNCHER_ICON_PATHS[name] || LAUNCHER_ICON_PATHS.star;
   return `<svg class="launcher-ui-icon ${escapeHtml(className)}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
+// Se expone a `window` en la 0.34.0, al cambiar los emoji por SVG: `userscripts.js` va en su propio
+// fichero y no alcanza esta tabla, asi que sin esto tendria que duplicar los trazos y acabarian
+// divergiendo. Es la misma funcion, no una copia: un icono nuevo se anade en un solo sitio.
+window.launcherUiIcon = launcherUiIcon;
 
 // Los iconos del menú se pintan aquí y no antes por dos razones. La tabla
 // `LAUNCHER_ICON_PATHS` y su tabla `ICONOS_MENU` son `const` declaradas más
@@ -8741,7 +8770,9 @@ function pintarIconoDeInstancia(instanceId, hueco) {
   // cualquier cosa en el mapa —de una pantalla suya o de un aviso— para que el logo desapareciera
   // y volviera el favicon. Y no: el logo del juego es fijo, que todas sus pantallas son la misma
   // pagina. Es la comprobacion de mas arriba a proposito.
-  if (instanceId === PRIMARY_BROWSER_INSTANCE_ID) {
+  // Y las de CUENTA, que son la misma pagina partida en varias: sin esta segunda mitad, `cuenta-3` no
+    // era la principal, caia al mapa de iconos, no habia nada ahi y la pestaña salia sin marca.
+    if (instanceId === PRIMARY_BROWSER_INSTANCE_ID || esPestanaDeCuenta(instanceId)) {
     const logo = document.createElement('span');
     logo.className = 'instance-tab-icon-logo';
     logo.setAttribute('aria-hidden', 'true');
@@ -8766,10 +8797,13 @@ function pintarIconoDeInstancia(instanceId, hueco) {
   // de la red ni de que el juego este en pie.
   // Sin icono se pone un globo y no un <img> roto: un icono que no se ve es peor que no tener
   // icono, porque ocupa el sitio y no dice nada.
+  // El globo `○` era el ultimo simbolo que se pintaba como texto en el launcher. Ahora es el icono
+  // `empty` de la tabla, el mismo SVG que usan las demas pantallas: un caracter depende de la fuente
+  // que tenga instalada el sistema y sale de otro tamaño o de otro color; un SVG, no.
   const globo = document.createElement('span');
   globo.className = 'instance-tab-icon-globo';
   globo.setAttribute('aria-hidden', 'true');
-  globo.textContent = '○';
+  globo.innerHTML = launcherUiIcon('empty');
   destino.appendChild(globo);
 }
 
@@ -8954,6 +8988,12 @@ function avisoDeIcono(datos, dataUrl, instanceId) {
 // que va a pasar cuando sueltas una pestaña encima de otra—.
 function moverInstancia(instanciaId, destinoId) {
   if (!instanciaId || !destinoId || instanciaId === destinoId) return false;
+  // Las pestanas de CUENTA no estan en `browserInstances`, asi que antes se arrastraban sin que
+  // pasara nada: `findIndex` devolvia -1 y la funcion se salia callada. Ahora se mueven las dos
+  // clases, cada una en su propia lista.
+  if (esPestanaDeCuenta(instanciaId) && esPestanaDeCuenta(destinoId)) {
+    return moverCuenta(instanciaId, destinoId);
+  }
   const desde = browserInstances.findIndex((fila) => fila.id === instanciaId);
   const hasta = browserInstances.findIndex((fila) => fila.id === destinoId);
   if (desde < 0 || hasta < 0) return false;
@@ -8964,16 +9004,80 @@ function moverInstancia(instanciaId, destinoId) {
   return true;
 }
 
+// El orden de las pestañas de cuenta. Vive aparte de `browserInstances` porque una cuenta no es una
+// instancia de navegador, y vive guardado porque si no al reiniciar volverían al orden de las
+// cuentas, que es justo lo que se acababa de mover.
+const ORDEN_CUENTAS_KEY = 'pokegrid:accounts-tab-order:v1';
+
+function ordenDeCuentas() {
+  const guardada = localStorage.getItem(ORDEN_CUENTAS_KEY) || '';
+  return guardada ? guardada.split(',').map((id) => id.trim()).filter(Boolean) : [];
+}
+
+function guardarOrdenDeCuentas(orden) {
+  try {
+    localStorage.setItem(ORDEN_CUENTAS_KEY, orden.join(','));
+  } catch { /* sin almacenamiento no se guarda el orden, pero el programa sigue */ }
+}
+
+// Las filas de las pestañas, en el orden guardado. Las cuentas que no estan en la lista —una recién
+// importada, o una que se acaba de crear— van detras de las demas, que es lo que espera alguien que
+// ha anadido una cuenta nueva.
+//
+// Y al final, las instancias de navegador: en modo pestañas conviven en la misma barra, y sin esto
+// desaparecerian de ella. No estaban en la version anterior de esta funcion y por eso al reescribirla
+// se perdian: la cuenta se veia y las instancias no.
+function filasDeCuentasComoPestanas() {
+  const disponibles = new Map();
+  for (const cuenta of accounts) {
+    const id = idDeCuenta(cuenta?.id);
+    // Una cuenta sin pantalla propia todavia no tiene pestaña: aparece cuando su panel se crea.
+    if (!espaciosDeCuenta.has(id)) continue;
+    disponibles.set(id, { id, name: String(cuenta?.label || `Cuenta ${disponibles.size + 1}`), count: 1, deCuenta: true });
+  }
+  const ordenada = [];
+  for (const id of ordenDeCuentas()) {
+    const fila = disponibles.get(id);
+    if (fila) {
+      ordenada.push(fila);
+      disponibles.delete(id);
+    }
+  }
+  return [...ordenada, ...disponibles.values(), ...browserInstances];
+}
+
+function idsDeCuentasEnOrden() {
+  return filasDeCuentasComoPestanas().map((fila) => fila.id);
+}
+
+function moverCuenta(instanciaId, destinoId) {
+  const orden = idsDeCuentasEnOrden();
+  const desde = orden.indexOf(instanciaId);
+  const hasta = orden.indexOf(destinoId);
+  if (desde < 0 || hasta < 0) return false;
+  const [movida] = orden.splice(desde, 1);
+  orden.splice(hasta, 0, movida);
+  guardarOrdenDeCuentas(orden);
+  renderBrowserInstanceTabs();
+  return true;
+}
+
 // Y una vuelta mas para el teclado. Arrastrar con el raton deja esto inservible sin el, y no
 // cuesta nada: Alt y la flecha mueve la pestaña que tenga el foco, que es lo que hace cualquier
 // navegador. Se devuelve el foco a la pestaña movida para poder seguir moviendola.
 function moverInstanciaConTeclado(instanciaId, paso) {
-  const desde = browserInstances.findIndex((fila) => fila.id === instanciaId);
+  const orden = esPestanaDeCuenta(instanciaId) ? idsDeCuentasEnOrden() : browserInstances.map((f) => f.id);
+  const desde = orden.indexOf(instanciaId);
   if (desde < 0) return false;
   const hasta = desde + paso;
-  if (hasta < 0 || hasta >= browserInstances.length) return false;
-  const [movida] = browserInstances.splice(desde, 1);
-  browserInstances.splice(hasta, 0, movida);
+  if (hasta < 0 || hasta >= orden.length) return false;
+  const destinoId = orden[hasta];
+  if (esPestanaDeCuenta(instanciaId)) return moverCuenta(instanciaId, destinoId);
+  const desde2 = browserInstances.findIndex((fila) => fila.id === instanciaId);
+  const hasta2 = browserInstances.findIndex((fila) => fila.id === destinoId);
+  if (desde2 < 0 || hasta2 < 0) return false;
+  const [movida] = browserInstances.splice(desde2, 1);
+  browserInstances.splice(hasta2, 0, movida);
   saveBrowserInstances();
   renderBrowserInstanceTabs();
   document.querySelector(`[data-instance-id="${instanciaId}"] .instance-tab`)?.focus();
@@ -9109,22 +9213,9 @@ function todosLosPanelesVivos() {
   return salida;
 }
 
-// Las filas de la barra cuando las cuentas van en pestañas: una por cuenta, con su nombre y el
-// numero de su sesion. Se arman con la misma forma que las instancias —id, nombre, cuenta— para que
-// el bucle de pintado de las pestanas no tenga dos caminos, y para que añadir una cuenta sea añadir
-// una fila y no un caso especial.
-function filasDeCuentasComoPestanas() {
-  const filas = [];
-  for (const cuenta of accounts) {
-    const id = idDeCuenta(cuenta?.id);
-    // Una cuenta sin pantalla propia todavia no tiene pestaña: aparece cuando su panel se crea, que
-    // es justo cuando existe el espacio. Sin este filtro, una cuenta recién importada tendría una
-    // pestaña que al pulsarla no abriria nada.
-    if (!espaciosDeCuenta.has(id)) continue;
-    filas.push({ id, name: String(cuenta?.label || `Cuenta ${filas.length + 1}`), count: 1, deCuenta: true });
-  }
-  return [...filas, ...browserInstances];
-}
+// Las filas de las pestañas en modo pestañas están en `filasDeCuentasComoPestanas`, más arriba,
+// junto con el orden guardado. Antes vivía aquí una segunda copia que no usaba el orden, y como en
+// JavaScript gana la declaración más tardía, era ESTA la que se ejecutaba y la otra código muerto.
 
 function panelEstaEnPantalla(panel) {
   if (!panel) return false;
@@ -10455,6 +10546,7 @@ function initializeBrowserInstances() {
   browserInstances.forEach((instance, ordinal) => createBrowserInstanceWorkspace(instance, ordinal));
   syncUserScriptPanels();
   renderBrowserInstanceTabs();
+  refrescarBotonDeAgrandarDeCuentas();
   const savedActive = localStorage.getItem(ACTIVE_BROWSER_INSTANCE_KEY) || PRIMARY_BROWSER_INSTANCE_ID;
   // En modo pestañas, lo que estaba abierto puede ser una pantalla que ya no existe: la pestaña
   // «Poke Idle World» no esta. Sin esta linea, `activateBrowserInstance` caeria a la principal —que

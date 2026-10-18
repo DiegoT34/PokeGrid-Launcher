@@ -15,7 +15,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const objetivo = process.argv[2] || 'tests/instancia-cabecera-smoke.js';
-const ruta = path.join(__dirname, objetivo);
+const ruta = path.join(__dirname, '..', objetivo);
 
 try {
   execFileSync(process.execPath, ['--check', ruta], { stdio: 'pipe' });

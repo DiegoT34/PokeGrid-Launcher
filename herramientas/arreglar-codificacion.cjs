@@ -13,7 +13,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ruta = path.join(__dirname, process.argv[2] || 'tests/instancia-nueva-pestana-smoke.js');
+const ruta = path.join(__dirname, '..', process.argv[2] || 'tests/instancia-nueva-pestana-smoke.js');
 const bytes = fs.readFileSync(ruta);
 
 let cuerpo = bytes;

@@ -22,7 +22,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const RAIZ = __dirname;
+const RAIZ = path.join(__dirname, '..');
 const ELECTRON = path.join(RAIZ, 'node_modules', 'electron', 'dist', 'electron.exe');
 const GUION_PS = path.join(os.tmpdir(), 'pokegrid-medir-arbol.ps1');
 

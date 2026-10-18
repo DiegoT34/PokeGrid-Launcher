@@ -452,7 +452,7 @@ input:focus-visible {
 .button-pokepedia:hover {
   border-color: rgba(224, 232, 240, .72);
   background: linear-gradient(145deg, #606c7a, #39434f);
-  box-shadow: 0 9px 22px rgba(0, 0, 0, .25);
+  
 }
 .button-pokepedia:active {
   transform: translateY(1px) scale(.97);
@@ -2273,6 +2273,12 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   font-size: 9px;
 }
 .scripts-security-note > span { color: #ffd45d; font-size: 16px; }
+/* Los iconos de la nota de seguridad, de las tres pestañas y de la zona de arrastrar eran emoji. Ahora
+   son SVG, y un SVG sin `width` se dibuja al tamaño del viewport: hay que darle el tamaño que tenia
+   el emoji. Es el mismo cambio que en el resto del launcher, y con la misma regla. */
+.scripts-security-note > .launcher-ui-icon { width: 16px; height: 16px; flex: none; color: #ffd45d; }
+.scripts-view-tab .launcher-ui-icon { width: 14px; height: 14px; flex: none; }
+.script-drop-zone > .launcher-ui-icon { width: 22px; height: 22px; }
 .scripts-security-note p { margin: 0; line-height: 1.35; }
 .scripts-security-note strong { color: #ffe598; }
 .scripts-view-tabs {
@@ -2401,6 +2407,13 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   text-align: center;
 }
 .script-shop-empty span { font-size: 28px; }
+/* El icono de los estados vacios era un emoji dentro de un `span`, y se dimensionaba con `font-size`.
+   Ahora es un SVG, que sin width se dibuja al tamaño del viewport. Estas reglas son su equivalente:
+   el mismo tamaño, pero en pixeles. */
+.script-shop-empty .launcher-ui-icon { width: 28px; height: 28px; }
+.script-shop-empty .launcher-ui-icon.is-ok { color: #4ade80; }
+.script-shop-empty .launcher-ui-icon.is-search,
+.script-shop-empty .launcher-ui-icon.is-cloud { color: #647b96; }
 .script-shop-empty strong { color: #b8c6d8; font-size: 12px; }
 .script-shop-empty small { max-width: 420px; font-size: 8px; }
 .script-shop-card {
@@ -2428,6 +2441,9 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   background: #081423;
   font-size: 23px;
 }
+/* Cuando el autor del script no pone icono, la tarjeta dibuja el icono `book` de la tabla. Antes
+   ponia el emoji del pergamino. El SVG necesita su tamaño: sin esto se dibuja al tamaño del viewport. */
+.script-shop-card-icon .launcher-ui-icon { width: 24px; height: 24px; color: #7f93a8; }
 .script-shop-card-copy { min-width: 0; }
 .script-shop-card-title { display: flex; align-items: start; justify-content: space-between; gap: 7px; }
 .script-shop-card-title > div { min-width: 0; }
@@ -2465,18 +2481,6 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   background: rgba(7, 15, 28, .82);
 }
 .scripts-library-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.button-telegram-install {
-  grid-column: 1 / -1;
-  border-color: rgba(80, 181, 227, .55);
-  background: linear-gradient(135deg, #176b91, #15445f);
-  color: #e9faff;
-}
-.button-telegram-install:hover {
-  border-color: rgba(121, 214, 255, .9);
-  background: linear-gradient(135deg, #2189b8, #195778);
-  transform: translateY(-1px);
-}
-.button-telegram-install:active { transform: translateY(1px) scale(.99); }
 .script-url-form { margin-top: 10px; }
 .script-url-form label { display: block; margin-bottom: 4px; color: #7083a5; font-size: 7px; font-weight: 900; letter-spacing: .08em; }
 .script-url-form > div { display: flex; }
@@ -2685,6 +2689,15 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .script-auto-target.is-pending { grid-column: 1 / -1; border-color: #6a5630; background: #2b2416; color: #f0c96d; }
 .script-permission-chip.is-game { border-color: #27617b; background: #0d2b3a; color: #6ee0f6; }
 .script-shop-tags span.is-game { border: 1px solid #28627b; background: #0b2b3b; color: #72dcf3; }
+/* Los iconos de la lupa del buscador y del boton «Verificar» de la Shop eran emoji. Mismo cambio que en
+   el resto: un SVG necesita su tamaño en pixeles o se dibuja al tamano del viewport. */
+.script-shop-search .launcher-ui-icon { width: 14px; height: 14px; flex: none; }
+#refreshScriptShopButton .launcher-ui-icon { width: 13px; height: 13px; }
+#findScriptButton .launcher-ui-icon { width: 13px; height: 13px; }
+/* El mando 🎮 que marca el juego de un script es ahora un SVG, y el chip es una linea de texto: sin
+   esto el icono se sale de la caja y el chip queda con la altura de un SVG sin dimensionar. */
+.script-shop-tags span.is-game .launcher-ui-icon,
+.script-permission-chip.is-game .launcher-ui-icon { width: 11px; height: 11px; vertical-align: -1px; }
 .script-code-field {
   min-height: 180px;
   display: flex;
@@ -3216,12 +3229,25 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   box-shadow: 0 28px 90px rgba(0,0,0,.72);
 }
 .farm-picker-head { min-height: 76px; padding: 13px 15px 11px 66px; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid rgba(50,148,213,.35); background: linear-gradient(120deg, rgba(4,49,89,.98), rgba(3,25,57,.98)); }
-.farm-picker-head::before { content: "⌖"; position: absolute; left: 17px; top: 17px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,207,48,.6); border-radius: 50%; background: rgba(7,26,43,.92); color: #ffd946; font-size: 22px; }
+/* El `⌖` de este circulo era un simbolo pegado encima, encima de un borde y un fondo que ya lo
+   dibujan. Solo ocupaba sitio y salia de otro tamano segun la fuente del sistema. Se queda el circulo,
+   que es lo que dice de verdad que hay un mapa ahi. */
+.farm-picker-head::before { content: ""; position: absolute; left: 17px; top: 17px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,207,48,.6); border-radius: 50%; background: rgba(7,26,43,.92); color: #ffd946; font-size: 22px; }
 .farm-picker-head h2 { margin: 2px 0 0; font-size: 20px; text-transform: uppercase; }
 .farm-picker-head p { margin: 3px 0 0; color: #8fa7bd; font-size: 9px; }
 .farm-picker-tools { padding: 9px 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; border-bottom: 1px solid rgba(70,117,156,.26); background: rgba(5,16,28,.72); }
 .farm-search { min-width: 220px; flex: 1; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid rgba(77,126,166,.46); border-radius: 9px; background: #07111d; color: #72cfff; }
 .farm-search input { width: 100%; height: 36px; border: 0; outline: 0; background: transparent; color: #e8eef5; font-size: 11px; }
+/* La lupa era el simbolo ⌕ y ahora es un SVG. Sin tamaño, un SVG sin width se dibuja al tamano del
+   viewport: el `⌕` era un caracter de 11 px y el SVG se comia el campo entero. */
+.farm-search .launcher-ui-icon { width: 14px; height: 14px; flex: none; }
+
+/* El estado de sintaxis del editor paso de `textContent` a `innerHTML` en la 0.34.0, porque un SVG
+   dentro de un `textContent` se escapa y se veria el marcado en pantalla. Al ser un elemento dentro de
+   una linea de texto, necesita tamaño y alineacion o el texto baila. */
+#scriptSyntaxStatus .launcher-ui-icon { width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; }
+#scriptSyntaxStatus .launcher-ui-icon.is-ok { color: #4ade80; }
+#scriptSyntaxStatus .launcher-ui-icon.is-error { color: #ff6b6b; }
 .farm-area-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
 .farm-area-button { min-height: 31px; padding: 5px 9px; border: 1px solid rgba(77,111,140,.42); border-radius: 8px; background: #101d2a; color: #91a6b9; font-size: 8px; font-weight: 900; text-transform: uppercase; cursor: pointer; }
 .farm-area-button.is-active { border-color: rgba(255,208,48,.75); background: rgba(112,82,8,.72); color: #ffe479; }
@@ -3470,7 +3496,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   pointer-events: none;
   background: linear-gradient(90deg, transparent 68%, rgba(255,255,255,.018));
 }
-.farm-pokemon-smart-option:hover { border-color: var(--farm-type-color); box-shadow: inset 4px 0 0 var(--farm-type-color), 0 5px 14px rgba(0,0,0,.28); }
+.farm-pokemon-smart-option:hover { border-color: var(--farm-type-color); box-shadow: inset 4px 0 0 var(--farm-type-color); }
 .farm-pokemon-smart-option.is-recommended { border-color: color-mix(in srgb, var(--farm-type-color) 70%, #36d887); box-shadow: inset 4px 0 0 var(--farm-type-color); }
 .farm-pokemon-smart-option.is-dangerous { border-color: color-mix(in srgb, var(--farm-type-color) 55%, #e65b6b); box-shadow: inset 4px 0 0 var(--farm-type-color); }
 .farm-pokemon-smart-option[data-primary-type="normal"] { --farm-type-color: #a7a79b; }
@@ -3805,7 +3831,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   border-color: #68849a;
   background: linear-gradient(155deg, #304352, #182a38);
   transform: translateY(-1px);
-  filter: brightness(1.08);
+  
 }
 .hunt-float-state {
   position: relative;
@@ -5610,9 +5636,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 .account-info-close:hover {
   color: #e6f0f7;
-  box-shadow:
-    inset 2px 2px 4px rgba(0, 0, 0, .6),
-    inset -2px -2px 4px rgba(255, 255, 255, .07);
+  
 }
 .account-info-close .launcher-ui-icon { width: 12px; height: 12px; }
 
@@ -5989,7 +6013,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   color: rgba(255, 255, 255, .55);
   transition: box-shadow 130ms ease, color 130ms ease;
 }
-.farm-heading .icon-button:hover { color: #eaf2f8; box-shadow: var(--pf-hundido-fuerte); }
+.farm-heading .icon-button:hover { color: #eaf2f8;  }
 .farm-heading .icon-button .launcher-ui-icon { width: 14px; height: 14px; }
 
 /* ------------------------------------------------------- la barra de arriba -- */
@@ -6046,7 +6070,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .farm-toolbar .button:hover {
   color: #eef5fa;
   background: rgba(255, 255, 255, .085);
-  box-shadow: var(--pf-hundido-fuerte);
+  
 }
 .farm-toolbar .button .launcher-ui-icon { width: 13px; height: 13px; }
 
@@ -6198,7 +6222,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   cursor: pointer;
   transition: box-shadow 130ms ease, color 130ms ease;
 }
-.farm-leader-refresh:hover { color: var(--pf-acento); box-shadow: var(--pf-hundido-fuerte); }
+.farm-leader-refresh:hover { color: var(--pf-acento);  }
 .farm-leader-refresh .launcher-ui-icon { width: 13px; height: 13px; }
 
 /* El interruptor de «incluir esta cuenta»: pastilla hundida. Antes era un
@@ -6427,7 +6451,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   cursor: pointer;
   transition: box-shadow 130ms ease, background 130ms ease;
 }
-.farm-target-button:hover { background: rgba(255, 255, 255, .075); box-shadow: var(--pf-hundido-fuerte); }
+.farm-target-button:hover { background: rgba(255, 255, 255, .075);  }
 .farm-target-button .farm-sprite { width: 30px; height: 30px; flex: none; object-fit: contain; image-rendering: pixelated; }
 .farm-target-copy { min-width: 0; display: grid; gap: 1px; }
 .farm-target-copy strong {
@@ -6467,7 +6491,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   cursor: pointer;
   transition: box-shadow 130ms ease, background 130ms ease;
 }
-.farm-account-action:hover:not(:disabled) { background: rgba(94, 201, 138, .26); box-shadow: var(--pf-hundido-fuerte); }
+.farm-account-action:hover:not(:disabled) { background: rgba(94, 201, 138, .26);  }
 .farm-account-action:disabled { opacity: .4; cursor: not-allowed; }
 .farm-account-action .launcher-ui-icon { width: 17px; height: 17px; }
 
@@ -6511,7 +6535,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   gap: 6px;
   transition: box-shadow 130ms ease, background 130ms ease, color 130ms ease;
 }
-.farm-actions .button:hover { background: rgba(255, 255, 255, .085); color: #eef5fa; box-shadow: var(--pf-hundido-fuerte); }
+.farm-actions .button:hover { background: rgba(255, 255, 255, .085); color: #eef5fa;  }
 .farm-actions .button .launcher-ui-icon { width: 12px; height: 12px; }
 
 .farm-actions .farm-stop { color: #ff9aa6; }
@@ -6820,7 +6844,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   font-weight: 700;
   cursor: pointer;
 }
-.farm-reset-filters:hover { color: var(--pf-texto); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.farm-reset-filters:hover { color: var(--pf-texto);  }
 
 /* ----------------------------------------------------- la tira de la ruta ---- */
 .farm-recommended-route {
@@ -6955,7 +6979,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .farm-pokemon-smart-option:hover {
   background: var(--pf-vidrio-alto);
   border-color: rgba(255, 255, 255, .16);
-  box-shadow: var(--pf-sobresaliente-alto);
+  
 }
 .farm-pokemon-smart-option.is-recommended,
 .farm-pokemon-smart-option.is-dangerous {
@@ -7141,6 +7165,246 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   .farm-pokemon-smart-option { grid-template-columns: 34px minmax(0, 1fr) 46px; }
   .farm-pokemon-smart-option .farm-sprite { width: 34px; height: 34px; }
 }
+/* ================================================================================================
+   REDISENO DEL CENTRO DE SCRIPTS Y DEL PANEL DE NOTIFICACIONES — 0.34.0
+   ------------------------------------------------------------------------------------------------
+   Va al FINAL y no encima de las reglas que ya existian, por dos razones.
+
+   La primera es que estas reglas tocan superficies grandes, con subpantallas que se abren y se cierran,
+   y reescribirlas en su sitio obliga a acordarse de cada bloque y a comprobar que nada de lo que venia
+   despues se queda sin su cascada. Aqui se anade por encima: lo que hay antes sigue poniendo como
+   estaba, y esto solo cambia el aspecto.
+
+   La segunda es que se pueda quitar. Es una capa, no una reescritura: si esto no funciona bien, se
+   borra ESTE bloque y la pantalla vuelve a como estaba.
+
+   LO QUE NO LLEVA: NINGUN BRILLO. Ni en :hover, ni sombras de brillo, ni cambios de brillo al pasar
+   el raton. Las sombras que quedan son de borde: separan un bloque del siguiente, y para eso estan.
+
+   LO QUE NO LLEVA: NINGUN TOQUE A JAVASCRIPT. Este bloque es solo aspecto.
+   ================================================================================================ */
+
+/* --- El centro de scripts: la cabecera deja de ser una franja suelta y pasa a ser la parte de arriba
+       de una columna con borde, para que el contenido de abajo pertenezca a algo. --- */
+.scripts-heading {
+  border-bottom: 1px solid rgba(72, 118, 156, .3);
+  background: #0a1725;
+}
+
+/* Las tres pestañas van como fichas: la que esta activa se separa del resto porque su borde de abajo
+   es del mismo color que el panel, y asi parece un recorte y no un boton mas. */
+.scripts-view-tabs { background: #081220; border-bottom: 1px solid #22334c; }
+.scripts-view-tab {
+  border: 1px solid transparent;
+  border-bottom: 0;
+  background: transparent;
+  color: #7f95ab;
+  transition: color .12s ease, background-color .12s ease;
+}
+.scripts-view-tab:hover { color: #b9cddd; background: rgba(255, 255, 255, .04); border-color: #2b3e5a; }
+.scripts-view-tab.is-active {
+  color: #e8f1f8;
+  background: #101f31;
+  border-color: #2b3e5a;
+  border-bottom: 1px solid #101f31;
+}
+
+/* La nota de seguridad: era una franja amarilla perdida en medio. Ahora es una caja con el icono fijo
+   a la izquierda, y el texto no se mueve al redimensionar. */
+.scripts-security-note {
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 13px;
+  border: 0;
+  border-left: 3px solid #d9a441;
+  background: #191408;
+}
+.scripts-security-note p { color: #b8a374; }
+
+/* La biblioteca de la izquierda y el editor de la derecha: dos columnas con un hueco real entre las
+   dos, no dos cajas pegadas. */
+.scripts-layout { gap: 10px; }
+.scripts-library { border: 1px solid #1e3149; border-radius: 9px; background: #0a1622; }
+/* La columna derecha se llama `script-editor`, en singular: no `scripts-editor`, que es como se
+   escribio al principio y no casaba con nada. Una regla con el nombre mal escrito no da error, se
+   queda sin hacer nada, y no se ve hasta que uno mira la pantalla y pregunta que ha fallado. */
+.script-editor { border: 1px solid #1e3149; border-radius: 9px; background: #0a1622; }
+
+/* Los campos, todos del mismo alto y con el mismo borde. Antes cada bloque tenia el suyo y la pantalla
+   se veía segun donde se mirase. */
+.scripts-library input,
+.scripts-library select,
+.script-editor input,
+.script-editor select,
+#scriptUrlInput {
+  border-color: #22384f;
+  border-radius: 6px;
+  background: #07131e;
+}
+.scripts-library input:focus,
+.script-editor input:focus,
+#scriptUrlInput:focus {
+  outline: 0;
+  border-color: #3f7ea6;
+}
+
+/* Los botones: un fondo y un borde, sin sombra de brillo. El secundario, solo borde. */
+.button-scripts { border-color: #4b3f96; background: #2c2560; color: #ded7ff; }
+.button-scripts:hover { border-color: #5b4cb8; background: #342c72; }
+.button-secondary { border-color: #2a4358; background: #101d29; color: #a8bfd0; }
+.button-secondary:hover { border-color: #3b5c76; background: #16283a; color: #d3e4f0; }
+
+/* --- El panel de notificaciones: cuatro bloques, y que se note cual es cual sin leer las etiquetas. --- */
+
+.notification-panel-head {
+  padding: 13px 15px 12px;
+  border-bottom: 1px solid rgba(72, 118, 156, .3);
+  background: #0a1725;
+}
+.notification-panel-head .eyebrow { color: #5d7a91; }
+.notification-panel-head h2 { margin: 2px 0 3px; font-size: 15px; letter-spacing: .01em; }
+.notification-panel-head p { margin: 0; color: #7b93a8; font-size: 8px; }
+
+/* Los tres contadores. Cada uno con su color y su fondo propio, en vez de tres cajas iguales que solo
+   se distinguen por el texto. */
+.notification-summary { gap: 7px; padding: 10px 13px; background: #081320; }
+.notification-summary-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 9px;
+  border: 1px solid #1f3349;
+  border-radius: 7px;
+  background: #0c1c2b;
+  font-size: 8px;
+  font-weight: 700;
+}
+.notification-summary-chip b { font-size: 13px; line-height: 1; }
+.notification-summary-chip.is-goal { border-color: #2d5a7a; background: #0d2233; color: #8fd0f0; }
+.notification-summary-chip.is-goal b { color: #6fd0f5; }
+.notification-summary-chip.is-shiny { border-color: #6d5c1f; background: #241f08; color: #e8d79a; }
+.notification-summary-chip.is-shiny b { color: #ffdf6b; }
+.notification-summary-chip.is-legendary { border-color: #6a2f3a; background: #2a0f14; color: #eeb3bb; }
+.notification-summary-chip.is-legendary b { color: #ff8d9c; }
+
+/* Los dos botones de metas: el de crear, con mas peso; el de gestionar, secundario. */
+.capture-goal-launcher { padding: 10px 13px; gap: 8px; background: #0a1725; }
+.capture-goal-open { border-color: #2f5f4a; background: #10301f; color: #b8ecd0; }
+.capture-goal-open:hover { border-color: #3d7a5f; background: #16402a; }
+.capture-goal-manage { border-color: #24384e; background: #101d29; color: #93a9bd; }
+.capture-goal-manage:hover { border-color: #35506b; background: #16283a; color: #c9dbe8; }
+.capture-goal-open .launcher-ui-icon { width: 13px; height: 13px; flex: none; }
+
+/* Los filtros: una caja metida dentro del panel, con su propio fondo, para que se lea como una zona de
+   ajustes y no como parte de la lista de abajo. */
+.notification-filters {
+  margin: 11px 13px;
+  padding: 10px;
+  border: 1px solid #1c3046;
+  border-radius: 9px;
+  background: #0a1621;
+}
+.notification-filter-head { margin-bottom: 7px; }
+.notification-filter-head strong { font-size: 8px; }
+.notification-filter-head button { border-bottom: 1px solid transparent; }
+.notification-filter-head button:hover { border-bottom-color: #62ccef; color: #9adcff; }
+.notification-filter-grid { gap: 5px; }
+.notification-filter-grid input,
+.notification-filter-grid select { height: 30px; border-color: #22384f; border-radius: 6px; background: #07131e; }
+
+/* --- Las barras de desplazamiento. El panel es largo y sin esto no se sabe cuanto hay. --- */
+
+/* Chromium pinta la barra gris claro sobre fondo oscuro, que canta mas que la propia pantalla. Se
+   pinta a mano con la misma paleta del launcher. */
+.notification-panel ::-webkit-scrollbar,
+.scripts-modal ::-webkit-scrollbar { width: 10px; height: 10px; }
+.notification-panel ::-webkit-scrollbar-track,
+.scripts-modal ::-webkit-scrollbar-track { background: #081320; }
+.notification-panel ::-webkit-scrollbar-thumb,
+.scripts-modal ::-webkit-scrollbar-thumb {
+  border: 2px solid #081320;
+  border-radius: 6px;
+  background: #23394f;
+}
+.notification-panel ::-webkit-scrollbar-thumb:hover,
+.scripts-modal ::-webkit-scrollbar-thumb:hover { background: #2f4c69; }
+.notification-panel ::-webkit-scrollbar-corner,
+.scripts-modal ::-webkit-scrollbar-corner { background: #081320; }
+
+/* --- Los dos modales de metas: crear y gestionar. Comparten cabecera, asi que comparten reglas. --- */
+
+.goal-builder-heading {
+  padding: 13px 15px 12px;
+  border-bottom: 1px solid rgba(72, 118, 156, .3);
+  background: #0a1725;
+}
+.goal-builder-heading .eyebrow { color: #5d7a91; }
+.goal-builder-heading h2 { margin: 2px 0 3px; font-size: 15px; }
+.goal-builder-heading p { margin: 0; color: #7b93a8; font-size: 8px; }
+
+/* El formulario de crear meta: los campos en una rejilla con la misma cadencia, y el boton de guardar
+   a lo ancho, porque es la accion de la pantalla. */
+.capture-goal-form { gap: 10px; }
+.notification-field label {
+  color: #8ea5ba;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.notification-field input,
+.notification-field select {
+  height: 32px;
+  border-color: #22384f;
+  border-radius: 6px;
+  background: #07131e;
+}
+.notification-field input:focus,
+.notification-field select:focus { outline: 0; border-color: #3f7ea6; }
+
+/* La tarjeta del catalogo de metas, dentro del formulario: un bloque propio, no un campo mas. */
+.goal-filter-card {
+  border: 1px solid #1c3046;
+  border-radius: 9px;
+  background: #0a1621;
+}
+.goal-catalog-heading {
+  padding: 9px 11px;
+  border-bottom: 1px solid #1c3046;
+  color: #9db7c9;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+/* El gestor de metas: las herramientas arriba, la lista debajo. */
+.goal-manager-tools {
+  padding: 10px 13px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(72, 118, 156, .28);
+  background: #0a1725;
+}
+.goal-manager-tools input,
+.goal-manager-tools select {
+  height: 32px;
+  border-color: #22384f;
+  border-radius: 6px;
+  background: #07131e;
+}
+
+/* Las barras de estos dos modales, con la misma paleta que las del panel de notificaciones. */
+.goal-builder-modal ::-webkit-scrollbar,
+.goal-manager-modal ::-webkit-scrollbar { width: 10px; height: 10px; }
+.goal-builder-modal ::-webkit-scrollbar-track,
+.goal-manager-modal ::-webkit-scrollbar-track { background: #081320; }
+.goal-builder-modal ::-webkit-scrollbar-thumb,
+.goal-manager-modal ::-webkit-scrollbar-thumb { border: 2px solid #081320; border-radius: 6px; background: #23394f; }
+.goal-builder-modal ::-webkit-scrollbar-thumb:hover,
+.goal-manager-modal ::-webkit-scrollbar-thumb:hover { background: #2f4c69; }
+.goal-builder-modal ::-webkit-scrollbar-corner,
+.goal-manager-modal ::-webkit-scrollbar-corner { background: #081320; }
+
 @media (max-width: 430px) {
   .farm-pokemon-smart-option { grid-template-columns: 30px minmax(0, 1fr) 44px; padding: 8px; }
   .farm-pokemon-smart-option .farm-sprite { width: 30px; height: 30px; }

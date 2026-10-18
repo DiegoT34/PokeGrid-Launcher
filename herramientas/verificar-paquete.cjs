@@ -8,7 +8,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const RAIZ = __dirname;
+const RAIZ = path.join(__dirname, '..');
 // El nombre del ZIP sale de la versión, no escrito a mano. Cada vez que se sube la versión
 // había que acordarse de tocar esta línea, y acordarse es justo el tipo de cosa que hace
 // que una comprobación deje de comprobar sin que se note.
@@ -102,6 +102,14 @@ const styles = fs.readFileSync(path.join(TEMP, 'src', 'styles.css'), 'utf8');
 const html = fs.readFileSync(path.join(TEMP, 'src', 'index.html'), 'utf8');
 const mainProceso = fs.readFileSync(path.join(TEMP, 'src', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(TEMP, 'src', 'preload.js'), 'utf8');
+// El gestor de scripts, para comprobar lo que se quito de ahi y lo que se queda.
+const usuarios = fs.readFileSync(path.join(TEMP, 'src', 'userscripts.js'), 'utf8');
+
+// El CSS sin el bloque de barras de desplazamiento del rediseño de la 0.34.0. La comprobacion de «no
+// queda ningun brillo de hover» se hace sobre este recorte: las barras se pintan a mano y usan
+// `background`, no brillo, pero estan DENTRO de un bloque que se comproba, y si se buscase en el
+// fichero entero la comprobacion miraria cosas que si deben estar.
+const stylesAntesDelRediseno = styles.split('REDISENO DEL CENTRO')[0] || styles;
 // La regla del icono vive en su propio fichero para que una prueba la pueda EJECUTAR. Si este
 // `readFileSync` falla, el verificador para aqui y el paquete queda sin comprobar: es preferible a
 // seguir comprobando contra un fichero que no se ha leido.
@@ -159,6 +167,52 @@ const DESCANSO_QUE_NO = [
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
+
+console.log('\n0.34.0 — pestañas de cuenta, sin brillos, iconos SVG y fuera el botón de Telegram:');
+const CUENTAS_ICONOS = [
+  // Las pestañas de cuenta se mueven y el orden se guarda. Antes se arrastraban sin que pasara nada,
+  // porque `moverInstancia` solo buscaba en `browserInstances` y una cuenta no esta ahi.
+  ['el reordenado acepta las pestanas de cuenta', /esPestanaDeCuenta\(instanciaId\) && esPestanaDeCuenta\(destinoId\)/, renderer],
+  ['y las mueve por su propia lista', /function moverCuenta\(instanciaId, destinoId\)/, renderer],
+  ['el orden se guarda y se vuelve a leer', /function guardarOrdenDeCuentas\(orden\)/, renderer],
+  ['el icono se pinta tambien en las de cuenta', /PRIMARY_BROWSER_INSTANCE_ID \|\| esPestanaDeCuenta\(instanceId\)/, renderer],
+  ['el boton de agrandar se esconde en modo pestanas', /function refrescarBotonDeAgrandarDeCuentas\(\)/, renderer],
+  ['y la identidad de la cuenta NO se toca', /if \(panel\.instanceId === activeBrowserInstanceId\) return true;/, renderer],
+
+  // Sin brillos. Dos recortes, y los dos son necesarios:
+  //  - SIN el bloque del rediseño, que si pinta las barras de desplazamiento a proposito.
+  //  - SIN la franja del tipo, que es un box-shadow dentro de un :hover y NO es un brillo: es el
+  //    color del Pokemon. Contarla hacia el total decia «queda uno» con algo que se ha dejado puesto
+  //    a proposito, y el mensaje era «no queda ningun brillo» cuando si quedaba.
+  ['no queda ningun brillo de hover', !/:hover[^{}]*\{[^}]*(box-shadow|brightness)[^}]*\}/.test(
+    stylesAntesDelRediseno.replace(/box-shadow: inset 4px 0 0 var\(--farm-type-color\)[^;]*;?/g, ''))],
+  ['pero la marca de la pestana activa sigue', /\.instance-tab-shell\.is-active \{[^}]*box-shadow/.test(styles)],
+  ['y la franja del color del tipo tambien', /box-shadow: inset 4px 0 0 var\(--farm-type-color\)/.test(styles)],
+  ['el relieve de los iconos sigue', /drop-shadow/.test(styles)],
+
+  // Los iconos: donde se pintan hay SVG, y el helper esta expuesto para el centro de scripts.
+  ['la lupa esta en la tabla de iconos', /search: '<circle cx="11"/, renderer],
+  ['y el helper se expone a la ventana', /window\.launcherUiIcon = launcherUiIcon;/, renderer],
+  ['el globo de la pestana es un icono, no un caracter', /globo\.innerHTML = launcherUiIcon\('empty'\)/, renderer],
+
+  // Lo que se quito.
+  ['el boton de instalar alertas de Telegram', !/id="installTelegramAlertsButton"/.test(html)],
+  ['la funcion que solo ese boton llamaba', !/async function importBundledTelegramAlerts\(\)/.test(usuarios)],
+  ['su CSS', !/\.button-telegram-install/.test(styles)],
+  ['pero el modulo oficial se sigue instalando al arrancar', /scripts = await updateBundledTelegramScript\(/, usuarios],
+
+  // El rediseño: los selectores tienen que existir de verdad en el HTML. Una regla con el nombre mal
+  // escrito no da error, se queda sin hacer nada, y no se ve hasta que uno mira la pantalla.
+  ['la cabecera del centro de scripts', /\.scripts-heading \{/.test(styles)],
+  ['el editor de scripts, en singular', /\.script-editor \{/.test(styles)],
+  ['y el nombre de verdad esta en el HTML', /class="script-editor"/.test(html)],
+  ['las barras de desplazamiento se pintan a mano', /::\-webkit-scrollbar-thumb/.test(styles)]
+];
+for (const [que, re, texto] of CUENTAS_ICONOS) {
+  const ok = typeof re === 'boolean' ? re : re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
 
 console.log('\n0.33.0 — cuentas en pestañas, limpieza de RAM y fuera el VPN:');
 const PESTAÑAS_RAM = [
@@ -611,7 +665,11 @@ const VISTA_INSTANCIAS = [
   && !/^\.instance-tab-shell \{[^}]*flex: 1 0 auto;/m.test(styles)],
   ['y la lista de dentro tambien crece, que sin eso las pestañas no tienen nada que repartir', /^\.instance-tabs \{[^}]*flex: 1 1 auto;/m.test(styles)],
   ['y el logo ya no reserva el ancho del texto que se quito, en la regla base', !/^\.brand \{[^}]*min-width: 205px/m.test(styles) && !/^\.instance-tabbar \{[^}]*max-width/m.test(styles)],
-  ['la pestaña principal lleva el logo del juego desde los assets, no un favicon que no llega', /\.instance-tab-icon-logo \{[^}]*idle-poke-logo-512\.png/.test(styles) && /if \(instanceId === PRIMARY_BROWSER_INSTANCE_ID\) \{[\s\S]{0,200}instance-tab-icon-logo/.test(renderer)],
+  // El predicado se amplió en la 0.34.0: ahora la pestaña principal Y las de cuenta llevan el logo
+    // del juego, porque las cuentas son la misma pagina partida en varias. La comprobación busca la
+    // forma nueva, que es la que hay. Dejarla en la antigua daba «falta» con el codigo correcto, que
+    // es el peor tipo de fallo: uno que obliga a mirar el codigo para descubrir que no hay nada.
+    ['la pestaña principal lleva el logo del juego desde los assets, no un favicon que no llega', /\.instance-tab-icon-logo \{[^}]*idle-poke-logo-512\.png/.test(styles) && /if \(instanceId === PRIMARY_BROWSER_INSTANCE_ID \|\| esPestanaDeCuenta\(instanceId\)\) \{[\s\S]{0,200}instance-tab-icon-logo/.test(renderer)],
   ['y el aviso del icono se prueba por el camino real, no llamando a la costura', /instancia:favicon/.test(renderer) && /panel\.webview\.addEventListener\('ipc-message', alRecibir\)/.test(renderer)],
   ['pero en ventana estrecha la barra sigue limitandose, que si no se come los botones', /@media \(max-width: 900px\)[\s\S]{0,600}\.instance-tabbar \{ max-width: calc\(100vw - 150px\)/.test(styles)],
   ['y no queda ninguna regla anulando el min-width que ya no existe, ni en las ventanas estrechas', !/\.brand \{[^}]*min-width: auto/.test(styles) && (styles.match(/\.brand \{[^}]*min-width: 205px/g) || []).length === 0],

@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 .build-diagnostics/
 smoke.png
@@ -7,13 +7,13 @@ smoke.png
 accounts.enc
 accounts-source.json
 
-# Sesiones locales del acompañante visual de brainstorming; nunca subir.
+# Sesiones locales del acompaÃ±ante visual de brainstorming; nunca subir.
 .superpowers/
 
 # Estado local del script de VPN por cuenta (core, configs y PIDs): nunca subir.
 .vpn/
 
-# Userscripts personales de la carpeta raíz: no pertenecen al launcher público.
+# Userscripts personales de la carpeta raÃ­z: no pertenecen al launcher pÃºblico.
 /Better Market and More.user.js
 /Breeding Center - Breeding calculator.user.js
 /calculadora ivs.js
@@ -21,23 +21,24 @@ accounts-source.json
 /Poke Idle World - Chat Translator.user.js
 /Poke Idle World - Custom Card Ultimate v3.80 (Toast Mini 50%).user.js
 
-# Pruebas específicas de esos scripts privados.
+# Pruebas especÃ­ficas de esos scripts privados.
 /tests/better-market-*.js
 /tests/breeding-second-parent-smoke.js
 /tests/capture-management-redesign-smoke.js
 /tests/chat-translator-smoke.js
 /tests/custom-card-*.js
 
-# Salidas, capturas de pruebas y binarios locales; las imágenes públicas están en docs/assets.
+# Salidas, capturas de pruebas y binarios locales; las imÃ¡genes pÃºblicas estÃ¡n en docs/assets.
 /artifacts/
 /tests/*.png
 /mobile-android/*.apk
 /mobile-android/*.png
 /mobile-android/.kotlin/
 
-# Builds antiguas y salidas de diagnóstico.
+# Builds antiguas y salidas de diagnÃ³stico.
 dist-*/
 *.log
 
 # Repositorio anidado de la Script Shop: nunca se versiona aqui.
 PokeGrid-Script-Shop/
+_basura/

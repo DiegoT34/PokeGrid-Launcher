@@ -922,7 +922,10 @@ function normalizeScriptShopCatalog(value) {
       sha256,
       homepage: String(row?.homepage || '').trim().slice(0, 2_000),
       changelog: String(row?.changelog || '').trim().slice(0, 1_000),
-      icon: String(row?.icon || '📜').trim().slice(0, 8) || '📜',
+      // El icono del autor manda: si el script trae el suyo, se muestra ese. El valor por defecto
+      // ya no es el emoji del pergamino, porque en la tarjeta el sitio lo dibuja el launcher con su
+      // propio SVG y aqui solo hace falta un texto de reserva que no se note si falta.
+      icon: String(row?.icon || '').trim().slice(0, 8),
       // Las capturas se filtran y no se lanza. Es la excepción deliberada a la regla de
       // downloadUrl, y el motivo es que la descarga es imprescindible —sin ella no se
       // puede instalar— mientras que una captura es decoración. Una URL mal escrita en

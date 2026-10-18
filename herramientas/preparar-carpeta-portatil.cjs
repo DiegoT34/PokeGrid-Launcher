@@ -16,7 +16,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const RAIZ = __dirname;
+const RAIZ = path.join(__dirname, '..');
 const VERSION = JSON.parse(fs.readFileSync(path.join(RAIZ, 'package.json'), 'utf8')).version;
 const ORIGEN = path.join(RAIZ, 'dist', 'win-unpacked');
 const DESTINO = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil`);

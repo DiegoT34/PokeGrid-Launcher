@@ -7,12 +7,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const raiz = __dirname;
+const raiz = path.join(__dirname, '..');
 const renderer = fs.readFileSync(path.join(raiz, 'src', 'renderer.js'), 'utf8');
 const mainProceso = fs.readFileSync(path.join(raiz, 'src', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(raiz, 'src', 'preload.js'), 'utf8');
+  const usuarios = fs.readFileSync(path.join(raiz, 'src', 'userscripts.js'), 'utf8');
+  const html = fs.readFileSync(path.join(raiz, 'src', 'index.html'), 'utf8');
 
 const styles = fs.readFileSync(path.join(raiz, 'src', 'styles.css'), 'utf8');
+
+// El bloque de barras de desplazamiento se comproba contra el CSS SIN el rediseño de la 0.34.0.
+// Those reglas se anadieron a proposito, asi que buscarlas en el fichero entero las encontraria
+// siempre y la comprobacion no diria nada. Recortando el bloque, la comprobacion solo mira el CSS que
+// existia antes, que es donde no deberia haber ninguna barra pintada a mano.
+const estilosSinRediseño = styles.split('REDISENO DEL CENTRO')[0] || styles;
 
 const QUE_SI = [
   // 0.32.0 — anadir y quitar pantallas, y Google por defecto
@@ -42,24 +50,50 @@ const QUE_SI = [
   ['el archivo de capturas ya no se copia entero cada tic', /const indiceEstable = \(\) => \{/, renderer],
   ['el relleno del acceso tiene expiration', /__pokeGridSubmitWatcherVence/, renderer],
   ['el tope del archivo de iconos', /const ICONOS_EN_CACHE = \d+;/, mainProceso],
-  ['el puente para dormir una pantalla', /duermirPanel:/, preload]
+  ['el puente para dormir una pantalla', /duermirPanel:/, preload],
+
+  // ---- 0.34.0: pestanas de cuenta, sin brillos y sin el boton de Telegram
+    // 0.34.0 — pestanas de cuenta: se mueven y el orden se guarda
+    ['el reordenado acepta las pestanas de cuenta', /esPestanaDeCuenta\(instanciaId\) && esPestanaDeCuenta\(destinoId\)/, renderer],
+    ['y las mueve por su propia lista', /function moverCuenta\(instanciaId, destinoId\)/, renderer],
+    ['el orden se guarda', /function guardarOrdenDeCuentas\(orden\)/, renderer],
+    ['y se vuelve a leer al pintar', /function ordenDeCuentas\(\)/, renderer],
+    ['el icono se pinta tambien en las de cuenta', /esPestanaDeCuenta\(instanceId\)/, renderer],
+    ['el boton de agrandar se esconde en modo pestanas', /function refrescarBotonDeAgrandarDeCuentas\(\)/, renderer],
+    ['y agrandar no hace nada ahi', /if \(vistaDeCuentasEsPestanas\(\)\) return;/, renderer],
+    ['el logo se decide antes que el mapa de iconos', /PRIMARY_BROWSER_INSTANCE_ID \|\| esPestanaDeCuenta\(instanceId\)/, renderer],
+    ['la marca de la pestaña activa sigue', /\.instance-tab-shell\.is-active \{[^}]*box-shadow/, styles],
+    ['la franja del color del tipo sigue', /box-shadow: inset 4px 0 0 var\(--farm-type-color\)/, styles],
+    ['el icono de la lupa esta en la tabla', /search: '<circle cx="11"/, renderer],
+    ['y se expone para el centro de scripts', /window\.launcherUiIcon = launcherUiIcon;/, renderer]
 ];
 
 const QUE_NO = [
   ['el interruptor global que hacia correr TODO', /appendSwitch\('disable-renderer-backgrounding'\)/, mainProceso + renderer],
   ['la preferencia que prohibia atenuar', /backgroundThrottling: false/, mainProceso],
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
-  ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
+  ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer],
+
+    // ---- 0.34.0: lo que tiene que haber desaparecido
+    // Se busca la ETIQUETA del boton, no su id: el id sigue escrito en el comentario que explica que se
+    // quito, y buscarlo por ahi daria un falso «sigue presente» para siempre. Lo que no puede seguir
+    // es el `id=` pegado al boton, que es lo que lo hacia existir.
+    ['el boton de instalar alertas de Telegram', /id="installTelegramAlertsButton"/, usuarios + html],
+    ['la funcion que solo ese boton llamaba', /async function importBundledTelegramAlerts\(\)/, usuarios],
+    ['su CSS', /\.button-telegram-install/, estilosSinRediseño],
+    ['el simbolo de papel por defecto del catalogo', /icon \|\| '\u{1F4DC}'/, usuarios],
+    ['el globo de texto de la pestaña', /globo\.textContent = '/, renderer],
+    ['la lupa como texto en el HTML', /<span aria-hidden="true">&larr;\u2315<\/span>/, html]
 ];
 
 let problemas = 0;
-console.log('0.31.0 — tiene que estar:');
+console.log('Invariantes que tienen que estar:');
 for (const [que, re, texto] of QUE_SI) {
   const ok = re.test(texto);
   if (!ok) problemas++;
   console.log(`  ${ok ? 'ok  ' : 'NO  '} ${que}`);
 }
-console.log('\n0.31.0 — tiene que haber desaparecido:');
+console.log('\nInvariantes que tienen que haber desaparecido:');
 for (const [que, re, texto] of QUE_NO) {
   const presente = re.test(texto);
   if (presente) problemas++;

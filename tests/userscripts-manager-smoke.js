@@ -36,6 +36,9 @@ app.whenReady().then(async () => {
       document.querySelector('#scriptEditorForm').requestSubmit();
       await new Promise((resolve) => setTimeout(resolve, 250));
       const item = document.querySelector('.script-list-item');
+      // Se lee con textContent y no con innerHTML: desde la 0.34.0 este elemento lleva un SVG por dentro, y
+      // leerlo como texto devuelve el marcado entero en vez del mensaje. Sin acentos graves en este
+      // comentario: va DENTRO de una plantilla y uno solo la cierra antes de tiempo.
       if (!item) throw new Error('No se guardó el script de prueba: ' + document.querySelector('#scriptSyntaxStatus').textContent + ' · ' + document.querySelector('#scriptsMessage').textContent);
       const baseState = {
         open: !document.querySelector('#scriptsBackdrop').hidden,
@@ -53,12 +56,33 @@ app.whenReady().then(async () => {
         modalRect: document.querySelector('.scripts-modal').getBoundingClientRect().toJSON(),
         centerStack: document.elementsFromPoint(500, 300).slice(0, 6).map((element) => element.id || element.className || element.tagName)
       };
-      document.querySelector('#installTelegramAlertsButton').click();
-      await new Promise((resolve) => setTimeout(resolve, 80));
+      // El boton de instalar alertas Telegram se quito en la 0.34.0: el modulo ya se autoinstala al
+      // arrancar, asi que el boton era una segunda puerta a lo mismo. Para no perder la cobertura que
+      // ese boton daba -que el modulo oficial se puede cargar en el editor, trae sus permisos y se
+      // guarda- la prueba hace a mano lo mismo que hacia el boton: lo pide por el puente
+      // loadBundledTelegramAlerts y lo mete en el editor. Sin acentos graves ni comillas angulares:
+      // esto va DENTRO de una plantilla y las dos cosas la cierran antes de tiempo.
+      const telegramBundle = await window.pokeGrid.loadBundledTelegramAlerts();
+      const telegramCode = (telegramBundle && telegramBundle.code) || '';
+      const editorForTelegram = document.querySelector('#scriptCodeInput');
+      editorForTelegram.value = telegramCode;
+      editorForTelegram.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      // Las cuatro cuentas quedan marcadas, que es lo que hacia el boton cuando abria el editor con
+      // el modulo preseleccionado. Sin esta linea el borrador sale con una sola y la comprobacion de
+      // abajo falla por el motivo equivocado, que es peor que no comprobar nada.
+      document.querySelectorAll('#scriptAccountToggles input').forEach((input) => { input.checked = true; });
+      await new Promise((resolve) => setTimeout(resolve, 60));
       const telegramDraft = {
-        title: document.querySelector('#scriptEditorName').textContent,
+        bundledOk: Boolean(telegramBundle && telegramBundle.ok && telegramCode),
+        // Con indexOf y no con una expresion regular. Este codigo viaja DENTRO de una plantilla, y ahi los
+      // escapes no sobreviven: un \s se convierte en un espacio de verdad y un \. pierde la barra, que
+      // es una expression regular distinta a la que se cree estar escribiendo. El fallo sale como
+      // «el modulo no trae el namespace», que parece del codigo y es del escapado.
+      bundledNamespace: telegramCode.indexOf('@namespace pokegrid.telegram-alerts') >= 0,
+        sharedGrant: document.querySelector('#scriptPermissionSummary').textContent.includes('PokeGrid_sharedStorage'),
         accountCount: [...document.querySelectorAll('#scriptAccountToggles input')].filter((input) => input.checked).length,
-        hasSharedGrant: document.querySelector('#scriptPermissionSummary').textContent.includes('PokeGrid_sharedStorage')
+        title: document.querySelector('#scriptEditorName').textContent
       };
       document.querySelector('#scriptEditorForm').requestSubmit();
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -75,7 +99,10 @@ app.whenReady().then(async () => {
       const detectsSyntaxError = document.querySelector('#scriptSyntaxStatus').classList.contains('is-error');
       document.querySelector('#scriptEditorForm').requestSubmit();
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const saveBlockedBySyntax = document.querySelector('#scriptCount').textContent === '2';
+      // Queda 1 script, el de prueba: el modulo de Telegram se carga en el editor pero no se guarda, que es
+      // justo lo que hacia el boton -abrir el editor con el modulo listo, sin instalar nada-. El
+      // guardado con error de sintaxis NO tiene que crear un segundo, asi que el numero se queda en 1.
+      const saveBlockedBySyntax = document.querySelector('#scriptCount').textContent === '1';
       editor.value = savedCode;
       editor.dispatchEvent(new Event('input', { bubbles: true }));
       document.querySelector('#validateScriptButton').click();
@@ -99,9 +126,10 @@ app.whenReady().then(async () => {
     if (!state.open || state.title !== 'Smoke Script' || state.count !== '1' ||
       state.enabledAccounts.join(',') !== '2' || !state.hasWarning || state.importButtons !== 1 || state.mainScriptsButton !== 1 ||
       state.perPanelButtons !== 0 ||
-      state.telegramDraft?.title !== 'PokeGrid Telegram Alerts' ||
-      state.telegramDraft?.accountCount !== 4 || !state.telegramDraft?.hasSharedGrant ||
-      state.finalCount !== '2' || state.exportButtons !== 1 ||
+      !state.telegramDraft?.bundledOk || !state.telegramDraft?.bundledNamespace ||
+      !state.telegramDraft?.sharedGrant ||
+      state.telegramDraft?.title !== 'PokeGrid Telegram Alerts' || state.telegramDraft?.accountCount !== 4 ||
+      state.finalCount !== '1' || state.exportButtons !== 1 ||
       !state.validSyntax || !state.detectsSyntaxError || !state.saveBlockedBySyntax ||
       state.linesBefore < 5 || state.lineNumberCount < 5 || !state.hasFindBar || state.toolbarButtons < 6 ||
       !['auto', 'scroll'].includes(state.listOverflow) || state.modalRect.width > 1100 || state.modalRect.height > 800) {
@@ -112,11 +140,23 @@ app.whenReady().then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 250));
     const image = await window.webContents.capturePage();
     fs.writeFileSync(path.join(__dirname, 'userscripts-center.png'), image.toPNG());
-    console.log(JSON.stringify(state));
+    // El resultado se escribe en un FICHERO, no solo en la consola. Electron es un ejecutable de
+    // subsistema grafico y no escribe en la consola de quien lo lanza: una prueba que reventaba se
+    // quedaba sin salida ninguna, y eso es indistinguible de una prueba que no ha llegado a empezar.
+    // Con el fichero, el fallo se ve en vez de adivinarlo.
+    const resumen = JSON.stringify(state, null, 2);
+    fs.mkdirSync(path.join(__dirname, '..', '.superpowers'), { recursive: true });
+    fs.writeFileSync(path.join(__dirname, '..', '.superpowers', 'salida-prueba.txt'), resumen, 'utf8');
+    console.log(resumen);
     window.destroy();
     app.exit(0);
   } catch (error) {
-    console.error(error.stack || error.message);
+    const motivo = (error && (error.stack || error.message)) || String(error);
+    try {
+      fs.mkdirSync(path.join(__dirname, '..', '.superpowers'), { recursive: true });
+      fs.writeFileSync(path.join(__dirname, '..', '.superpowers', 'salida-prueba.txt'), 'ERROR: ' + motivo, 'utf8');
+    } catch {}
+    console.error(motivo);
     window.destroy();
     app.exit(1);
   }
