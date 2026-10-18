@@ -17,19 +17,20 @@ const ZIP = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil.zip`
 const UNPACKED = path.join(RAIZ, 'dist', 'win-unpacked');
 const ASAR = path.join(UNPACKED, 'resources', 'app.asar');
 
-if (!fs.existsSync(ZIP)) {
-  throw new Error(`No está el ZIP ${path.basename(ZIP)}. Hay:\n  ${fs.readdirSync(path.join(RAIZ, 'dist')).filter((n) => n.endsWith('.zip')).join('\n  ')}`);
+// El ZIP ya no es un requisito: desde la 0.33.0 la entrega normal es la carpeta con el .exe y el
+// ZIP sale con `npm run dist:zip` cuando se pide. Que falte se dice y se sigue; que este, se
+// comprueba como antes. Exigirlo aqui era tirar el examen entero antes de empezar.
+const HAY_ZIP = fs.existsSync(ZIP);
+if (!HAY_ZIP) {
+  console.log('  no hay ZIP de esta version (normal: sale con `npm run dist:zip`)');
+} else {
+  const zip = fs.statSync(ZIP);
+  console.log(`ZIP: ${path.basename(ZIP)}`);
+  console.log(`  ${(zip.size / 1048576).toFixed(1)} MB, escrito ${zip.mtime.toLocaleString('es-ES')}`);
+  const sha = crypto.createHash('sha256');
+  sha.update(fs.readFileSync(ZIP));
+  console.log(`  sha256 ${sha.digest('hex')}`);
 }
-
-// --- 1. El ZIP y su huella -----------------------------------------------------
-const zip = fs.statSync(ZIP);
-console.log(`ZIP: ${path.basename(ZIP)}`);
-// `fs.Stats` llama a la fecha `mtime`. `lastWriteTime` es el nombre que usa
-// PowerShell en su `Get-ChildItem`, y no existe aquí: sale `undefined` sin avisar.
-console.log(`  ${(zip.size / 1048576).toFixed(1)} MB, escrito ${zip.mtime.toLocaleString('es-ES')}`);
-const sha = crypto.createHash('sha256');
-sha.update(fs.readFileSync(ZIP));
-console.log(`  sha256 ${sha.digest('hex')}`);
 
 // --- 2. El asar existe y es legible --------------------------------------------
 if (!fs.existsSync(ASAR)) throw new Error(`No está el asar en ${ASAR}`);
@@ -158,6 +159,35 @@ const DESCANSO_QUE_NO = [
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
+
+console.log('\n0.33.0 — cuentas en pestañas, limpieza de RAM y fuera el VPN:');
+const PESTAÑAS_RAM = [
+  ['la preferencia de como se ven las cuentas', /const VISTA_CUENTAS_KEY = 'pokegrid:accounts-view:v1'/, renderer],
+  ['con sus dos modos', /const VISTA_REJILLA = 'rejilla'/, renderer],
+  ['cada cuenta tiene su propio espacio', /function espacioDeCuenta\(accountId\)/, renderer],
+  ['y se limpian al volver a la rejilla', /function quitarEspaciosDeCuenta\(\)/, renderer],
+  ['las pestañas de cuenta se arman aparte', /function filasDeCuentasComoPestanas\(\)/, renderer],
+  ['la identidad de la cuenta NO se toca', /if \(panel\.instanceId === activeBrowserInstanceId\) return true;/, renderer],
+  ['el sueño se decide por el modo, no por la identidad', /idDeCuenta\(panel\.accountId\) === activeBrowserInstanceId/, renderer],
+  ['cambiar de modo recoloca las pantallas', /function aplicarVistaDeCuentas\(vista\)/, renderer],
+  ['el conmutador se refresca solo', /function refrescarConmutadorDeVista\(\)/, renderer],
+  ['el HTML del conmutador', /id="accountsViewTabsButton"/, html],
+  ['y su estilo', /\.accounts-view-switch \{/, styles],
+  ['la cuenta en pestaña ocupa la pantalla entera', /\.cuenta-workspace \{/, styles],
+
+  ['la limpieza si toca las sesiones', /await una\.clearCache\(\)/, mainProceso],
+  ['y ahora hay un registro de cuales son', /const sesionesVivas = new Set\(\)/, mainProceso],
+  ['y enseña donde esta la memoria', /function repartoDeMemoria\(\)/, mainProceso],
+  ['el boton la enseña', /const dondeEsta = reparto\.length/, renderer],
+  ['y no promete lo que no libera', /no ha devuelto mucho/, renderer],
+
+  ['el guion de VPN no vuelve', !/vpn-per-account/.test(renderer + mainProceso + preload)]
+];
+for (const [que, re, texto] of PESTAÑAS_RAM) {
+  const ok = typeof re === 'boolean' ? re : re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
 
 console.log('\n0.32.0 — añadir y quitar pantallas, y Google por defecto:');
 const PANTALLAS = [
@@ -659,6 +689,9 @@ fs.rmSync(TEMP, { recursive: true, force: true });
 
 console.log('');
 console.log(fallos === 0
-  ? `Todo lo que se cambió está dentro del ${path.basename(ZIP)}.`
+  // El mensaje dice lo que se ha comprobado de verdad: el asar de win-unpacked. Decir «dentro del
+  // ZIP» sin haber mirado ningun ZIP es justo lo que hace que uno se crea cubierto cuando no lo esta,
+  // y desde la 0.33.0 el ZIP ya ni siquiera sale en cada compilacion.
+  ? `Lo que se ha cambiado esta dentro de ${path.basename(ASAR)}, que es lo que va dentro de la carpeta y del ZIP.`
   : `${fallos} comprobaciones fallan.`);
 process.exit(fallos === 0 ? 0 : 1);

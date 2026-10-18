@@ -64,8 +64,6 @@ El proxy se aplica únicamente a la sesión de esa cuenta: las demás cuentas y 
 
 El launcher es genérico: cualquier proxy `http`/`socks5` funciona igual, incluidos proxies residenciales o datacentro de pago.
 
-**Atajo automatizado:** el script [`scripts/vpn-per-account.cjs`](../scripts/vpn-per-account.cjs) descarga v2ray-core una sola vez y levanta una instancia por nodo (enlaces `vmess://`, `vless://`, `trojan://` o `ss://`) con puertos locales propios: `node scripts/vpn-per-account.cjs up --count 3`. Guía completa en [VPN-POR-CUENTA.md](VPN-POR-CUENTA.md).
-
 ## Centro de scripts
 
 Permite crear, importar, editar, validar, activar y asignar userscripts a cuentas concretas. Los archivos `.js` y `.user.js` pueden arrastrarse al panel para instalar o actualizar su copia. La vista informa permisos y dominios declarados antes de guardar.
@@ -112,3 +110,9 @@ Las recargas múltiples se escalonan. Cada panel cuenta con límites de reintent
 ## Actualizador
 
 El actualizador consulta GitHub únicamente cuando se pulsa el botón. Descarga la versión superior, guarda el ZIP y su firma en Descargas, valida SHA-256 y descomprime la nueva carpeta portátil. Después cierra el proceso actual, intenta abrir la nueva versión hasta tres veces y espera una confirmación de su ventana. Mantiene una copia temporal de la versión anterior y solo la elimina después de confirmar el arranque; si falla, restaura y abre la versión anterior.
+
+> **Se retiró el atajo automático.** El script `vpn-per-account.cjs`, que levantaba una instancia
+> de v2ray por nodo, ya no está en el proyecto: la aplicación nunca lo llegaba a invocar, y solo
+> servía quien lo ejecutara a mano desde la consola. El proxy por cuenta de más arriba sigue igual,
+> y la forma de alimentarlo es la de siempre: un V2RayN o un Clash Verge con un puerto local por
+> cuenta. Se quitó en la 0.33.0.

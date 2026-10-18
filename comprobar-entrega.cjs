@@ -126,9 +126,11 @@ const revisar = (nombre, asar, cuando) => {
 };
 
 // --- 1. El ZIP, y se saca SOLO el asar, no los 349 MB ---
+// El ZIP ya no se entrega en cada compilacion: `npm run dist` construye solo la carpeta con el .exe,
+// que es lo que se abre de un doble clic, y el ZIP sale con `npm run dist:zip` cuando se pide. Asi que
+// aqui el ZIP ya no es un fallo: su ausencia es lo normal y hay que decirselo sin drama.
 if (!fs.existsSync(ZIP)) {
-  console.log('  no esta el ZIP ' + path.basename(ZIP));
-  mal++;
+  console.log('  no hay ZIP de esta version (normal: sale con `npm run dist:zip`)');
 } else {
   const temporal = path.join(RAIZ, 'dist', 'mirar-zip');
   fs.rmSync(temporal, { recursive: true, force: true });
@@ -171,6 +173,8 @@ if (!fs.existsSync(CARPETA)) {
 
 console.log('');
 console.log(mal === 0
-  ? 'lo que se entrega lleva todo: el ZIP y lo que se puede ejecutar'
+  ? (fs.existsSync(ZIP)
+    ? 'lo que se entrega lleva todo: el ZIP y lo que se puede ejecutar'
+    : 'lo que se entrega lleva todo: la carpeta que se abre de un doble clic (el ZIP sale con npm run dist:zip)')
   : mal + ' problemas en lo que se entrega');
 process.exit(mal === 0 ? 0 : 1);

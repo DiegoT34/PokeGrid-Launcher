@@ -59,6 +59,11 @@ let pokepediaWindow = null;
 const remoteImageCache = new Map();
 const shopScreenshotCache = new Map();
 const pokeApiSpeciesCache = new Map();
+// Las sesiones que este proceso ha abierto. Antes no había ninguna: la limpieza de RAM no tenía ni
+// una sesión a la que mirar, y por eso no liberaba casi nada —devolvía `collectedProcesses: 0`—.
+// Es un Set fuerte a proposito: una sesion que no se referencia puede recogerse sola, pero aqui se
+// quieren tener localizadas aunque el juego no la este usando ahora mismo.
+const sesionesVivas = new Set();
 const loadedUnpackedExtensions = [];
 const browserInstanceSessions = new WeakSet();
 // El nombre de la partición de cada sesión de instancia. Hace falta porque
@@ -1067,6 +1072,7 @@ async function configureGameSessions() {
     const gameSession = session.fromPartition(accountPartition(account.id));
     gameSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     gameSessions.push(gameSession);
+      sesionesVivas.add(gameSession);
   }
   await maintainGameSessionCaches(gameSessions);
   // applyAccountProxies no lanza: devuelve un resultado por cuenta, y cada entrada
@@ -1203,6 +1209,7 @@ function createWindow() {
     if (!partition.startsWith('persist:pokegrid-instance-')) return;
     const browserSession = session.fromPartition(partition);
     browserInstanceSessions.add(browserSession);
+    sesionesVivas.add(browserSession);
     particionesDeInstancia.set(browserSession, partition);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     // Aquí se quitaba cualquier preload y se dejaba la instancia sin ninguno, porque carga sitios
@@ -1353,7 +1360,7 @@ function createWindow() {
           }
           const memorySmoke = { result:memoryResult, rendererState, sampledColors:colors.size, imageEmpty:memoryImage.isEmpty() };
           console.log(JSON.stringify({ memoryCleanup:memorySmoke }));
-          if (!memoryResult?.ok || memoryResult.strategy !== 'safe-cache-only' || memoryImage.isEmpty() || colors.size < 8 ||
+          if (!memoryResult?.ok || memoryResult.strategy !== 'cache-de-sesiones' || memoryImage.isEmpty() || colors.size < 8 ||
               rendererState.panels !== 4 || rendererState.webviews !== 4 || !rendererState.bodyVisible) {
             throw new Error(`Safe memory cleanup smoke failed: ${JSON.stringify(memorySmoke)}`);
           }
@@ -2264,35 +2271,126 @@ ipcMain.handle('app:peek-update', async (event) => {
     return { ok: false, hayActualizacion: false, actual, masReciente: actual, error: error.message };
   }
 });
-ipcMain.handle('app:cleanup-memory', async () => {
+// La limpieza de RAM que de verdad hacia falta.
+//
+// La de antes, en una frase: vaciaba tres mapas de imagenes del launcher, no tocaba ninguna sesion y
+// devolvia `collectedProcesses: 0`. Era un boton que decia «-2 MB» con 3 GB en juego, y eso es peor
+// que no tener boton: parece que hace algo.
+//
+// LO QUE NO SE TOCA, Y POR QUE
+//
+// Ni se adjunta el depurador ni se fuerza el GC de Chromium. Ambas cosas pueden invalidar la
+// superficie grafica de webviews activas y dejar la ventana completamente en negro. Ese aviso estaba
+// escrito en el codigo anterior y se respeta: no es prudencia, es un fallo ya visto.
+// Tampoco se llama a `clearStorageData`, porque eso cierra la sesion: las cuentas perderian el
+// inicio de sesion y las cuentas guardadas de las instancias. `clearCache` es la que toca la cache de
+// red y de codigo y NO toca cookies ni almacenamiento local, que es justo lo que se quiere.
+//
+// LO QUE SI
+//
+// 1. Las cuatro caches del proceso principal, incluida la de iconos de las pestanas.
+// 2. La cache de red y de codigo de TODAS las sesiones abiertas: las cuentas, Pokepedia y las de cada
+//    instancia de navegador. Esa es la que de verdad ocupa y nunca se miraba.
+// 3. Un informe de donde esta la memoria, proceso por proceso. Un boton que dice «he liberado 4 MB» no
+//    sirve; uno que dice «el proceso de graficos tiene 2.622 MB y es tu problema» si.
+const RUTA_INFORME = 'informe-memoria.json';
+
+// Lo que se hace con las cuentas y con las instancias: `clearCache` y ya. Lo unico que se hace es
+// limpiar; si algo falla se cuenta y se sigue con la siguiente sesion, porque una sesion que se resiste
+// no puede impedir que las demas se limpien.
+async function limpiarCacheDeSesiones() {
+  let limpiadas = 0;
+  let rehusadas = 0;
+  for (const una of sesionesVivas) {
+    try {
+      await una.clearCache();
+      limpiadas++;
+    } catch {
+      // Una sesion a la que ya no se puede hablar no es un problema: se cuenta y se sigue.
+      rehusadas++;
+    }
+  }
+  return { limpiadas, rehusadas, total: sesionesVivas.size };
+}
+
+// El reparto de la memoria. Sin esto el boton no dice nada: solo se ve un numero que baja un poco y
+// no se sabe de donde. Se ordena de mayor a menor porque lo que interesa es lo primero que hay que
+// mirar.
+function repartoDeMemoria() {
+  const metricas = app.getAppMetrics() || [];
+  const procesos = metricas
+    .map((metrica) => ({
+      pid: Number(metrica.pid) || 0,
+      tipo: String(metrica.type || 'desconocido'),
+      memoriaMb: Math.round(Number(metrica.memory?.workingSetSize || 0) / 1024),
+      picoMb: Math.round(Number(metrica.memory?.peakWorkingSetSize || 0) / 1024)
+    }))
+    .sort((a, b) => b.memoriaMb - a.memoriaMb);
+  const porTipo = new Map();
+  for (const proceso of procesos) {
+    const fila = porTipo.get(proceso.tipo) || { tipo: proceso.tipo, cuantos: 0, memoriaMb: 0 };
+    fila.cuantos += 1;
+    fila.memoriaMb += proceso.memoriaMb;
+    porTipo.set(proceso.tipo, fila);
+  }
+  return {
+    procesos,
+    porTipo: [...porTipo.values()].sort((a, b) => b.memoriaMb - a.memoriaMb),
+    totalMb: procesos.reduce((total, proceso) => total + proceso.memoriaMb, 0)
+  };
+}
+
+async function limpiarMemoriaAhora({ informar = true } = {}) {
+  const antes = app.getAppMetrics().reduce(
+    (total, metrica) => total + Number(metrica.memory?.workingSetSize || 0), 0
+  );
+  const entradasDeCache = remoteImageCache.size + pokeApiSpeciesCache.size
+    + shopScreenshotCache.size + cacheDeIconos.size;
+  remoteImageCache.clear();
+  pokeApiSpeciesCache.clear();
+  shopScreenshotCache.clear();
+  cacheDeIconos.clear();
+
+  const sesiones = await limpiarCacheDeSesiones();
+
+  // Un respiro antes de medir. Sin esto el «despues» se lee con la memoria todavia sin devolver y el
+  // numero que sale es una comparacion injusta.
+  await new Promise((resolver) => setTimeout(resolver, 250));
+
+  const despues = app.getAppMetrics().reduce(
+    (total, metrica) => total + Number(metrica.memory?.workingSetSize || 0), 0
+  );
+  const reparto = repartoDeMemoria();
+  const resultado = {
+    ok: true,
+    estrategia: 'cache-de-sesiones',
+    entradasDeCache,
+    sesiones,
+    antesMb: Math.round(antes / 1024),
+    despuesMb: Math.round(despues / 1024),
+    liberadosMb: Math.max(0, Math.round((antes - despues) / 1024)),
+    reparto
+  };
+  if (informar) {
+    try {
+      fs.writeFileSync(
+        path.join(app.getPath('userData'), RUTA_INFORME),
+        JSON.stringify({ fecha: new Date().toISOString(), ...resultado }, null, 2),
+        'utf8'
+      );
+    } catch { /* el informe es un extra: si no se puede escribir, no se rompe nada */ }
+  }
+  return resultado;
+}
+
+ipcMain.handle('app:cleanup-memory', async (event) => {
   try {
-    const before = app.getAppMetrics().reduce((total, metric) => total + Number(metric.memory?.workingSetSize || 0), 0);
-    const cachedEntries = remoteImageCache.size + pokeApiSpeciesCache.size + shopScreenshotCache.size;
-    remoteImageCache.clear();
-    pokeApiSpeciesCache.clear();
-    shopScreenshotCache.clear();
-    const targets = webContents.getAllWebContents().filter((contents) =>
-      !contents.isDestroyed() && ['window', 'webview'].includes(contents.getType()));
-    // No se adjunta el depurador ni se fuerza el GC de Chromium: ambas operaciones pueden
-    // invalidar la superficie gráfica de webviews activas y dejar la ventana completamente negra.
-    // Las cachés que controla PokeGrid se limpian arriba; los procesos de juego permanecen intactos.
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    const after = app.getAppMetrics().reduce((total, metric) => total + Number(metric.memory?.workingSetSize || 0), 0);
-    return {
-      ok: true,
-      strategy: 'safe-cache-only',
-      cachedEntries,
-      collectedProcesses: 0,
-      preservedProcesses: targets.length,
-      skippedProcesses: targets.length,
-      beforeMb: Math.round(before / 1024),
-      afterMb: Math.round(after / 1024),
-      releasedMb: Math.max(0, Math.round((before - after) / 1024))
-    };
+    return await limpiarMemoriaAhora();
   } catch (error) {
     return { ok: false, error: error.message };
   }
 });
+
 // Informe de proxies del arranque. Solo responde a la ventana principal: el renderer
 // reparte cada entrada por el id de su cuenta, así que un resultado que no sea suyo
 // no debe aparecerle. El nombre del canal es el que espera el renderer, y la Tarea

@@ -298,7 +298,16 @@
             <span class="eyebrow">ACCESO SEGURO</span>
             <h1 id="accountsTitle">Tus cuentas</h1>
           </div>
-          <button id="closeModalButton" class="icon-button" type="button" aria-label="Cerrar">×</button>
+          <div class="modal-heading-actions">
+            <!-- El modo de vista de las cuentas. Va en el modal de cuentas y no en la barra superior
+                 porque es una preferencia de cómo se leen, no un botón de acción: una vez lo eliges,
+                 casi nunca lo cambias. -->
+            <div class="accounts-view-switch" role="group" aria-label="Cómo ver las cuentas">
+              <button id="accountsViewGridButton" type="button" data-vista="rejilla">Rejilla</button>
+              <button id="accountsViewTabsButton" type="button" data-vista="pestanas">Pestañas</button>
+            </div>
+            <button id="closeModalButton" class="icon-button" type="button" aria-label="Cerrar">×</button>
+          </div>
         </div>
         <p class="modal-copy">Las contraseñas se cifran con la protección de Windows y cada panel conserva una sesión independiente.</p>
         <form id="accountsForm" autocomplete="off">

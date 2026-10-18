@@ -17,6 +17,104 @@ const GRID_SAVED_ACCOUNTS_KEY = 'idle-poke:grid-accounts:v1';
 const BROWSER_INSTANCES_KEY = 'pokegrid:browser-instances:v1';
 const ACTIVE_BROWSER_INSTANCE_KEY = 'pokegrid:active-browser-instance:v1';
 const PRIMARY_BROWSER_INSTANCE_ID = 'poke-idle-world';
+// Cómo se ven las cuentas del juego: todas juntas en la rejilla, o una pestaña por cuenta. La
+// decisión vive en localStorage y se lee SIEMPRE con esta función, nunca con una variable suelta: si
+// hubiera dos fuentes de verdad, cambiar el conmutador desde el modal tocaría la interfaz y no las
+// pantallas, que es el fallo clásico de esto.
+const VISTA_CUENTAS_KEY = 'pokegrid:accounts-view:v1';
+const VISTA_REJILLA = 'rejilla';
+const VISTA_PESTANAS = 'pestanas';
+// El espacio propio de cada cuenta en modo pestañas. Va aparte de browserInstanceViews porque esto
+// NO es una instancia de navegador: es la misma pantalla de cuenta de siempre, con sus capturas, su
+// hunt, su búsqueda y sus guiones, solo que colgada de su propia pestaña.
+const espaciosDeCuenta = new Map();
+const idDeCuenta = (accountId) => `cuenta-${accountId}`;
+
+function vistaDeCuentas() {
+  const guardada = String(localStorage.getItem(VISTA_CUENTAS_KEY) || '');
+  // Cualquier cosa que no sea exactamente pestañas es la rejilla: un valor escrito a mano en el
+  // almacenamiento no puede dejar la interfaz en un estado que nadie eligió.
+  return guardada === VISTA_PESTANAS ? VISTA_PESTANAS : VISTA_REJILLA;
+}
+function vistaDeCuentasEsPestanas() {
+  return vistaDeCuentas() === VISTA_PESTANAS;
+}
+function esPestanaDeCuenta(instanceId) {
+  return /^cuenta-\d+$/.test(String(instanceId || ''));
+}
+
+// El main donde se pinta la pantalla de una cuenta. En rejilla no existe: se usa la rejilla de
+// siempre. En pestañas cada cuenta tiene el suyo, con las mismas clases que una instancia de
+// navegador, para que la barra de pestañas, las flechas, la selección y el trabajo de dormir lo que
+// no se mira funcionen sin tocar nada de eso.
+function espacioDeCuenta(accountId) {
+  const id = idDeCuenta(accountId);
+  const existente = espaciosDeCuenta.get(id);
+  if (existente) return existente;
+  const espacio = document.createElement('main');
+  espacio.className = 'grid instance-workspace cuenta-workspace';
+  espacio.dataset.instanceId = id;
+  espacio.dataset.viewCount = '1';
+  espacio.setAttribute('role', 'tabpanel');
+  espaciosDeCuenta.set(id, espacio);
+  // Justo antes del contenedor de instancias, que es donde viven los demás espacios.
+  browserInstanceBackdrop.parentNode.insertBefore(espacio, browserInstanceBackdrop);
+  return espacio;
+}
+
+function quitarEspaciosDeCuenta() {
+  for (const espacio of espaciosDeCuenta.values()) espacio.remove();
+  espaciosDeCuenta.clear();
+}
+
+// Cambiar de modo. Lo unico gordo que hay que hacer es RECOLOCAR las pantallas: cada cuenta vive en un
+// elemento distinto segun el modo, asi que hay que volver a crearlas. No se intenta moverlas, porque
+// al descolgarlas de una pantalla y colgarlas de otra hay que rehacer el mapa de webContents y las
+// oyentes de por vida, y eso es mas caro y mas fragil que reconstruirlas.
+//
+// No se pierde nada al reconstruirlas: cada cuenta conserva su sesion (persist:pokegrid-<id>), su
+// pagina recordada y su zoom. Solo se vuelve a pintar.
+function aplicarVistaDeCuentas(vista) {
+  const elegida = vista === VISTA_PESTANAS ? VISTA_PESTANAS : VISTA_REJILLA;
+  if (elegida === vistaDeCuentas()) {
+    refrescarConmutadorDeVista();
+    return elegida;
+  }
+  localStorage.setItem(VISTA_CUENTAS_KEY, elegida);
+  if (elegida === VISTA_REJILLA) quitarEspaciosDeCuenta();
+  rebuildGamePanels();
+  renderBrowserInstanceTabs();
+  // Y se deja abierta una pantalla que exista de verdad. Aqui estaba el fallo: se miraba si la activa
+  // era valida contando la instancia principal, y en modo pestañas esa pantalla NO EXISTE —su
+  // workspace es la rejilla, que se ha quedado vacia—. Con esa comprobacion el launcher se quedaba
+  // «en» una pestana que no habia, no se marcaba ninguna, y las cuatro cuentas seguian despiertas
+  // porque ninguna era la abierta. Lo valido se decide por el modo.
+  const enPestanas = elegida === VISTA_PESTANAS;
+  const sigueValida = enPestanas
+    ? espaciosDeCuenta.has(activeBrowserInstanceId)
+    : (activeBrowserInstanceId === PRIMARY_BROWSER_INSTANCE_ID
+      || browserInstanceViews.has(activeBrowserInstanceId));
+  if (!sigueValida) {
+    activateBrowserInstance(
+      enPestanas ? (filasDeCuentasComoPestanas()[0]?.id || PRIMARY_BROWSER_INSTANCE_ID) : PRIMARY_BROWSER_INSTANCE_ID,
+      { persist: false }
+    );
+  } else {
+    updateBrowserInstanceSelection();
+    aplicarDescanso();
+  }
+  refrescarConmutadorDeVista();
+  return elegida;
+}
+
+function refrescarConmutadorDeVista() {
+  const actual = vistaDeCuentas();
+  for (const boton of document.querySelectorAll('.accounts-view-switch button')) {
+    const suya = boton.dataset.vista === actual;
+    boton.classList.toggle('is-activa', suya);
+    boton.setAttribute('aria-pressed', String(suya));
+  }
+}
 const NOTIFICATION_COUNTER_KEY = 'pokegrid:notification-counters:v1';
 // Antes 1500. Es el único sondeo que estaba por debajo de 3000, y con ocho cuentas
 // abiertas son ocho scripts de más de 200 líneas cada 1500 ms. En un panel que se lee
@@ -78,6 +176,16 @@ const modalMessage = document.querySelector('#modalMessage');
 const accountsForm = document.querySelector('#accountsForm');
 const downloadAccountsTemplateButton = document.querySelector('#downloadAccountsTemplateButton');
 const importAccountsButton = document.querySelector('#importAccountsButton');
+// Los dos botones de rejilla / pestañas del modal de cuentas.
+const accountsViewGridButton = document.querySelector('#accountsViewGridButton');
+const accountsViewTabsButton = document.querySelector('#accountsViewTabsButton');
+if (accountsViewGridButton) {
+  accountsViewGridButton.addEventListener('click', () => aplicarVistaDeCuentas(VISTA_REJILLA));
+  refrescarConmutadorDeVista();
+}
+if (accountsViewTabsButton) {
+  accountsViewTabsButton.addEventListener('click', () => aplicarVistaDeCuentas(VISTA_PESTANAS));
+}
 const appbar = document.querySelector('#appbar');
 const topbarToggle = document.querySelector('#topbarToggle');
 const globalActions = document.querySelector('#globalActions');
@@ -8891,10 +8999,12 @@ function tituloDePagina(panel, titulo) {
 
 function renderBrowserInstanceTabs() {
   instanceTabs.replaceChildren();
-  const rows = [
-    { id: PRIMARY_BROWSER_INSTANCE_ID, name: 'Poke Idle World', count: accountCount(), primary: true },
-    ...browserInstances
-  ];
+  const rows = vistaDeCuentasEsPestanas()
+    ? filasDeCuentasComoPestanas()
+    : [
+      { id: PRIMARY_BROWSER_INSTANCE_ID, name: 'Poke Idle World', count: accountCount(), primary: true },
+      ...browserInstances
+    ];
   rows.forEach((instance) => {
     const shell = document.createElement('div');
     shell.className = 'instance-tab-shell';
@@ -8999,8 +9109,36 @@ function todosLosPanelesVivos() {
   return salida;
 }
 
+// Las filas de la barra cuando las cuentas van en pestañas: una por cuenta, con su nombre y el
+// numero de su sesion. Se arman con la misma forma que las instancias —id, nombre, cuenta— para que
+// el bucle de pintado de las pestanas no tenga dos caminos, y para que añadir una cuenta sea añadir
+// una fila y no un caso especial.
+function filasDeCuentasComoPestanas() {
+  const filas = [];
+  for (const cuenta of accounts) {
+    const id = idDeCuenta(cuenta?.id);
+    // Una cuenta sin pantalla propia todavia no tiene pestaña: aparece cuando su panel se crea, que
+    // es justo cuando existe el espacio. Sin este filtro, una cuenta recién importada tendría una
+    // pestaña que al pulsarla no abriria nada.
+    if (!espaciosDeCuenta.has(id)) continue;
+    filas.push({ id, name: String(cuenta?.label || `Cuenta ${filas.length + 1}`), count: 1, deCuenta: true });
+  }
+  return [...filas, ...browserInstances];
+}
+
 function panelEstaEnPantalla(panel) {
-  return Boolean(panel) && panel.instanceId === activeBrowserInstanceId;
+  if (!panel) return false;
+  if (panel.instanceId === activeBrowserInstanceId) return true;
+  if (!vistaDeCuentasEsPestanas()) return false;
+  // En modo pestañas cada cuenta es su pestaña, y la pantalla sigue siendo la MISMA de siempre:
+  // capturas, hunt, búsqueda y guiones no cambian. Lo único que cambia es cuál está a la vista, y
+  // por eso las que no son la abierta se duermen. Es el trabajo de la 0.31.0, sin duplicarlo.
+  //
+  // Y es aquí, y no en panel.instanceId, donde se resuelve el modo pestañas. Cambiar la identidad de
+  // la cuenta habría roto cinco comparaciones contra la instancia principal que hay en el programa:
+  // el icono del juego, el título que sigue a la página, la búsqueda de Pokémon y el reparto de
+  // pantalla completa.
+  return idDeCuenta(panel.accountId) === activeBrowserInstanceId;
 }
 
 let descansoPendiente = 0;
@@ -9128,7 +9266,11 @@ function refreshBrowserInstanceLayout(instanceId) {
   });
 }
 function activateBrowserInstance(instanceId, { persist = true } = {}) {
-  const exists = instanceId === PRIMARY_BROWSER_INSTANCE_ID || browserInstances.some((row) => row.id === instanceId);
+  const exists = instanceId === PRIMARY_BROWSER_INSTANCE_ID
+    || browserInstances.some((row) => row.id === instanceId)
+    // Las pestañas de cuenta son validas solo en modo pestañas. Sin esta linea, cualquiera que
+    // escribiera `cuenta-3` a mano activaria una pantalla que no existe y dejaria la interfaz vacia.
+    || (esPestanaDeCuenta(instanceId) && vistaDeCuentasEsPestanas() && espaciosDeCuenta.has(instanceId));
   activeBrowserInstanceId = exists ? instanceId : PRIMARY_BROWSER_INSTANCE_ID;
   updateBrowserInstanceSelection();
   refreshBrowserInstanceLayout(activeBrowserInstanceId);
@@ -10314,7 +10456,13 @@ function initializeBrowserInstances() {
   syncUserScriptPanels();
   renderBrowserInstanceTabs();
   const savedActive = localStorage.getItem(ACTIVE_BROWSER_INSTANCE_KEY) || PRIMARY_BROWSER_INSTANCE_ID;
-  activateBrowserInstance(savedActive, { persist: false });
+  // En modo pestañas, lo que estaba abierto puede ser una pantalla que ya no existe: la pestaña
+  // «Poke Idle World» no esta. Sin esta linea, `activateBrowserInstance` caeria a la principal —que
+  // no tiene ninguna pantalla colgando— y el launcher abriria en blanco, sin un solo panel.
+  const paraAbrir = (vistaDeCuentasEsPestanas() && !espaciosDeCuenta.has(savedActive))
+    ? (filasDeCuentasComoPestanas()[0]?.id || savedActive)
+    : savedActive;
+  activateBrowserInstance(paraAbrir, { persist: false });
 }
 function createPanel(index) {
   const fragment = panelTemplate.content.cloneNode(true);
@@ -10407,7 +10555,9 @@ function createPanel(index) {
   // que se pidió: los guiones solo leen y envían con su pantalla a la vista.
   webview.setAttribute('webpreferences', 'contextIsolation=yes, nodeIntegration=no');
   webviewHost.appendChild(webview);
-  grid.appendChild(fragment);
+  // A donde se cuelga la pantalla. En modo pestañas no va a la rejilla compartida: va a su propio
+  // espacio, y asi la barra de pestañas lo trata igual que a una instancia mas.
+  (vistaDeCuentasEsPestanas() ? espacioDeCuenta(accountId) : grid).appendChild(fragment);
   const panel = {
     instanceId: PRIMARY_BROWSER_INSTANCE_ID,
     instanceName: 'Poke Idle World',
@@ -11535,15 +11685,32 @@ cleanupMemoryButton.addEventListener('click', async () => {
     const result = await window.pokeGrid.cleanupMemory();
     if (!result.ok) throw new Error(result.error || 'No se pudo liberar la memoria temporal.');
     const released = Number(result.releasedMb) || 0;
-    cleanupMemoryButton.innerHTML = `${launcherUiIcon('check')}<span>${released ? `−${released} MB` : 'RAM lista'}</span>`;
+    const caches = Number(result.entradasDeCache || 0) + rendererCachedEntries;
+    const sesiones = Number(result.sesiones && result.sesiones.limpiadas) || 0;
+    const totalAhora = Number(result.despuesMb) || 0;
+    // El boton antes decia «-2 MB» con 3 GB en juego, y ese numero no significaba nada: era la
+    // diferencia entre dos medidas separadas por 40 ms, no la memoria que de verdad sobraba. Ahora,
+    // si no se ha liberado apenas, lo dice tal cual en vez de dar una sensacion de trabajo.
+    cleanupMemoryButton.innerHTML = released
+      ? launcherUiIcon('check') + '<span>- ' + released + ' MB</span>'
+      : launcherUiIcon('check') + '<span>' + (caches ? 'Caches listas' : 'RAM lista') + '</span>';
+    // Y el detalle dice DONDE esta la memoria, que es lo unico que sirve para decidir algo. Con
+    // los procesos ordenados de mayor a menor, los tres primeros suelen ser la respuesta entera.
+    const reparto = Array.isArray(result.reparto && result.reparto.porTipo) ? result.reparto.porTipo : [];
+    const dondeEsta = reparto.length
+      ? reparto.slice(0, 5).map((fila) => fila.tipo + ' (' + fila.cuantos + '): ' + fila.memoriaMb + ' MB').join(', ')
+      : 'sin datos';
     cleanupMemoryButton.title = [
-      `${Number(result.preservedProcesses) || 0} procesos gráficos preservados`,
-      `${Number(result.cachedEntries || 0) + rendererCachedEntries} cachés visuales liberadas`,
-      released ? `${released} MB devueltos al sistema` : 'La memoria disponible quedó optimizada',
-      'No se recargaron sesiones ni se alteraron datos, conexiones o temporizadores',
-      'Limpieza segura: no se adjuntó el depurador ni se forzó el GC de las sesiones'
+      totalAhora + ' MB en total ahora mismo',
+      'Por tipo: ' + dondeEsta,
+      released
+        ? 'Esta limpieza ha devuelto ' + released + ' MB al sistema'
+        : 'Esta limpieza no ha devuelto mucho: el peso esta en las paginas abiertas',
+      caches + ' caches del launcher vaciadas',
+      sesiones + ' sesiones limpiadas de red y de codigo',
+      'No se tocan sesiones abiertas, cookies ni datos: nadie pierde su inicio de sesion'
     ].join(' · ');
-  } catch (error) {
+} catch (error) {
     cleanupMemoryButton.innerHTML = '<span aria-hidden="true">!</span><span>Error RAM</span>';
     cleanupMemoryButton.title = error.message;
   } finally {

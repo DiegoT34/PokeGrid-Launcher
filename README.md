@@ -52,8 +52,6 @@ Cada cuenta puede usar una **IP/VPN distinta**: protocolo `http` o `socks5`, hos
 
 Para usar VPN gratuita sin coste mensual, una opción práctica es [V2RayN](https://github.com/2dust/v2rayN) o [Clash Verge](https://github.com/clash-verge-rev/clash-verge-rev) con nodos gratuitos: habilita un puerto local (mixed/socks/http) por cuenta y escribe ese host/puerto en la fila de cada cuenta. Consulta la [guía completa](docs/FUNCIONES.md#administración-de-cuentas).
 
-> **Atajo:** el script [`scripts/vpn-per-account.cjs`](scripts/vpn-per-account.cjs) levanta automáticamente una instancia v2ray por nodo con su propio puerto local (`node scripts/vpn-per-account.cjs up --count 3`). Guía paso a paso en [docs/VPN-POR-CUENTA.md](docs/VPN-POR-CUENTA.md).
-
 > **Nota:** al eliminar una cuenta, las siguientes heredan su posición; el historial asociado a esa posición (capturas, metas) pasa a la cuenta que ocupa ese lugar.
 
 ## Hunt Analyzer
@@ -170,3 +168,9 @@ Código del launcher publicado bajo la licencia [MIT](LICENSE).
 ## Créditos
 
 Creado y mantenido por **[DiegoT34](https://github.com/DiegoT34)**, autor y responsable principal de PokeGrid Launcher.
+
+> **Se retiró el atajo automático.** El script `vpn-per-account.cjs`, que levantaba una instancia
+> de v2ray por nodo, ya no está en el proyecto: la aplicación nunca lo llegaba a invocar, y solo
+> servía quien lo ejecutara a mano desde la consola. El proxy por cuenta de más arriba sigue igual,
+> y la forma de alimentarlo es la de siempre: un V2RayN o un Clash Verge con un puerto local por
+> cuenta. Se quitó en la 0.33.0.

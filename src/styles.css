@@ -880,6 +880,39 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 }
 .browser-instance-panel.is-online { border-color: rgba(55, 203, 128, .34); }
 .browser-instance-panel.is-error { border-color: rgba(255, 91, 104, .48); }
+/* El espacio de una cuenta cuando las cuentas van en pestañas. Una columna y una fila: la cuenta
+   ocupa la pantalla entera, que es justo lo que se pide al elegir «Pestañas». No se reutiliza el
+   data-view-count de las instancias de navegador porque esta es una pantalla del juego y tiene sus
+   propias reglas —tiene barra propia, no barra de direcciones—. */
+.cuenta-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* El conmutador de rejilla / pestañas del modal de cuentas. Dos botones y el que está puesto
+   resaltado: no es una lista con tres etiquetas raras, y con dos el usuario no tiene que recordar
+   qué significaba cada una. */
+.accounts-view-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.accounts-view-switch button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.accounts-view-switch button:hover { color: var(--text); }
+.accounts-view-switch button.is-activa { background: var(--accent); color: #fff; }
+.modal-heading-actions { display: inline-flex; align-items: center; gap: 10px; }
+
 .browser-instance-panelbar {
   min-height: 41px;
   padding: 5px 7px 5px 9px;
