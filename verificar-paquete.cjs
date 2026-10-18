@@ -530,7 +530,23 @@ const VISTA_INSTANCIAS = [
   // `/flex: 1 0 auto/` a secas, y casaba con el COMENTARIO que hay encima de la regla citandolo
   // entre acentos graves: borrando la declaracion de verdad, la invariante seguia verde. Se
   // comprobo borrandola. Un patron que casa con su propia explicacion no vigila nada.
-  ['las pestañas reparten el sobrante: crecen hasta un maximo y no se aplastan', /^\.instance-tab-shell \{[^}]*flex: 1 0 auto;/m.test(styles) && /^\.instance-tab-shell \{[^}]*max-width: 320px/m.test(styles) && /^\.instance-tabs \{[^}]*flex: 1 1 auto;/m.test(styles)],
+  // Esta invariante se REESCRIBIO en la 0.30.0 y aqui seguia mirando lo de la 0.29.0.
+//
+// Antes pedia `flex: 1 0 auto` y `max-width: 320px`: que las pestañas repartieran el sobrante. La 0.30
+// lo revirtió a proposito —repartidas se estiraban a 240 px con el nombre nadando en el medio— y este
+// patron nunca se actualizo. Peor: en la 0.30.0 esta comprobacion dio VERDE, y no porque el codigo
+// estuviera bien sino porque se ejecuto ANTES de compilar y leyo el build de la 0.29.0, que si tenia
+// 0.29.0, que si tenia esos valores. Una invariante que da verde mirando un artefacto viejo no vigila nada: parece que
+//protege y no protege.
+//
+// Lo que se pide ahora es lo que hay: la pestaña se dimensiona a su nombre, con un minimo para que no
+// se aplaste y un maximo para que no se coma la barra, y la LISTA es la que crece para llenar la
+// barra. Si alguna vez vuelve a repartirse, esta es la que avisa.
+['las pestañas miden su nombre: minimo, maximo y sin repartirse',
+  /^\.instance-tab-shell \{[^}]*flex: 0 1 auto;/m.test(styles)
+  && /^\.instance-tab-shell \{[^}]*min-width: 132px;/m.test(styles)
+  && /^\.instance-tab-shell \{[^}]*max-width: 240px;/m.test(styles)
+  && !/^\.instance-tab-shell \{[^}]*flex: 1 0 auto;/m.test(styles)],
   ['y la lista de dentro tambien crece, que sin eso las pestañas no tienen nada que repartir', /^\.instance-tabs \{[^}]*flex: 1 1 auto;/m.test(styles)],
   ['y el logo ya no reserva el ancho del texto que se quito, en la regla base', !/^\.brand \{[^}]*min-width: 205px/m.test(styles) && !/^\.instance-tabbar \{[^}]*max-width/m.test(styles)],
   ['la pestaña principal lleva el logo del juego desde los assets, no un favicon que no llega', /\.instance-tab-icon-logo \{[^}]*idle-poke-logo-512\.png/.test(styles) && /if \(instanceId === PRIMARY_BROWSER_INSTANCE_ID\) \{[\s\S]{0,200}instance-tab-icon-logo/.test(renderer)],
