@@ -10,7 +10,7 @@
 # asi que el script no falla nunca: escribe el resultado de cada una y sigue, para que se vea el
 # panorama entero en vez de solo el primer fallo.
 $ErrorActionPreference = 'Continue'
-$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0350.txt'
+$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0360.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
@@ -33,7 +33,8 @@ $pruebas = @(
   @{ nombre = 'sondeos-visibles';   comando = 'tests\lanzar.cjs'; args = @('tests\sondeos-visibles-smoke.js');      espera = 100 },
   @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
   @{ nombre = 'usuarios';          comando = 'tests\lanzar.cjs'; args = @('tests\userscripts-manager-smoke.js');  espera = 120 },
-  @{ nombre = 'cuentas-iconos-0340'; comando = 'tests\lanzar.cjs'; args = @('tests\cuentas-iconos-0340-smoke.js'); espera = 100 }
+  @{ nombre = 'cuentas-iconos-0340'; comando = 'tests\lanzar.cjs'; args = @('tests\cuentas-iconos-0340-smoke.js'); espera = 100 },
+  @{ nombre = 'sesiones-0360';      comando = 'tests\lanzar.cjs'; args = @('tests\sesiones-compartidas-0360-smoke.js'); espera = 80 }
 )
 # `verificar-paquete` y `comprobar-entrega` NO estan aqui a proposito. Comprueban el ARTEFACTO, y antes
 # de compilar mirarian el build de la entrega anterior: darian verde —o fallarian— por un fichero que
@@ -90,3 +91,4 @@ if ($fallos.Count) {
   Add-Content -Path $salida -Value ('las ' + $pruebas.Count + ' pasan') -Encoding utf8
 }
 'LISTO' | Out-File -Encoding utf8 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-fin.txt'
+

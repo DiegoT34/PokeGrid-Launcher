@@ -7,6 +7,83 @@ Las versiones van en orden. La carpeta `dist/` conserva todas; nada se sustituye
 
 ---
 
+## 0.36.0 — sesiones compartidas, el farmeo en pestañas y los botones agrupados
+
+### Sesiones compartidas
+
+Cada ventana tiene su propia sesión, y eso es lo que permite tener dos cuentas distintas de la misma
+web en dos ventanas a la vez. Pero quería lo contrario para Google, el correo o el banco: entrar una vez
+y tenerlo en todas. Ahora cada ventana elige.
+
+| | Partición |
+|---|---|
+| **Propia** *(por defecto, como siempre)* | `persist:pokegrid-instance-<id>-<n>` |
+| **Compartida** | `persist:pokegrid-compartida`, la misma para todas las marcadas |
+
+Las cuentas del juego **no se tocan**: siguen con `persist:pokegrid-<cuenta>`, que es la función del
+launcher. Solo setocan las ventanas de navegador.
+
+**El nombre de la partición compartida es una decisión de seguridad.** Al cerrar una instancia se borra
+su partición del disco, y ese borrado filtra por el prefijo `persist:pokegrid-instance-`. Si la
+compartida se llamara `instance-compartida`, entraría en el filtro y **al cerrar una sola ventana se le
+borrarían las cookies a todas las demás**. Por eso se llama `compartida`: no casa con ese prefijo, y el
+borrado la ignora por construcción y no por una condición que alguien pueda olvidar. La prueba lo
+comprueba.
+
+Lo que no viene marcado se queda en `propia`: una ventana creada antes de esto debe seguir viendo lo
+mismo al reiniciar.
+
+### El farmeo en modo pestañas
+
+El sondeo de cada cinco segundos solo leía las cuentas **a la vista**. En rejilla eso son todas; en
+pestañas es una sola, y las demás nunca se leían: el farmeo no tenía con qué trabajar.
+
+Ahora se leen todas **cuando el farmeo está en uso** —el selector abierto o alguna cuenta farmeando— y
+solo entonces. Quitar la guarda a secas habría devuelto el gasto de CPU y memoria que la 0.31.0 quitó,
+y se notaría justo cuando no se está farmeando.
+
+Una duda que documenta el código porque todo el mundo la tiene al leerlo: **se puede leer una pantalla
+«dormida»**. `duermirPanel` pone la atenuación de fondo, que en Electron solo ralentiza temporizadores
+y animaciones; no apaga la pantalla ni le bloquea el JavaScript. Por eso `executeJavaScript` sigue
+devolviendo el DOM real de una cuenta dormida.
+
+### Los botones `+` y `−`
+
+Segecían mal por dos motivos encadenados. Primero iban en mitad de la barra, pegados al nombre. Luego,
+al moverlos detrás de los botones, seguían sueltos: la barra era `justify-content: space-between` con
+cuatro hijos, y eso reparte el hueco **entre todos** en vez de dejárselo al nombre. Ahora el nombre
+ocupa el sobrante y los tres grupos quedan juntos al final.
+
+### WhatsApp Web: la causa está confirmada, el arreglo no cabe
+
+**Medido en una pantalla real:**
+
+```
+User-Agent:  … Chrome/150.0.7871.114 Electron/43.1.1 …
+marcas:      Not;A=Brand 8   ·   Chromium 150
+```
+
+Un sitio busca la marca literal `Google Chrome`. Chromium se anuncia como `Chromium`. No la encuentra y
+muestra el cartel. **Por eso limpiar la cadena del User-Agent no lo arregla**: son dos mecanismos
+distintos, y el launcher ya limpiaba el primero.
+
+Se probaron tres vías y **ninguna** sirve desde el preload:
+
+| Vía | Resultado |
+|---|---|
+| `webFrame.executeInMainWorld` | **No existe** en Electron 43. El código no hacía nada y el `try/catch` se lo tragó: el síntoma era idéntico a no hacer nada. |
+| Parchear la instancia de `userAgentData` | **Falso positivo.** `navigator.userAgentData` devuelve un objeto distinto en cada acceso, así que el parche solo valía dentro de la misma ejecución. |
+| Parchear el prototipo inyectando un `<script>` | **Se ejecuta pero se pierde.** Llega, pero al navegar se crea un contexto nuevo y el getter vuelve a ser el nativo de Chromium. Comprobado: `getterEsNativo: true`. |
+
+Lo que **sí funciona** es parchear el prototipo desde el mundo principal con la página ya cargada: da
+`Not;A=Brand, Chromium, Google Chrome`.
+
+Queda pendiente hacerlo por cada webview y en cada navegación, desde el renderer. El riesgo —que el
+sitio lea la marca antes de que llegue el parche— solo se mide abriendo WhatsApp Web de verdad, así que
+no se ha aplicado a ciegas.
+
+---
+
 ## 0.35.0 — la barra, el arrastre, las cuentas y el modal de nueva pestaña
 
 ### El título de Notificaciones tapado por la campana

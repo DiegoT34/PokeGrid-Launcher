@@ -46,7 +46,12 @@ const QUE_SI = [
   ['el sondeo de capturas solo con la pantalla a la vista', /if \(!panelEstaEnPantalla\(panel\)\) return;/, renderer],
   ['el registro de capturas tambien', /panel\.captureLogOpen && panelEstaEnPantalla\(panel\)/, renderer],
   ['el analizador tambien', /panel\.huntOpen && panelEstaEnPantalla\(panel\)/, renderer],
-  ['el sondeo de farmeo tambien', /accountIndex === null && !panelEstaEnPantalla\(panel\)/, renderer],
+  // Esta invariante es de la 0.31.0 y sigue siendo importante: el sondeo no debe leer cuentas que no se
+    // estan mirando. Lo que cambio en la 0.36.0 es que se salta SOLO cuando el farmeo esta en uso, que es
+    // cuando de verdad hace falta leer todas. Se comprueba la forma nueva, que es la que hay, y el
+    // significado que se pierde al hacerlo —el camino barato— se comprueba aparte.
+    ['el sondeo de farmeo tampoco', /accountIndex === null && !leerTodas && !panelEstaEnPantalla\(panel\)/, renderer],
+    ['y el camino barato se decide antes del bucle', /if \(accountIndex === null && !leerTodas/, renderer],
   ['el archivo de capturas ya no se copia entero cada tic', /const indiceEstable = \(\) => \{/, renderer],
   ['el relleno del acceso tiene expiration', /__pokeGridSubmitWatcherVence/, renderer],
   ['el tope del archivo de iconos', /const ICONOS_EN_CACHE = \d+;/, mainProceso],
@@ -73,6 +78,22 @@ const QUE_SI = [
     ['y se quita al salir', /shell\.classList\.remove\('is-destino'\)/, renderer],
     ['los mas y menos van detras de los botones', /panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/, renderer],
     ['el numero de la cuenta se escribe por posicion', /row\.dataset\.accountIndex = String\(index \+ 1\)/, renderer],
+
+    // ---- 0.36.0: sesiones compartidas, farmeo en pestañas y los botones agrupados
+    ['las sesiones de instancia son dos', /const SESIONES_DE_INSTANCIA = Object\.freeze\(\['propia', 'compartida'\]\)/, renderer],
+    ['y el valor por defecto es aislada', /const SESION_POR_DEFECTO = 'propia'/, renderer],
+    ['la compartida NO lleva el prefijo que se borra al cerrar', /const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida'/, renderer],
+    ['y el borrado sigue filtrando solo por el prefijo de instancia', /\.filter\(\(particion\) => particion\.startsWith\('persist:pokegrid-instance-'\)\)/, renderer],
+    ['la particion respeta la opcion', /opciones\.sesion === 'compartida'\) return PARTICION_COMPARTIDA/, renderer],
+    ['y se pasa al crear la pantalla', /browserInstancePartition\(instance\.id, index, instance\)/, renderer],
+    ['el interruptor existe en el HTML', /id="browserInstanceSesionCompartida"/, html],
+    ['y se guarda al crear la ventana', /browserInstanceSesionCompartida\?\.checked \? 'compartida'/, renderer],
+    ['el texto explica la consecuencia, no solo el estado', /explicarSesionCompartida\(browserInstanceSesionCompartida\.checked\)/, renderer],
+    ['el farmeo decide una vez por pasada si lee todas', /const leerTodas = farmeoEstaEnUso\(\);/, renderer],
+    ['y se averigua por el selector o por una cuenta farmeando', /panel\.farmRunState === 'ok' \|\| panel\.farmRunState === 'busy'/, renderer],
+    ['la guarda respeta ese decision', /!leerTodas && !panelEstaEnPantalla\(panel\)/, renderer],
+    ['los botones van detras de la barra y el nombre toma el hueco', /identity\.style\.flex = '1 1 auto';[\s\S]{0,90}panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/, renderer],
+    ['y la barra ya no reparte el hueco entre todos', /\.browser-instance-panelbar \{[^}]*justify-content: flex-start/, styles],
     ['el icono de la lupa esta en la tabla', /search: '<circle cx="11"/, renderer],
     ['y se expone para el centro de scripts', /window\.launcherUiIcon = launcherUiIcon;/, renderer]
 ];
@@ -82,6 +103,10 @@ const QUE_NO = [
   ['la preferencia que prohibia atenuar', /backgroundThrottling: false/, mainProceso],
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer],
+
+    // ---- 0.36.0: lo que tiene que haber desaparecido
+    ['la particion compartida con el prefijo que se borra', /PARTICION_COMPARTIDA = 'persist:pokegrid-instance-compartida'/, renderer],
+    ['el reparto del hueco entre los cuatro hijos de la barra', /justify-content: space-between;\s*gap: 8px;\s*border-bottom: 1px solid #2a3035/, styles],
 
     // ---- 0.35.0: lo que tiene que haber desaparecido
     ['el nombre obligatorio del modal', /browserInstanceName\.required/, usuarios + renderer],

@@ -155,7 +155,9 @@ const DESCANSO_QUE_SI = [
   ['el sondeo de capturas solo con la pantalla a la vista', /if \(!panelEstaEnPantalla\(panel\)\) return;/, renderer],
   ['el registro de capturas tambien', /panel\.captureLogOpen && panelEstaEnPantalla\(panel\)/, renderer],
   ['el analizador tambien', /panel\.huntOpen && panelEstaEnPantalla\(panel\)/, renderer],
-  ['el sondeo de farmeo tambien', /accountIndex === null && !panelEstaEnPantalla\(panel\)/, renderer],
+  // El sondeo no debe leer cuentas que no se estan mirando. Desde la 0.36.0 solo se salta esa lectura
+  // cuando el farmeo esta EN USO, que es cuando hace falta leer todas; la forma nueva lo dice.
+  ['el sondeo de farmeo tambien', /accountIndex === null && !leerTodas && !panelEstaEnPantalla\(panel\)/, renderer],
   ['el archivo de capturas ya no se copia entero cada tic', /const indiceEstable = \(\) => \{/, renderer],
   ['el relleno del acceso tiene expiration', /__pokeGridSubmitWatcherVence/, renderer],
   ['el tope del archivo de iconos', /const ICONOS_EN_CACHE = \d+;/, mainProceso],
@@ -167,6 +169,46 @@ const DESCANSO_QUE_NO = [
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
+
+console.log('\n0.36.0 — sesiones compartidas, farmeo en pestañas y botones agrupados:');
+const SESIONES_5360 = [
+  ['las sesiones de instancia son dos', /const SESIONES_DE_INSTANCIA = Object\.freeze\(\['propia', 'compartida'\]\)/.test(renderer)],
+  ['y el valor por defecto es aislada', /const SESION_POR_DEFECTO = 'propia'/.test(renderer)],
+  ['la compartida no lleva el prefijo que se borra al cerrar',
+    /const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida'/.test(renderer)
+    && !/PARTICION_COMPARTIDA = 'persist:pokegrid-instance/.test(renderer)],
+  ['el borrado sigue filtrando solo por el prefijo de instancia',
+    /\.filter\(\(particion\) => particion\.startsWith\('persist:pokegrid-instance-'\)\)/.test(renderer)],
+  ['la particion respeta la opcion',
+    /opciones\.sesion === 'compartida'\) return PARTICION_COMPARTIDA/.test(renderer)],
+  ['y se pasa la instancia al crear la pantalla',
+    /browserInstancePartition\(instance\.id, index, instance\)/.test(renderer)],
+  ['el interruptor existe en el HTML', /id="browserInstanceSesionCompartida"/.test(html)],
+  ['y se guarda al crear la ventana',
+    /browserInstanceSesionCompartida\?\.checked \? 'compartida' : SESION_POR_DEFECTO/.test(renderer)],
+  ['el texto explica la consecuencia', /explicarSesionCompartida\(browserInstanceSesionCompartida\.checked\)/.test(renderer)],
+  ['el interruptor se desmarca al abrir', /browserInstanceSesionCompartida\.checked = false;/.test(renderer)],
+
+  ['el farmeo decide una vez por pasada si lee todas', /const leerTodas = farmeoEstaEnUso\(\);/.test(renderer)],
+  ['y lee todo con el selector abierto o una cuenta farmeando',
+    /if \(!farmPickerLayer\.hidden\) return true;/.test(renderer)
+    && /panel\.farmRunState === 'ok' \|\| panel\.farmRunState === 'busy'/.test(renderer)],
+  ['pero sigue habiendo camino barato cuando no se farmea',
+    /if \(accountIndex === null && !leerTodas && !panelEstaEnPantalla/.test(renderer)],
+  ['la identidad de la cuenta no se toca para nada de esto',
+    /if \(panel\.instanceId === activeBrowserInstanceId\) return true;/.test(renderer)],
+
+  ['los botones van detras de la barra de acciones',
+    /panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/.test(renderer)],
+  ['y el nombre se lleva el hueco sobrante', /identity\.style\.flex = '1 1 auto';/.test(renderer)],
+  ['la barra ya no reparte el hueco entre los cuatro',
+    /\.browser-instance-panelbar \{[^}]*justify-content: flex-start/.test(styles)],
+  ['el interruptor de sesion tiene estilo', /\.switch-line \{/.test(styles)]
+];
+for (const [que, ok] of SESIONES_5360) {
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
 
 console.log('\n0.35.0 — la barra, el arrastre, las cuentas y el modal de nueva pestaña:');
 const BARRA_5350 = [

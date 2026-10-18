@@ -929,12 +929,17 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .accounts-view-switch button.is-activa { background: var(--accent); color: #fff; }
 .modal-heading-actions { display: inline-flex; align-items: center; gap: 10px; }
 
+/* La barra del panel de una instancia.
+   `justify-content: space-between` con cuatro hijos reparte el hueco ENTRE TODOS ellos, asi que el
+   nombre se iba a la izquierda, la barra de botones al centro y el + y el - sueltos mas a la derecha,
+   sin formar grupo. Con `identity` ocupando el sobrante (arriba, al final del bloque) los tres grupos
+   de botones quedan juntos al final de la fila, que es donde se busca uno. */
 .browser-instance-panelbar {
   min-height: 41px;
   padding: 5px 7px 5px 9px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   border-bottom: 1px solid #2a3035;
   background: #1b1f22;
@@ -2693,6 +2698,30 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .script-auto-target.is-pending { grid-column: 1 / -1; border-color: #6a5630; background: #2b2416; color: #f0c96d; }
 .script-permission-chip.is-game { border-color: #27617b; background: #0d2b3a; color: #6ee0f6; }
 .script-shop-tags span.is-game { border: 1px solid #28627b; background: #0b2b3b; color: #72dcf3; }
+/* El interruptor de sesion compartida, en el modal de nueva ventana. Es una fila con la casilla y el
+   texto al lado, no un boton: el estado se ve en la propia casilla y no hace falta abrirla. */
+.switch-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #22384f;
+  border-radius: 8px;
+  background: #07131e;
+  cursor: pointer;
+  color: #cbdbe8;
+  font-size: 9px;
+  font-weight: 700;
+}
+.switch-line:hover { border-color: #35536f; background: #0a1826; }
+.switch-line input { width: 15px; height: 15px; margin: 0; accent-color: #3f9fd0; cursor: pointer; }
+.switch-line:has(input:checked) { border-color: #2f6a8c; background: #0c2334; color: #e3f1f9; }
+
+/* El texto de ayuda va debajo y en mas claro: explica la consequence, no lo que ya se ve. */
+.field-help { color: #7e97ad; font-size: 8px; line-height: 1.35; }
+.browser-instance-sesion-field { gap: 5px; }
+
 /* Los iconos de la lupa del buscador y del boton «Verificar» de la Shop eran emoji. Mismo cambio que en
    el resto: un SVG necesita su tamaño en pixeles o se dibuja al tamano del viewport. */
 .script-shop-search .launcher-ui-icon { width: 14px; height: 14px; flex: none; }

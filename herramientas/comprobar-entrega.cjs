@@ -53,7 +53,9 @@ const DE_HOY = [
   ['que al minimizar se duerma todo', 'dormirTodosLosInvitados'],
   ['los sondeos solo con la pantalla a la vista', 'panel.captureLogOpen && panelEstaEnPantalla'],
   ['el analizador tambien', 'panel.huntOpen && panelEstaEnPantalla'],
-  ['y el sondeo de farmeo tambien', 'accountIndex === null && !panelEstaEnPantalla'],
+  // El sondeo no debe leer cuentas que no se estan mirando. Desde la 0.36.0 solo se salta esa lectura
+  // cuando el farmeo esta EN USO, que es cuando hace falta leer todas; la forma nueva lo dice.
+  ['y el sondeo de farmeo tambien', 'accountIndex === null && !leerTodas && !panelEstaEnPantalla'],
   ['el archivo de capturas ya no se copia entero cada tic', 'indiceEstable'],
   ['el relleno del acceso tiene hora de expiration', '__pokeGridSubmitWatcherVence'],
   ['el tope del archivo de iconos', 'ICONOS_EN_CACHE'],

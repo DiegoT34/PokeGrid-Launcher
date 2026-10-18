@@ -159,6 +159,8 @@ const browserInstanceModeInstancia = document.querySelector('#browserInstanceMod
 const browserInstanceModeNavegador = document.querySelector('#browserInstanceModeNavegador');
 const browserInstanceNameField = document.querySelector('.browser-instance-name-field');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
+const browserInstanceSesionCompartida = document.querySelector('#browserInstanceSesionCompartida');
+const browserInstanceSesionHelp = document.querySelector('#browserInstanceSesionHelp');
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
 const instanceSettingsShortcut = document.querySelector('#instanceSettingsShortcut');
@@ -6299,16 +6301,50 @@ async function refreshFarmData() {
   renderFarmAccounts();
   if (!farmPickerLayer.hidden) renderFarmPicker();
 }
+// ¿Hay que leer todas las cuentas o solo la que se está mirando?
+//
+// Por defecto, solo la visible: es lo que hace barato al sondeo de cada cinco segundos, y es el
+// trabajo de la 0.31.0. Pero en modo PESTAÑAS solo hay una cuenta a la vista, y el farmeo necesita el
+// equipo de todas: sin esto, en pestañas no se leía ninguna y el modo no tenia con qué trabajar. Por eso
+// la pregunta se hace aquí y no dentro del bucle.
+//
+// Se lee todo cuando el farmeo esta EN USO —el selector abierto o alguna cuenta farmeando—, y solo
+// entonces. Quitar la guarda a secas seria devolver el gasto de CPU y memoria que la 0.31.0 quito, y
+// se notaria justo cuando no se esta farmeando, que es la mayor parte del tiempo.
+// Lo que dice el interruptor de sesion compartida. Se escribe aqui y no en el HTML porque el texto
+// tiene que describir lo que va a pasar de verdad, que depende de si hay mas ventanas marcadas:
+// decir «compartida» cuando no hay con quien compartir es mentir.
+function explicarSesionCompartida(marcada) {
+  const campo = browserInstanceSesionHelp;
+  if (!campo) return;
+  campo.textContent = marcada
+    ? 'Todas las ventanas marcadas comparten sesion: entras una vez y ya lo tienes en las demas.'
+    : 'Esta ventana va sola: puedes tener cuentas distintas en cada una.';
+}
+
+// QUE SE PUEDA LEER UNA PANTALLA «DORMIDA»: `duermirPanel` pone la atenuacion de fondo, que en
+  // Electron solo ralentiza los temporizadores y las animaciones de una pantalla que no se ve. NO la
+  // apaga ni le bloquea el JavaScript. Por eso `executeJavaScript` sigue devolviendo el estado real del
+  // DOM de una cuenta dormida, y leerla da lo mismo que leerla despierta. Si esto dejara de ser cierto,
+  // el fallo seria «el farmeo lee el equipo antiguo», y se veria en que no cambia al cambiar de equipo.
+  function farmeoEstaEnUso() {
+  if (!farmPickerLayer.hidden) return true;
+  return panels.some((panel) => panel.farmRunState === 'ok' || panel.farmRunState === 'busy');
+}
+
 async function refreshFarmContexts({ render = true, forcePokes = false, accountIndex = null } = {}) {
   if (farmContextPollBusy) return farmContexts;
   farmContextPollBusy = true;
   try {
+    // Se calcula UNA vez para toda la pasada. Si se calculara por pantalla, abrir el selector a
+    // mitad de la pasada haria que unas cuentas se leyeran y otras no, sin motivo.
+    const leerTodas = farmeoEstaEnUso();
     const contexts = await Promise.all(panels.map(async (panel, index) => {
       if (accountIndex !== null && index !== accountIndex) return farmContexts[index];
-        // El sondeo de cada cinco segundos solo lee las cuentas que se están mirando. Cuando se pide
-        // UNA cuenta concreta —el boton de forzar— esa se lee aunque no sea la activa, porque la
-        // acaba de pedir el usuario.
-        if (accountIndex === null && !panelEstaEnPantalla(panel)) return farmContexts[index];
+        // El sondeo de cada cinco segundos solo lee las cuentas que se están mirando, salvo que el
+        // farmeo este en uso. Cuando se pide UNA cuenta concreta —el boton de forzar— esa se lee
+        // aunque no sea la activa, porque la acaba de pedir el usuario.
+        if (accountIndex === null && !leerTodas && !panelEstaEnPantalla(panel)) return farmContexts[index];
       try {
         if (!panelDentroDelJuego(panel)) {
           return { level: null, location: '', ready: false, leader: null };
@@ -8391,6 +8427,21 @@ const MODOS_DE_APERTURA = Object.freeze(['auto', 'panel', 'ventana']);
 const MODOS_DE_INSTANCIA = Object.freeze(['navegador', 'instancia']);
 const MODO_POR_DEFECTO = 'instancia';
 
+// La sesion de una instancia, desde la 0.36.0. «propia» es como ha funcionado siempre y es el valor
+// por defecto; «compartida» hace que varias ventanas usen la misma sesion y asi entras una vez en
+// Google, en el correo o en el banco y ya lo tienes en las demas.
+//
+// Lo que no venga se queda en `propia`. Una ventana creada antes de esto debe seguir viendo lo mismo
+// al reiniciar: cambiarle la sesion sin querer seria perder los sitios donde habias entrado.
+const SESIONES_DE_INSTANCIA = Object.freeze(['propia', 'compartida']);
+const SESION_POR_DEFECTO = 'propia';
+
+// El nombre de la sesion compartida. NO lleva el prefijo `instance-` a proposito: el borrado de
+// particiones al cerrar una ventana filtra por `persist:pokegrid-instance-`, y si esta lo llevara,
+// cerrarle la ventana a una le borraria las cookies a todas las demas. Se explica en
+// `browserInstancePartition`.
+const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida';
+
 function normalizarOpcionesDeInstancia(valor) {
   const opciones = valor && typeof valor === 'object' ? valor : {};
   // Lo que no viene en una instancia guardada antes de esto se rellena aqui, y no se reescribe
@@ -8407,7 +8458,8 @@ function normalizarOpcionesDeInstancia(valor) {
     ? opciones.apertura
     : APERTURA_POR_DEFECTO;
   const inicio = String(opciones.inicio || '').slice(0, 1000);
-  return { modo, buscador, apertura, inicio };
+  const sesion = SESIONES_DE_INSTANCIA.includes(opciones.sesion) ? opciones.sesion : SESION_POR_DEFECTO;
+  return { modo, buscador, apertura, inicio, sesion };
 }
 
 // El modo se lee con esta pregunta y no comparando el campo de antes, porque un sitio u otro
@@ -8502,7 +8554,29 @@ function loadBrowserInstances() {
 function saveBrowserInstances() {
   localStorage.setItem(BROWSER_INSTANCES_KEY, JSON.stringify(browserInstances));
 }
-function browserInstancePartition(instanceId, index) {
+// La particion de una pantalla de instancia.
+//
+// DOS COSAS QUE NO SON INTERCAMBIABLES, Y POR QUE ESTAN EN ESTA FUNCION:
+//
+//  1. Cada ventana tiene su propia sesion —`persist:pokegrid-instance-…`— y eso es lo que permite
+//     tener dos cuentas distintas de la misma web en dos ventanas a la vez.
+//
+//  2. Una ventana puede pedir la sesion COMPARTIDA: todas las que la piden usan la misma, y con eso
+//     entras una vez en Google, en el correo o en el banco y ya lo tienes en las demas. Sin eso, cada
+//     ventana pide su correo otra vez, que es lo que hacia.
+//
+// EL NOMBRE DE LA PARTICION COMPARTIDA ES UNA DECISION DE SEGURIDAD, NO UN GUSTO.
+//
+// Al cerrar una instancia se borra su particion del disco para no dejar folders sin usar, y ese
+// borrado filtra por el prefijo `persist:pokegrid-instance-`. Si la compartida se llamara
+// `instance-compartida`, entraria en ese filtro y al cerrar UNA ventana se le borrarian las cookies a
+// TODAS las demas. Por eso se llama `compartida`: no casa con el prefijo de borrado, asi que el
+// borrado la ignora por construccion y no por una condicion que alguien pueda olvidar.
+//
+// Y las cuentas del juego NO pasan por aqui: usan `persist:pokegrid-<cuenta>` y quedan aisladas
+// siempre. Es la funcion del launcher y no se toca por esto.
+function browserInstancePartition(instanceId, index, opciones = {}) {
+  if (opciones && opciones.sesion === 'compartida') return PARTICION_COMPARTIDA;
   const safeId = String(instanceId).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
   return `persist:pokegrid-instance-${safeId}-${index + 1}`;
 }
@@ -9860,13 +9934,19 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   // botones de la derecha, que es el hueco mas a la izquierda de la barra: se veian pegados al
   // nombre, en mitad de la pantalla, y no se entendian de que eran. Ahora se juntan a los demas
   // botones de la pantalla, que es donde ya se busca uno cuando se quiere algo asi.
+  //
+  // Y el nombre se lleva el hueco sobrante, que es lo que de verdad los AGRUPA a la derecha. La barra
+  // era `space-between`: con cuatro hijos, el hueco se repartia entre todos en lugar de dejarse para el
+  // nombre, y los botones quedaban desperdigados. Sin esta linea el + y el - salen sueltos despues de
+  // la barra de botones, que es exactamente el problema de antes.
+  identity.style.flex = '1 1 auto';
   panelbar.append(identity, actions, masPantallaButton, menosPantallaButton);
   const host = document.createElement('div');
   host.className = 'browser-instance-webview-host';
   const webview = document.createElement('webview');
   const guestPreloadUrl = window.pokeGridUserScriptManager?.getGuestPreloadUrl();
   if (guestPreloadUrl) webview.setAttribute('preload', guestPreloadUrl);
-  const particionDelPanel = particionDePartida || browserInstancePartition(instance.id, index);
+  const particionDelPanel = particionDePartida || browserInstancePartition(instance.id, index, instance);
   webview.setAttribute('partition', particionDelPanel);
   // El modo de apertura se manda ANTES de que la webview cargue nada. El proceso principal lo
   // necesita de antemano: el manejador de apertura tiene que responder en el momento y no puede
@@ -10552,6 +10632,10 @@ function openBrowserInstanceModal() {
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
   browserInstanceMode.value = MODO_POR_DEFECTO;
+  // El interruptor de sesion se desmarca al abrir: si no, marcaste una vez y todas las siguientes
+  // ventanas nacen compartidas sin haberlo pedido.
+  browserInstanceSesionCompartida.checked = false;
+  explicarSesionCompartida(false);
   // Sin esta llamada, los campos se quedaban como estaban de la ultima vez. Con el modo por defecto
   // en «navegador», la URL seguia siendo obligatoria y ambos campos a la vista, que es justo lo que
   // se pidio quitar. Los valores se limpian arriba, pero el modo hay que aplicarlo.
@@ -11634,6 +11718,13 @@ for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]
 }
 sincronizarModoElegido();
 
+// El interruptor de sesion compartida. Solo cambia el texto de ayuda: la sesion se aplica al crear la
+// ventana, y cambiarla despues obligaria a reconstruir las pantallas —que es lo que hace perder las
+// webs abiertas— asi que en el modal solo se elige al principio.
+browserInstanceSesionCompartida?.addEventListener('change', () => {
+  explicarSesionCompartida(browserInstanceSesionCompartida.checked);
+});
+
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
   browserInstanceMessage.classList.remove('is-ok');
@@ -11649,6 +11740,9 @@ browserInstanceForm.addEventListener('submit', (event) => {
       // el motor tiene su boton en la barra de cada pantalla.
       buscador: BUSCADOR_POR_DEFECTO,
       apertura: APERTURA_POR_DEFECTO,
+    // La sesion se decide aqui y no se deduce de nada: se elige ventana a ventana. Apagada por
+    // defecto, que es como ha funcionado siempre.
+    sesion: browserInstanceSesionCompartida?.checked ? 'compartida' : SESION_POR_DEFECTO,
       // En modo navegador el enlace es opcional: si se escribe, se arranca ahi; si no, en el
       // buscador. El campo se esconde en cuanto se elige ese modo, asi que aqui llega vacio.
       inicio: browserInstanceUrl.value
