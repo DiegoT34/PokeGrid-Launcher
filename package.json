@@ -11,7 +11,7 @@
   },
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/guest-preload.js && node --check src/pokepedia-preload.js && node --check src/game-theme.js && node --check src/userscripts.js && node --check src/userscript-network.js && node --check src/account-model.js && node --check src/account-transfer.js && node --check src/updater.js && node --check src/renderer.js && node --check src/guest-preload.js && node --check scripts/run-tests.cjs",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/guest-preload.js && node --check src/pokepedia-preload.js && node --check src/game-theme.js && node --check src/userscripts.js && node --check src/userscript-network.js && node --check src/account-model.js && node --check src/account-transfer.js && node --check src/updater.js && node --check src/perfiles-sesion.js && node --check src/renderer.js && node --check src/guest-preload.js && node --check scripts/run-tests.cjs",
     "test:injection": "electron tests/panel-injection-smoke.js",
     "test:hunt-reader": "electron tests/hunt-analyzer-reader-smoke.js",
     "test:hunt-ui": "electron tests/hunt-account-redesign-smoke.js",

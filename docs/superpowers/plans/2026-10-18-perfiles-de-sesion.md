@@ -1,6 +1,6 @@
 # Perfiles de sesión — Plan de implementación
 
-> **Para trabajadores agénticos:** SUB-HABILIDAD OBLIGATORIA: usa `superpowers:subagent-driven-development` (recomendado) o `superpowers:executing-plans` para implementar este plan tarea a tarea. Los pasos usan casillas (`- [ ]`) para llevar el seguimiento.
+> **Para trabajadores agénticos:** SUB-HABILIDAD OBLIGATORIA: usa `superpowers:subagent-driven-development` (recomendado) o `superpowers:executing-plans` para implementar este plan tarea a tarea. Los pasos usan casillas (`- [x]`) para llevar el seguimiento.
 
 **Objetivo:** Que todas las ventanas de navegador compartan una sesión con nombre —como los perfiles de Chrome— y que se pueda elegir con cuál trabaja cada ventana.
 
@@ -72,7 +72,7 @@ acceso al mundo se hace igual que en `iconos-comunes.js`: una IIFE que se expone
 
 ---
 
-- [ ] **Paso 1: escribir la prueba que falla**
+- [x] **Paso 1: escribir la prueba que falla**
 
 Crear `tests/perfiles-almacen-smoke.js`:
 
@@ -141,14 +141,14 @@ app.whenReady().then(async () => {
 });
 ```
 
-- [ ] **Paso 2: ejecutarla y ver que falla**
+- [x] **Paso 2: ejecutarla y ver que falla**
 
 ```
 node tests\lanzar.cjs tests\perfiles-almacen-smoke.js
 ```
 Esperado: FALLA con «el módulo se expone en window · false». Si pasa, el fichero `src/perfiles-sesion.js` ya existe de antes y hay que mirar por qué.
 
-- [ ] **Paso 3: escribir el almacén**
+- [x] **Paso 3: escribir el almacén**
 
 Crear `src/perfiles-sesion.js`:
 
@@ -265,7 +265,7 @@ Crear `src/perfiles-sesion.js`:
 })();
 ```
 
-- [ ] **Paso 4: cargarlo en el HTML**
+- [x] **Paso 4: cargarlo en el HTML**
 
 En `src/index.html`, el bloque de `<script src>` va de la línea 775 a la 782. Añadir el nuevo **antes**
 de `renderer.js`, que es la 782 —el orden importa: `renderer.js` llama a `pokeGridPerfiles` al leer las
@@ -276,7 +276,7 @@ ventanas, y si el almacén no está delante, aún no existe:
     <script src="renderer.js"></script>
 ```
 
-- [ ] **Paso 5: meterlo en `npm run check`**
+- [x] **Paso 5: meterlo en `npm run check`**
 
 El script `check` de `package.json` enumera los ficheros de `src/` uno a uno. Si el nuevo no entra, un
 `node --check` de más tarde puede no mirarlo nunca:
@@ -291,21 +291,21 @@ Comprobar que la cola del script sale así:
 ... && node --check src/perfiles-sesion.js && node --check src/renderer.js && ...
 ```
 
-- [ ] **Paso 6: ejecutar la prueba y ver que pasa**
+- [x] **Paso 6: ejecutar la prueba y ver que pasa**
 
 ```
 node tests\lanzar.cjs tests\perfiles-almacen-smoke.js
 ```
 Esperado: las 10 comprobaciones en `ok`, `comprobaciones fallan: 0`.
 
-- [ ] **Paso 7: comprobar la sintaxis de todo**
+- [x] **Paso 7: comprobar la sintaxis de todo**
 
 ```
 npm run check
 ```
 Esperado: sale con 0.
 
-- [ ] **Paso 8: confirmar**
+- [x] **Paso 8: confirmar**
 
 ```bash
 git add src/perfiles-sesion.js src/index.html package.json tests/perfiles-almacen-smoke.js
