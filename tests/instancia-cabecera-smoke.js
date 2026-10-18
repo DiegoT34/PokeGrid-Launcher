@@ -61,10 +61,18 @@ app.whenReady().then(async () => {
     console.log('--- 1. las pestañas reparten el ancho ---');
     const ancho = await ventana.webContents.executeJavaScript(`(() => {
       const salida = {};
-      const marca = document.querySelector('.brand');
       const barra = document.querySelector('#instanceTabbar');
-      salida.logoMin = getComputedStyle(marca).minWidth;
-      salida.logoOcupado = Math.round(marca.getBoundingClientRect().width);
+      // El logo de la esquina se fue en la 0.35.0 y con el se fue el elemento .brand. Esta prueba
+      // seguia midiendo el, y getComputedStyle(null) revienta: por eso toda la seccion de anchos
+      // fallaba de golpe, sin decir cual de las tres comprobaciones era la culpable.
+      //
+      // Sin acentos graves en este comentario: va dentro de una plantilla, y uno cierra la cadena
+      // antes de tiempo. Ya ha pasado dos veces en este repositorio.
+      //
+      // En vez de quitar las comprobaciones —que seria tirar la vigilancia en silencio— se pide que el
+      // logo NO este. Es lo mismo que vigila comprobar-patrones, pero aqui sobre el arbol ya
+      // construido, que es donde se nota si alguien lo colara de otra manera.
+      salida.hayMarca = Boolean(document.querySelector('.brand'));
       salida.barraMax = getComputedStyle(barra).maxWidth;
 
       // Un ancho conocido, para que la medida no dependa de la ventana del agente.
@@ -120,20 +128,28 @@ app.whenReady().then(async () => {
     });
 
     if (ancho) {
-      comprobar(ancho.logoMin === '0px' || ancho.logoMin === 'auto',
-        'el logo ya no reserva el ancho del texto que se quitó', `min-width: ${ancho.logoMin}`);
-      comprobar(ancho.logoOcupado <= 48,
-        'y ocupa solo lo que ocupa el logo', `${ancho.logoOcupado} px`);
+      comprobar(!ancho.hayMarca,
+        'el logo de la esquina sigue fuera: se fue en la 0.35.0 y no ha vuelto');
       comprobar(ancho.barraMax === 'none',
         'la lista de pestañas ya no tiene el tope de 680 px', `max-width: ${ancho.barraMax}`);
-      comprobar(ancho.conDos.primera === ancho.conCinco.primera
-        && ancho.conDos.primera >= 132 && ancho.conDos.primera <= 240,
-        'una pestaña mide lo mismo con dos que con cinco: no se reparten el ancho, se dimensionan a su nombre',
-        `la misma pestaña: ${ancho.conDos.primera} px con dos, ${ancho.conCinco.primera} px con cinco`);
-      comprobar(ancho.conDos.max <= 240 && ancho.conCinco.max <= 240,
+
+      // MINIMO 128 y MAXIMO 230, no 132 y 240. Hay DOS reglas de `.instance-tab-shell` en la hoja:
+      // la de arriba (min 132 / max 240 / flex 0 1 auto) y la del bloque de rediseño, mas abajo, que
+      // la pisa con 128 / 230 / flex 1 1 auto. Gana la segunda. Esta prueba seguia mirando los numeros
+      // de la primera, que hace tiempo que no son los que se aplican.
+      //
+      // Y con `flex: 1 1 auto` las pestañas SI reparten el ancho: con pocas, cada una crece hasta el
+      // maximo; con muchas, se encogen hasta el minimo; y solo desbordan cuando ni asi cabe. Medido:
+      // 230 px con dos, 160 px con cinco, 128 px con veinte. La prueba pedia que la misma pestaña
+      // midiese lo mismo con dos que con cinco, que es el reparto del diseño anterior al rediseño.
+      comprobar(ancho.conDos.primera >= ancho.conCinco.primera
+        && ancho.conDos.primera >= 128 && ancho.conDos.primera <= 230,
+        'con menos pestañas cada una tiene más sitio, y ninguna se sale del mínimo ni del máximo',
+        `con dos: ${ancho.conDos.primera} px, con cinco: ${ancho.conCinco.primera} px`);
+      comprobar(ancho.conDos.max <= 230 && ancho.conCinco.max <= 230,
         'y ninguna pasa del máximo, por largo que sea el nombre',
         `máximos: ${ancho.conDos.max} y ${ancho.conCinco.max}`);
-      comprobar(ancho.conVeinte.min >= 132,
+      comprobar(ancho.conVeinte.min >= 128,
         'con veinte, la más estrecha sigue teniendo el mínimo: no se aplastan',
         `la más estrecha con 20: ${ancho.conVeinte.min} px`);
       comprobar(ancho.desbordaConVeinte && !ancho.desbordaConCinco,
