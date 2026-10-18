@@ -116,14 +116,16 @@ app.whenReady().then(async () => {
       'una instancia de navegador guarda su buscador y su modo de apertura', JSON.stringify(modelo));
     comprobar(modelo.inicioVacio === true,
       'y arranca en el buscador, así que no necesita dirección de inicio', String(modelo.inicioVacio));
-    comprobar(modelo.sinCambios.join(',') === 'instancia,ddg,auto',
+    // `ddg` en las dos siguientes era el motor de fábrica cuando era DuckDuckGo. Ahora es Google, que es
+    // lo que se pidio, asi que una instancia recien creada nace en Google y no en DuckDuckGo.
+    comprobar(modelo.sinCambios.join(',') === 'instancia,google,auto',
       'una instancia normal no cambia de comportamiento', modelo.sinCambios.join(','));
     comprobar(modelo.ventana === 'ventana', 'y se puede fijar en «siempre ventana aparte»', modelo.ventana);
     comprobar(modelo.inicioDeBuscador === 'https://www.google.com/search?q=',
       'el buscador elegido es la página de partida de una instancia de navegador', modelo.inicioDeBuscador);
     comprobar(modelo.inicioDeUrl === 'https://ejemplo.invalid/juego',
       'y en una normal es su URL', modelo.inicioDeUrl);
-    comprobar(modelo.buscadorInexistente === 'ddg',
+    comprobar(modelo.buscadorInexistente === 'google',
       'un buscador que no existe cae al de fábrica, no se rompe', modelo.buscadorInexistente);
     comprobar(modelo.motores.join(',') === 'ddg,google,bing', 'hay tres motores', modelo.motores.join(','));
 // --- 2. La barra de direcciones ------------------------------------------------

@@ -8066,6 +8066,10 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  // Los dos de anadir y quitar pantalla. Trazo de 2 como los demas del pack, y no un glifo de fuente:
+  // son dos lineas y punto, y salen identicas en cualquier equipo.
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
   expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   collapse: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
   // Atras y adelante de la barra de direcciones. Trazos, como los demas: un glifo suelto aqui
@@ -8249,7 +8253,7 @@ const BUSCADORES = Object.freeze({
   google: 'https://www.google.com/search?q=',
   bing: 'https://www.bing.com/search?q='
 });
-const BUSCADOR_POR_DEFECTO = 'ddg';
+const BUSCADOR_POR_DEFECTO = 'google';
 const APERTURA_POR_DEFECTO = 'auto';
 const MODOS_DE_APERTURA = Object.freeze(['auto', 'panel', 'ventana']);
 
@@ -9337,6 +9341,96 @@ const TOPE_PANELES_INSTANCIA = 12;
 
 // El panel de enlace mas viejo de la instancia, que es el que se recicla. Los originales no
 // entran nunca —son cuentas del usuario— y si no queda ninguno, el enlace no se abre.
+// AÑADIR Y QUITAR PANTALLAS DE UNA INSTANCIA
+//
+// El numero de pantallas se podia cambiar al crear la instancia y al abrir enlaces, y no de ninguna
+// otra forma: para tener una tercera pantalla habia que borrar la instancia y crearla otra vez, con
+// sus cuentas y sus sesiones. Esto es para eso.
+//
+// LO QUE NO SE HACE, Y POR QUE: RENUMERAR
+//
+// Al cerrar una pantalla, las que quedan NO se renumeran. El indice de una pantalla va en su
+// particion, en su pagina recordada y en su atajo, asi que si la tercera pasa a ser la segunda
+// cambia de particion, pierde la sesion y se queda con la pagina que era de otra. Es mejor un hueco
+// en los indices que una pantalla miranda a otra.
+function indicesDePantallas(instance) {
+  const guardados = Array.isArray(instance?.indices)
+    ? instance.indices.map(Number).filter((n) => Number.isInteger(n) && n >= 0)
+    : [];
+  if (guardados.length) return [...new Set(guardados)];
+  const total = Math.max(1, Number(instance?.count) || 1);
+  return Array.from({ length: total }, (_, index) => index);
+}
+
+function guardarIndicesDePantallas(instance, view) {
+  instance.indices = view.panels.map((panel) => Number(panel.instanceIndex));
+  instance.count = view.panels.length;
+  saveBrowserInstances();
+}
+
+// Pone al dia los tres botones que dependen de cuantas pantallas hay. Se llama al crear la instancia
+// y en cada anadir o quitar, no en cada redibujado: recorrer todas las barras por un cambio de icono
+// es trabajo de mas.
+function refrescarBotonesDePantallas(instanceId) {
+  const view = browserInstanceViews.get(instanceId);
+  if (!view) return;
+  const total = view.panels.length;
+  for (const panel of view.panels) {
+    // El menos se apaga cuando es la unica: no se puede quedar una instancia sin ninguna pantalla. Para
+    // quitarlo entero esta la X de la pestana, que ademas avisa de lo que hace.
+    if (panel.menosPantallaButton) panel.menosPantallaButton.disabled = total <= 1;
+    if (panel.masPantallaButton) panel.masPantallaButton.disabled = total >= TOPE_PANELES_INSTANCIA;
+    // El de agrandar solo tiene sentido cuando hay algo a lo que cambiar. Con una sola pantalla, la
+    // agrandar es la unica que hay y el boton no lleva a ninguna parte.
+    if (panel.expandButton) panel.expandButton.hidden = total < 2;
+  }
+}
+
+function anadirPantallaAInstancia(instanceId) {
+  const instance = browserInstances.find((row) => row.id === instanceId);
+  const view = browserInstanceViews.get(instanceId);
+  if (!instance || !view) return null;
+  if (view.panels.length >= TOPE_PANELES_INSTANCIA) {
+    avisarEnPanel(view.panels[view.panels.length - 1],
+      `Esta instancia ya tiene el tope de ${TOPE_PANELES_INSTANCIA} pantallas.`);
+    refrescarBotonesDePantallas(instanceId);
+    return null;
+  }
+  // El indice es el mas alto que ha habido, no el numero de pantallas que hay ahora: como las que
+  // quedan no se renumeran, el siguiente tiene que buscar el hueco que se ha quedado libre.
+  let indice = 0;
+  for (const row of view.panels) indice = Math.max(indice, Number(row.instanceIndex) + 1);
+  const panel = createBrowserInstancePanel(instance, view.workspace, indice, 0);
+  view.panels.push(panel);
+  panel.origen = 'inicial';
+  guardarIndicesDePantallas(instance, view);
+  refrescarBotonesDePantallas(instanceId);
+  view.workspace.dataset.viewCount = String(view.panels.length);
+  refreshBrowserInstanceLayout(instanceId);
+  renderBrowserInstanceTabs();
+  return panel;
+}
+
+function cerrarPantallaDeInstancia(instanceId, panel) {
+  const instance = browserInstances.find((row) => row.id === instanceId);
+  const view = browserInstanceViews.get(instanceId);
+  if (!instance || !view || !panel) return false;
+  if (view.panels.length <= 1) {
+    avisarEnPanel(view.panels[0], 'Esta instancia tiene una sola pantalla. Para quitarla, cierra la instancia.');
+    refrescarBotonesDePantallas(instanceId);
+    return false;
+  }
+  view.panels = view.panels.filter((row) => row !== panel);
+  panel.element?.remove();
+  destruirPanelDeVerdad(panel, { quitarDelDom: false });
+  guardarIndicesDePantallas(instance, view);
+  refrescarBotonesDePantallas(instanceId);
+  view.workspace.dataset.viewCount = String(view.panels.length);
+  refreshBrowserInstanceLayout(instanceId);
+  renderBrowserInstanceTabs();
+  return true;
+}
+
 function panelEnlaceMasViejo(instanceId) {
   const view = browserInstanceViews.get(instanceId);
   if (!view) return null;
@@ -9409,8 +9503,27 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
   reloadButton.title = 'Recargar esta pantalla';
   const expandButton = document.createElement('button');
   expandButton.type = 'button';
+  // La clase no es cosmetica: sin ella no hay forma de esconder este boton segun cuantas pantallas
+  // tenga la instancia, y esconderlo es justo lo que se pidio.
+  expandButton.className = 'instance-expand';
   expandButton.innerHTML = launcherUiIcon('expand');
   expandButton.title = 'Agrandar panel';
+
+  // Anadir y quitar pantallas. Van entre el nombre de la instancia y los botones de la derecha, que
+  // es el hueco que se ve en la barra y el unico que hay: a la derecha ya no cabe ni uno mas.
+  const masPantallaButton = document.createElement('button');
+  masPantallaButton.type = 'button';
+  masPantallaButton.className = 'instance-mas-pantalla';
+  masPantallaButton.innerHTML = launcherUiIcon('plus');
+  masPantallaButton.title = 'Añadir una pantalla a esta instancia';
+  masPantallaButton.setAttribute('aria-label', 'Añadir una pantalla a esta instancia');
+
+  const menosPantallaButton = document.createElement('button');
+  menosPantallaButton.type = 'button';
+  menosPantallaButton.className = 'instance-menos-pantalla';
+  menosPantallaButton.innerHTML = launcherUiIcon('minus');
+  menosPantallaButton.title = 'Cerrar esta pantalla';
+  menosPantallaButton.setAttribute('aria-label', 'Cerrar esta pantalla');
 
   // El zoom y la pantalla completa, solo aquí: los paneles del juego no los llevan.
   const zoomOutButton = document.createElement('button');
@@ -9496,9 +9609,11 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     zoomLabel,
     zoomInButton,
     expandButton,
+    masPantallaButton,
+    menosPantallaButton,
     fullscreenButton
   );
-  panelbar.append(identity, actions);
+  panelbar.append(identity, masPantallaButton, menosPantallaButton, actions);
   const host = document.createElement('div');
   host.className = 'browser-instance-webview-host';
   const webview = document.createElement('webview');
@@ -9545,6 +9660,11 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     destinoActual: partida,
     // El boton del motor, para poder repintarlo cuando cambie desde cualquier pantalla.
     botonMotor,
+    // Los tres que dependen de cuantas pantallas tenga la instancia. Sin esto aqui no los alcanza
+    // nadie: `refrescarBotonesDePantallas` los busca por el panel, no por el DOM.
+    expandButton,
+    masPantallaButton,
+    menosPantallaButton,
     barra,
     campoDireccion,
     botonAtras,
@@ -9675,6 +9795,12 @@ function createBrowserInstancePanel(instance, workspace, index, launchDelay, url
     expandButton.innerHTML = launcherUiIcon(expand ? 'collapse' : 'expand');
     expandButton.title = expand ? 'Volver al mosaico' : 'Agrandar panel';
   });
+  masPantallaButton.addEventListener('click', () => {
+    anadirPantallaAInstancia(instance.id);
+  });
+  menosPantallaButton.addEventListener('click', () => {
+    cerrarPantallaDeInstancia(instance.id, panel);
+  });
   if (!window.pokeGrid.previewMode) {
     window.setTimeout(() => loadConnectionPanel(panel, partida, { reason: 'Inicio automático' }), launchDelay);
   }
@@ -9689,12 +9815,17 @@ function createBrowserInstanceWorkspace(instance, ordinal = 0) {
   workspace.setAttribute('role', 'tabpanel');
   workspace.setAttribute('aria-label', `${instance.name}: ${instance.count} pantallas`);
   browserInstanceBackdrop.parentNode.insertBefore(workspace, browserInstanceBackdrop);
-  const panelsForInstance = Array.from({ length: instance.count }, (_, index) =>
-    createBrowserInstancePanel(instance, workspace, index, 5_000 + ordinal * 4_500 + index * 850));
+  const indicesDeEsta = indicesDePantallas(instance);
+  const panelsForInstance = indicesDeEsta.map((index, posicion) =>
+    createBrowserInstancePanel(instance, workspace, index, 5_000 + ordinal * 4_500 + posicion * 850));
   refreshBrowserInstanceLayout(instance.id);
   marcarPanelesOriginales(panelsForInstance);
   const view = { instance, workspace, panels: panelsForInstance };
   browserInstanceViews.set(instance.id, view);
+  // Y aqui, DESPUES de registrarla, que es la misma trampa que avisa el comentario de mas abajo: sin
+  // la vista en `browserInstanceViews` esta funcion no encuentra nada y se sale sin hacer nada. Los
+  // botones se quedarian en su estado inicial y el de agrandar se veria con una sola pantalla.
+  refrescarBotonesDePantallas(instance.id);
   // DESPUES de registrarla: antes, la vista no existe todavia en `browserInstanceViews` y esta
   // llamada no hacia nada. Aun asi puede que los webview no estén listos, y el registro de verdad
   // ocurre en su `dom-ready`.

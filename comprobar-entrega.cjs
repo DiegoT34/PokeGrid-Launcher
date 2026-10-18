@@ -32,6 +32,18 @@ const CARPETA = path.join(RAIZ, 'dist', `IDLE-POKE-LAUNCHER-${VERSION}-portatil`
 // Un cambio de hoy por cada cosa que se hizo. Si alguno falta en un artefacto, ese artefacto es
 // viejo por muy reciente que sea su fecha.
 const DE_HOY = [
+  // 0.32.0 — anadir y quitar pantallas, y Google por defecto
+  ['el boton de anadir pantalla', 'instance-mas-pantalla'],
+  ['el boton de quitar pantalla', 'instance-menos-pantalla'],
+  ['la accion de anadir', 'function anadirPantallaAInstancia'],
+  ['la accion de quitar', 'function cerrarPantallaDeInstancia'],
+  ['el que pone los botones al dia', 'function refrescarBotonesDePantallas'],
+  ['el boton de agrandar, que ahora se puede esconder', 'instance-expand'],
+  ['que con una sola pantalla no se vea el de agrandar', 'expandButton.hidden = total < 2'],
+  ['que no se pueda quedar una instancia sin pantallas', 'menosPantallaButton.disabled = total <= 1'],
+  ['los indices guardados, para no renumerar al cerrar', 'function indicesDePantallas'],
+  ['Google como motor de fabrica', "BUSCADOR_POR_DEFECTO = 'google'"],
+
   // 0.31.0 — dormir lo que no se mira
   ['la regla de duermete, escrita en el renderer', 'aplicarDescanso'],
   ['que una pantalla duerme si no es la pestaña abierta', 'panelEstaEnPantalla'],

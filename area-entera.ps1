@@ -10,7 +10,7 @@
 # asi que el script no falla nunca: escribe el resultado de cada una y sigue, para que se vea el
 # panorama entero en vez de solo el primer fallo.
 $ErrorActionPreference = 'Continue'
-$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0310.txt'
+$salida = 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-0320.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
@@ -25,6 +25,7 @@ $pruebas = @(
   @{ nombre = 'instancia-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pestanas-smoke.js');     espera = 95 },
   @{ nombre = 'instancia-cabecera'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-cabecera-smoke.js');   espera = 100 },
   @{ nombre = 'instancia-nueva-pestana'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-nueva-pestana-smoke.js'); espera = 100 },
+  @{ nombre = 'instancia-pantallas';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pantallas-smoke.js');      espera = 100 },
   @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
   @{ nombre = 'descanso';           comando = 'tests\lanzar.cjs'; args = @('tests\descanso-smoke.js');             espera = 110 },
   @{ nombre = 'sondeos-visibles';   comando = 'tests\lanzar.cjs'; args = @('tests\sondeos-visibles-smoke.js');      espera = 100 },

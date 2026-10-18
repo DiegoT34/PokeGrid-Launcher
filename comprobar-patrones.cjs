@@ -12,7 +12,23 @@ const renderer = fs.readFileSync(path.join(raiz, 'src', 'renderer.js'), 'utf8');
 const mainProceso = fs.readFileSync(path.join(raiz, 'src', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(raiz, 'src', 'preload.js'), 'utf8');
 
+const styles = fs.readFileSync(path.join(raiz, 'src', 'styles.css'), 'utf8');
+
 const QUE_SI = [
+  // 0.32.0 — anadir y quitar pantallas, y Google por defecto
+  ['el boton de anadir pantalla', /className = 'instance-mas-pantalla'/, renderer],
+  ['el boton de quitar pantalla', /className = 'instance-menos-pantalla'/, renderer],
+  ['anadir una pantalla es una accion con nombre', /function anadirPantallaAInstancia\(instanceId\)/, renderer],
+  ['y quitarla tambien', /function cerrarPantallaDeInstancia\(instanceId, panel\)/, renderer],
+  ['los tres botones se mandan desde el mismo sitio', /function refrescarBotonesDePantallas\(instanceId\)/, renderer],
+  ['con una sola pantalla el de agrandar no se ve', /expandButton\.hidden = total < 2/, renderer],
+  ['y el menos se apaga para no quedarse sin ninguna', /menosPantallaButton\.disabled = total <= 1/, renderer],
+  ['al cerrar NO se renumeran las que quedan', /function indicesDePantallas\(instance\)/, renderer],
+  ['y el numero de pantallas se guarda', /instance\.count = view\.panels\.length/, renderer],
+  ['el motor de fabrica es Google', /const BUSCADOR_POR_DEFECTO = 'google';/, renderer],
+  ['y DuckDuckGo no se ha quitado de la lista', /ddg: 'https:\/\/duckduckgo\.com/, renderer],
+  ['los botones apagados se ven apagados', /\.instance-menos-pantalla:disabled\s*\{/, styles],
+
   ['la regla de duermete', /function aplicarDescanso\(\)/, renderer],
   ['que una pantalla duerme si no es la pestaña abierta', /function panelEstaEnPantalla\(panel\)/, renderer],
   ['el cierre que destruye el proceso de verdad', /panel\.webview\.destroy\(\)/, renderer],

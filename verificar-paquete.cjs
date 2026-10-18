@@ -48,6 +48,13 @@ console.log(`\nextractor: @electron/asar de ${ASAR_MOD}`);
 
 const TEMP = path.join(RAIZ, 'dist', `verif-asar-${process.pid}`);
 fs.rmSync(TEMP, { recursive: true, force: true });
+// Y se limpia SIEMPRE, tambi��n si esto revienta a medias. Antes solo se borraba al final del todo, de
+// modo que cualquier fallo a mitad —una comprobacion mal escrita, un asar que no se abre— dejaba una
+// carpeta de 2 MB dentro de `dist` para siempre. Se vio cuatro veces seguidas por cuatro ejecuciones
+// fallidas, que es exactamente cuando no hace falta.
+process.on('exit', () => {
+  try { fs.rmSync(TEMP, { recursive: true, force: true }); } catch { /* ya no esta */ }
+});
 asar.extractAll(ASAR, TEMP);
 console.log(`extraído a ${TEMP}`);
 
@@ -151,6 +158,31 @@ const DESCANSO_QUE_NO = [
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
+
+console.log('\n0.32.0 — añadir y quitar pantallas, y Google por defecto:');
+const PANTALLAS = [
+  // Se buscan con la MISMA forma que en comprobar-patrones.cjs: la asignacion de la clase en el
+  // renderer. La primera version busco el selector del CSS con una coma detras, y en el CSS ese
+  // selector va seguido de llave, no de coma: daba verde el de anadir y falso el de quitar, que es
+  // justo el caso que marca la diferencia entre comprobar de verdad y casi.
+  ['el boton de anadir pantalla esta en la barra', /className = 'instance-mas-pantalla'/, renderer],
+  ['el boton de quitar pantalla tambien', /className = 'instance-menos-pantalla'/, renderer],
+  ['anadir una pantalla es una accion con nombre', /function anadirPantallaAInstancia\(instanceId\)/, renderer],
+  ['y quitarla tambien', /function cerrarPantallaDeInstancia\(instanceId, panel\)/, renderer],
+  ['los tres botones se mandan desde el mismo sitio', /function refrescarBotonesDePantallas\(instanceId\)/, renderer],
+  ['con una sola pantalla el de agrandar no se ve', /expandButton\.hidden = total < 2/, renderer],
+  ['y el menos se apaga para no quedarse sin ninguna', /menosPantallaButton\.disabled = total <= 1/, renderer],
+  ['al cerrar NO se renumeran las que quedan', /function indicesDePantallas\(instance\)/, renderer],
+  ['y el numero de pantallas se guarda', /instance\.count = view\.panels\.length/, renderer],
+  ['el motor de fabrica es Google', /const BUSCADOR_POR_DEFECTO = 'google';/, renderer],
+  ['y DuckDuckGo no se ha quitado de la lista', /ddg: 'https:\/\/duckduckgo\.com/, renderer],
+  ['los botones apagados se ven apagados', /\.instance-menos-pantalla:disabled\s*\{/, styles],
+];
+for (const [que, re, texto] of PANTALLAS) {
+  const ok = re.test(texto);
+  if (!ok) fallos++;
+  console.log(`  ${ok ? 'ok  ' : 'FALTA'} ${que}`);
+}
 
 console.log('\n0.31.0 — dormir lo que no se mira:');
 for (const [que, re, texto] of DESCANSO_QUE_SI) {

@@ -901,7 +901,13 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
 .browser-instance-panel.is-error .status-dot { 
   background: #ff6678; box-shadow: 0 0 10px rgba(255,102,120,.55); }
 .browser-instance-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
-.browser-instance-actions button {
+/* Los de anadir y quitar pantalla van sueltos en la barra, no dentro de `.browser-instance-actions`,
+   porque no son de la pantalla: actuan sobre la instancia entera. Se les agrupa con los otros aqui
+   para que no parezcan de otra cosa —mismo tamano, mismo borde, mismo color— y no haya que repetir
+   el bloque entero. */
+.browser-instance-actions button,
+.instance-mas-pantalla,
+.instance-menos-pantalla {
   width: 28px;
   height: 28px;
   border: 1px solid #36414a;
@@ -910,7 +916,15 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   color: #b7c7d1;
   cursor: pointer;
 }
-.browser-instance-actions button:hover { border-color: #5ec7dd; color: #effcff; }
+.browser-instance-actions button:hover,
+.instance-mas-pantalla:hover,
+.instance-menos-pantalla:hover { border-color: #5ec7dd; color: #effcff; }
+/* Apagado: el menos cuando es la unica pantalla, el mas cuando ya se ha llegado al tope. Se ve que no
+   se puede, en vez de dejar un boton que no hace nada y parece roto. */
+.instance-mas-pantalla:disabled,
+.instance-menos-pantalla:disabled { opacity: .32; cursor: default; border-color: #2b3339; }
+.instance-mas-pantalla:disabled:hover,
+.instance-menos-pantalla:disabled:hover { border-color: #2b3339; color: #b7c7d1; }
 
 /* La barra de direcciones. Solo existe en instancias de estilo navegador, asi que no hace falta
    ningun selector para los juegos: lo que no existe no hay que esconderlo. El nombre y el estado
