@@ -6,27 +6,81 @@ La instancia principal abre de uno a treinta y dos webviews persistentes (una po
 
 La cuadrícula adapta sus columnas al número de cuentas: 1 cuenta → 1 columna; 2–4 → 2 columnas; 5–9 → 3 columnas; 10 o más → 4 columnas.
 
+## Perfiles de sesión
+
+Hasta la 0.36.0 todas las ventanas del launcher compartían una sola sesión de navegador. Desde la
+0.37.0 cada ventana trabaja en un **perfil**, que es una sesión con nombre.
+
+- Las ventanas del **mismo perfil** comparten lo que tengas iniciado dentro.
+- Las ventanas de **perfiles distintos no se ven entre sí**: ni cookies, ni almacenamiento, ni sesión.
+- Eso es lo que permite tener dos cuentas del mismo sitio a la vez.
+
+### Crear y editar
+
+Desde el botón **Perfiles** del menú. Cada perfil tiene:
+
+| Campo | Descripción |
+|---|---|
+| Nombre | Libre, hasta 40 caracteres. El perfil Principal no se renombra. |
+| Avatar | Uno de **132** Pokémon de PokéAPI, o ninguno (entonces sale la inicial del nombre). |
+| Color | Sin fondo, diez colores planos o doce degradados. |
+
+El botón **+** crea un perfil nuevo y abre su campo de nombre con el cursor encima. El avatar se
+**baja solo al abrir el selector**, nunca al arrancar el launcher: la rejilla se llena en tandas de
+ocho, cada imagen en su celda al llegar, y se puede seguir usando el gestor mientras tanto. Una
+especie sin sprite deja una inicial apagada, no un hueco.
+
+### Dónde se aplica
+
+Cada ventana —la principal y cada instancia de navegador— tiene su propio perfil, y se cambia desde
+sus ajustes o desde el modal de crear instancia. **Cambiarlo reinicia las pantallas de esa ventana**,
+así que el launcher **avisa antes**, indicando de qué perfil a cuál y recordando que habrá que volver
+a entrar en los sitios donde estuvieras conectado. Cancelar deja el aviso pendiente.
+
+Un perfil no se puede borrar si alguna ventana lo está usando: el almacén lo sabe porque compara por
+partición, no por nombre.
+
+### Dónde se ve
+
+- **En la cabecera del menú**, el nombre del perfil de la pestaña activa y su círculo. Con varias
+  ventanas de perfiles distintos abiertos es la única forma de saber en cuál de ellas estás, y el
+  botón entero abre el gestor.
+- **En el desplegable del modal de crear instancia**, con su círculo al lado. Crear perfiles **no** se
+  hace desde ahí: aquí se elige con qué perfil se abre una ventana, y crear un perfil es decidir cómo
+  se llama una sesión que tendrá las suyas.
+
+El color vive **en el perfil**, no en la barra de pestañas: en la barra manda el nombre.
+
 ## Menú lateral y barra superior
 
 El botón hamburguesa abre un panel lateral flotante. El panel se superpone a la cuadrícula, por lo que no reduce ni desplaza las ventanas del juego, y cada acción utiliza un color identificativo con estilo flat. La barra superior completa también puede ocultarse y ambos estados se conservan al reiniciar.
+
+La cabecera del menú **no es un título**: dice el perfil de la pestaña activa, con su círculo, y el
+botón entero abre el gestor.
 
 El menú contiene:
 
 - **Modo farmeo:** objetivos recomendados según los datos detectados.
 - **Pokepedia:** ventana independiente para consultas.
 - **Scripts:** administración de userscripts por cuenta.
-- **Estadísticas:** resumen y comparación multicuentas.
 - **Notificaciones:** capturas, metas, shinies y legendarios.
 - **Cuentas:** configuración y cifrado de credenciales.
+- **Perfiles:** perfiles de sesión del navegador.
 - **RAM:** limpieza segura de cachés controladas por el launcher.
 - **Iniciar todas:** inicia o recupera las cuentas configuradas.
 - **Recargar todas:** recarga escalonada para reducir picos y desconexiones.
-- **Actualizaciones:** instala automáticamente la última Release estable.
 - **Modo vista:** decide qué paneles se muestran en la cuadrícula.
+- **Configuraciones:** atajos, zoom, ajustes por instancia, perfil de sesión y **actualizaciones del launcher**.
+
+> El botón de actualizaciones salió del menú en la 0.39.0 y está dentro de Configuraciones, que es
+> donde cabe el botón de buscar, el aviso de si hay algo y qué versión es, y el de descargar. En el
+> menú solo había un botón que al pulsarse empezaba a descargar 60 MB sin decir nada.
 
 ## Instancias de otros juegos
 
-El botón `+` de la barra de pestañas crea una instancia de navegador. El usuario define nombre, enlace HTTPS y cantidad de pantallas. Cada pantalla mantiene almacenamiento separado y las instancias reaparecen al abrir nuevamente el launcher.
+El botón `+` de la barra de pestañas crea una instancia de navegador. El usuario define nombre, enlace HTTPS, cantidad de pantallas (de 1 a 6) y **perfil de sesión**. Cada pantalla mantiene almacenamiento separado y las instancias reaparecen al abrir nuevamente el launcher.
+
+Se admiten hasta **12 instancias** adicionales. El desplegable de perfil enseña el círculo del perfil elegido; crear perfiles se hace en el gestor, no aquí.
 
 ## Administración de cuentas
 
@@ -99,6 +153,17 @@ Combina el equipo detectado, nivel, tipos, mapas disponibles y requisitos. Los f
 
 Se abre en una ventana independiente a pantalla completa para no reducir el espacio de la cuadrícula principal. Conserva una partición propia y controles de minimizar/cerrar.
 
+## Barra de pestañas
+
+La barra de pestañas lleva una por ventana abierta: la principal y cada instancia. Cada pestaña se
+ajusta a su nombre, con un máximo de 20 caracteres antes de recortarse.
+
+- La **X** de cerrar va a la derecha, con su propio cuadro y fondo: pegada al final del nombre se
+  leía como parte del texto.
+- Se puede **arrastrar** para reordenar; la pestaña principal no se mueve.
+- **Alt** + flechas reordena sin ratón.
+- El botón `+` crea una instancia nueva.
+
 ## Gestión de memoria
 
 El botón RAM limpia únicamente cachés visuales regenerables y estructuras internas que no están abiertas. No fuerza el recolector de basura sobre webviews, no adjunta el depurador y no borra cookies, localStorage, IndexedDB ni sesiones.
@@ -109,7 +174,29 @@ Las recargas múltiples se escalonan. Cada panel cuenta con límites de reintent
 
 ## Actualizador
 
-El actualizador consulta GitHub únicamente cuando se pulsa el botón. Descarga la versión superior, guarda el ZIP y su firma en Descargas, valida SHA-256 y descomprime la nueva carpeta portátil. Después cierra el proceso actual, intenta abrir la nueva versión hasta tres veces y espera una confirmación de su ventana. Mantiene una copia temporal de la versión anterior y solo la elimina después de confirmar el arranque; si falla, restaura y abre la versión anterior.
+Desde la 0.39.0 el actualizador son **dos botones** dentro de **Configuraciones**, no uno en el menú:
+
+- **Buscar actualización** solo mira. No instala, no pregunta por instalar y no puede cerrar el
+  launcher.
+- **Descargar actualización** sale apagado hasta que se ha confirmado que hay algo. Con un solo botón
+  no había forma de saber si había actualización sin pulsarlo, y pulsar era descargar 60 MB.
+
+El texto dice si estás al día o qué versión hay, con color: gris si no se ha comprobado todavía,
+verde si estás al día, ámbar si hay algo. **No dice «estás al día» antes de haber comprobado**: el
+sondeo va por red y tarda, y durante ese rato no se sabe nada.
+
+El launcher **comprueba solo** al arrancar y cada seis horas. El aviso se ve en el botón de
+Configuraciones y en el panel de notificaciones, y **no se apaga al mirarlo**: sigue hasta que la
+actualización se instala de verdad. Un arranque sin conexión tampoco lo apaga.
+
+Al descargar se **pregunta antes**, indicando la versión instalada y la disponible. El ZIP y su
+`.sha256` se guardan **en la carpeta que contiene la del launcher**, no en Descargas: con el launcher
+en `D:\Juegos\PokeGrid-Launcher\`, quedan en `D:\Juegos\`. Sin empaquetar, o si esa carpeta no existe
+o no se puede escribir, se usa Descargas.
+
+Después de validar el SHA-256, la nueva carpeta portátil se despliega ahí, se cierra el proceso
+anterior, se intenta abrir la versión nueva hasta tres veces y se espera una confirmación de su
+ventana. La versión anterior solo se elimina después; si falla, se restaura y se vuelve a abrir.
 
 > **Se retiró el atajo automático.** El script `vpn-per-account.cjs`, que levantaba una instancia
 > de v2ray por nodo, ya no está en el proyecto: la aplicación nunca lo llegaba a invocar, y solo

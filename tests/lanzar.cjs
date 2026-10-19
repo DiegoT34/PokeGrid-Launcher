@@ -17,5 +17,13 @@ if (!guion) {
   process.exit(2);
 }
 
-const hijo = spawn(electron, [guion], { stdio: 'inherit', cwd: RAIZ });
+// Los argumentos que van DETRAS del guion se le pasan al guion.
+//
+// Sin esto, `node tests\lanzar.cjs herramientas\algo.cjs preview` ejecutaba el guion SIN `preview` y
+// caia en el modo por defecto. No daba ningun error: el guion se ejecutaba, escribia su salida, y el
+// resultado era el otro. Paso dos veces —una con una carpeta de salida que se ignoraba en silencio y
+// otra con el modo equivocado— y las dos veces no se caia en cuenta hasta mirar el fichero equivocado.
+const argumentos = process.argv.slice(3);
+
+const hijo = spawn(electron, [guion, ...argumentos], { stdio: 'inherit', cwd: RAIZ });
 hijo.on('close', (codigo) => process.exit(codigo === null ? 1 : codigo));

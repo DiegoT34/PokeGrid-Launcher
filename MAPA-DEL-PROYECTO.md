@@ -72,10 +72,20 @@ Aquí vive todo lo que sirve para mirar y comprobar, pero que **no forma parte d
 - `mirar-codificacion.cjs`, `arreglar-codificacion.cjs` — la trampa de la doble codificación.
 - `medir-*.cjs`, `medir-*.ps1`, `informe-procesos.cjs`, `leer-instancias.cjs` — medición de memoria.
 - `preparar-carpeta-portatil.cjs` — deja la carpeta con el `.exe` junto a lo que se acaba de compilar.
+- `capturas-readme.cjs` — **las imágenes del README.** Dos modos: `preview` inventa cuatro cuentas con
+  el preload de pruebas; `app` abre el launcher de verdad, que es lo único que sirve para los avatares,
+  porque los sprites salen de PokéAPI.
+- `mirar-pantallas.cjs` — levanta el launcher y captura pantallas sueltas para mirarlas, y además
+  **mide** los iconos de la barra. Para diagnosticar lo que «se ve raro».
+- `subir-version.cjs` — cambia la `version` del `package.json` sin romper la codificación.
 - `PokeGrid-Shop-Publisher.ps1` — publica el catálogo de la Script Shop en GitHub.
 
 **Todos usan la raíz del proyecto a través de `path.join(__dirname, '..')`.** Si añades uno, igual:
 `__dirname` es la carpeta de herramientas, no el proyecto.
+
+**Los que lanzan Electron, con `tests\lanzar.cjs`, no con `node`.** El ejecutable de Electron es de
+subsistema gráfico y no escribe en la consola de quien lo llama. Los argumentos que van detrás del
+guion **se le pasan al guion**: `node tests\lanzar.cjs herramientas\capturas-readme.cjs app`.
 
 ### `_basura/` — lo que sobra. **No se borra, no se versiona.**
 
