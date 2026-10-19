@@ -230,26 +230,29 @@ app.whenReady().then(async () => {
         valores: selector ? [...selector.options].map((o) => o.value) : [],
         elegido: selector ? selector.value : '',
         formularioAbierto: !browserInstanceBackdrop.hidden,
+        // EN ESTE MODAL NO SE CREAN PERFILES. Comprueba que no hay ni boton ni formulario ni campo, y
+        // no que «no se vea»: que no este. Un boton escondido se puede abrir desde el teclado, y lo
+        // que se quiere es que la puerta no exista.
         hayBotonDeNuevo: Boolean(document.querySelector('#nuevoPerfilButton')),
-        elFormEmpiezaOculto: document.querySelector('#nuevoPerfilForm')?.hidden,
-        // Se escribe un nombre y se pulsa Crear, como lo haria la persona.
-        crea: (() => {
-          document.querySelector('#nuevoPerfilButton').click();
-          const form = document.querySelector('#nuevoPerfilForm');
-          const visible = !form.hidden;
-          const campo = document.querySelector('#nuevoPerfilNombre');
-          campo.value = 'Curro';
-          document.querySelector('#nuevoPerfilCrear').click();
+        hayFormDeNuevo: Boolean(document.querySelector('#nuevoPerfilForm')),
+        hayCampoDeNombre: Boolean(document.querySelector('#nuevoPerfilNombre')),
+        // Y hay un circulo al lado del desplegable, con el perfil elegido.
+        hayVista: Boolean(document.querySelector('#browserInstancePerfilVista')),
+        // Al cambiar el desplegable, el circulo cambia con el.
+        alCambiar: (() => {
+          const vista = document.querySelector('#browserInstancePerfilVista');
+          const antes = vista.textContent.trim();
+          if (selector.options.length < 2) return { skipped: true, antes };
+          selector.selectedIndex = 1;
+          selector.dispatchEvent(new Event('change'));
           return {
-            elFormSeEnseno: visible,
-            elFormSeVuelveACerrar: form.hidden,
-            elCampoSeEnfoco: document.activeElement === campo,
-            elegidoAhora: document.querySelector('#browserInstancePerfil').value,
-            nombresDespues: [...document.querySelector('#browserInstancePerfil').options].map((o) => o.textContent),
-            elModalSigueAbierto: !browserInstanceBackdrop.hidden
+            skipped: false,
+            antes,
+            despues: vista.textContent.trim(),
+            elegido: selector.value,
+            sigueAbierto: !browserInstanceBackdrop.hidden
           };
         })(),
-        // Y el perfil elegido es el que se guardaria.
         loQueSeGuarda: browserInstancePerfil.value
       };
       closeBrowserInstanceModal();
@@ -261,19 +264,21 @@ app.whenReady().then(async () => {
     comprobar('con su nombre puesto, no con el identificador',
       modal.opciones[0] === 'Principal', JSON.stringify(modal.opciones));
     comprobar('el modal se abre de verdad', modal.formularioAbierto === true);
-    comprobar('hay un boton para crear otro sin salir del modal', modal.hayBotonDeNuevo === true);
-    comprobar('el campo de crear aparece al pulsar ese boton',
-      modal.elFormEmpiezaOculto === true && modal.crea.elFormSeEnseno === true,
-      `oculto al empezar: ${modal.elFormEmpiezaOculto}, visible al pulsar: ${modal.crea.elFormSeEnseno}`);
-    comprobar('y se cierra al crearlo', modal.crea.elFormSeVuelveACerrar === true);
-    comprobar('el perfil nuevo se crea y queda elegido',
-      modal.crea.elegidoAhora !== 'principal' && modal.crea.elegidoAhora.startsWith('perfil-'),
-      modal.crea.elegidoAhora);
-    comprobar('y sale en la lista con su nombre',
-      modal.crea.nombresDespues.includes('Curro'), JSON.stringify(modal.crea.nombresDespues));
-    comprobar('sin cerrar el modal', modal.crea.elModalSigueAbierto === true);
+    comprobar('en el modal no se puede crear un perfil',
+      modal.hayBotonDeNuevo === false && modal.hayFormDeNuevo === false && modal.hayCampoDeNombre === false,
+      `boton: ${modal.hayBotonDeNuevo}, form: ${modal.hayFormDeNuevo}, campo: ${modal.hayCampoDeNombre}`);
+    comprobar('el selector enseña el circulo del perfil', modal.hayVista === true);
+    if (!modal.alCambiar.skipped) {
+      comprobar('y el circulo cambia al cambiar de perfil',
+        modal.alCambiar.elegido === modal.valores[1],
+        `${modal.alCambiar.elegido} vs ${modal.valores[1]}`);
+      comprobar('sin cerrar el modal', modal.alCambiar.sigueAbierto === true);
+    }
+    // `loQueSeGuarda` se lee DESPUES de que `alCambiar` moviera el desplegable, asi que lo que tiene que
+    // coincidir es con el valor que quedo elegido despues de ese cambio, no con el Principal de partida.
     comprobar('lo que se guarda es el perfil elegido',
-      modal.loQueSeGuarda === modal.crea.elegidoAhora, `${modal.loQueSeGuarda} vs ${modal.crea.elegidoAhora}`);
+      modal.loQueSeGuarda === (modal.alCambiar.skipped ? modal.elegido : modal.alCambiar.elegido),
+      `${modal.loQueSeGuarda} vs ${modal.alCambiar.elegido ?? modal.elegido}`);
 
     // Volver a abrir el modal tiene que dejar el Principal elegido, no el perfil de la otra vez.
     const segunda = await ventanaModal.webContents.executeJavaScript(

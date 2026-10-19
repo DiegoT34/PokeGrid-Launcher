@@ -254,39 +254,81 @@ const goalNotificationCount = document.querySelector('#goalNotificationCount');
 const shinyNotificationCount = document.querySelector('#shinyNotificationCount');
 const legendaryNotificationCount = document.querySelector('#legendaryNotificationCount');
 const cleanupMemoryButton = document.querySelector('#cleanupMemoryButton');
-const updateLauncherButton = document.querySelector('#updateLauncherButton');
-// El badge se guarda aparte porque renderUpdateLauncherButton() rehace el contenido
-// del botón entero, y rehacerlo entero se lleva por delante cualquier elemento que
-// alguien haya puesto dentro. Sin esta referencia, el badge desaparecía en el primer
-// repintado —y el repintado pasa enseguida, al leer la versión— y el aviso de
-// actualización se quedaba sin sitio donde pintarse, sin error y sin rastro.
-const updateLauncherBadge = document.querySelector('#updateLauncherBadge');
+const updateStatusText = document.querySelector('#updateStatusText');
+const updateCurrentVersion = document.querySelector('#updateCurrentVersion');
+const checkUpdatesButton = document.querySelector('#checkUpdatesButton');
+const downloadUpdateButton = document.querySelector('#downloadUpdateButton');
 let currentLauncherVersion = '';
-let updateLauncherState = { icono: 'download', label: 'Actualizar', spinning: false };
-function renderUpdateLauncherButton() {
-  const icon = document.createElement('span');
-  icon.className = updateLauncherState.spinning ? 'memory-spinner' : 'top-action-icon';
-  icon.setAttribute('aria-hidden', 'true');
-  // El icono es un SVG, no el glifo que traía la cadena del estado.
-  icon.innerHTML = launcherUiIcon(updateLauncherState.icono || 'download');
-  const copy = document.createElement('span');
-  copy.className = 'update-launcher-copy';
-  const label = document.createElement('span');
-  label.textContent = updateLauncherState.label;
-  const version = document.createElement('small');
-  version.className = 'update-launcher-version';
-  version.setAttribute('aria-label', 'Versión actual');
-  version.textContent = currentLauncherVersion ? `v${currentLauncherVersion}` : 'Cargando versión…';
-  copy.append(label, version);
-  // El badge se reinyecta en cada repintado. Va primero porque es el que estaba en el
-  // HTML, y es position:absolute, así que el orden no lo cambia visualmente.
-  updateLauncherButton.replaceChildren(...(updateLauncherBadge ? [updateLauncherBadge] : []), icon, copy);
+// Lo que se sabe de las actualizaciones. Vive aqui, y no en el DOM, porque lo leen dos sitios que no
+// se pisan: el sondeo del arranque y los botones de Configuraciones. Con lo que hay en el DOM, abrir
+// el dialogo antes de que conteste el sondeo lo dejaria en blanco, y cerrarlo perderia el resultado.
+const estadoDeActualizacion = {
+  version: '',
+  hayActualizacion: false,
+  masReciente: '',
+  // Si se ha comprobado alguna vez. Sin esto, al arrancar se pinta «Estás al día» sin haber mirado
+  // nada: el sondeo va por red y tarda, y durante ese rato el launcher afirma una cosa que no sabe.
+  // Es el peor sitio para mentir, porque es el que dice si te estas quedando atras.
+  comprobado: false,
+  busy: false,
+  instalando: false,
+  // Texto de un solo uso para lo que esta pasando ahora mismo —«Descargando 34%»—. Se limpia al
+  // terminar, y mientras este puesto manda sobre el estado: asi el progreso se ve sin meter un `if`
+  // por cada fase en el pintado.
+  mensaje: '',
+  // El texto y el boton se pintan siempre desde aqui, nunca a mano en el sitio donde ha pasado algo.
+  // Un aviso de actualizacion que depende de quien lo pinte es un aviso que sale con el texto del
+  // sitio anterior la mitad de las veces.
+};
+
+// Pinta la fila de actualizaciones de Configuraciones.
+//
+// Tres estados y solo tres, y se distinguen por el COLOR ademas de por el texto: gris para «no se ha
+// comprobado», verde para «estas al dia», ambar para «hay algo». El boton de descargar solo se
+// habilita cuando hay algo de verdad, que es lo que evita el error de antes: pulsar «Actualizar» y que
+// empezara a descargar.
+function pintarEstadoDeActualizacion() {
+  const { VERSION, hayActualizacion, masReciente, busy, instalando, mensaje, comprobado } = estadoDeActualizacion;
+  if (updateCurrentVersion) updateCurrentVersion.textContent = VERSION ? `v${VERSION}` : 'desconocida';
+  if (updateStatusText) {
+    let texto = mensaje;
+    let tono = 'is-ocupado';
+    if (!texto) {
+      if (instalando) {
+        texto = `Instalando la versión ${masReciente}. El launcher se cerrará al terminar.`;
+      } else if (busy) {
+        texto = 'Comprobando si hay una versión nueva…';
+      } else if (hayActualizacion) {
+        texto = `Hay una versión nueva: ${masReciente}. Puedes descargarla con el botón de al lado.`;
+        tono = 'is-hay';
+      } else if (comprobado) {
+        // Solo se dice «estás al día» si se ha comprobado de verdad. Al arrancar, antes de que conteste
+        // el sondeo, no se sabe nada: decir «estás al día» sin mirar es afirmar una cosa que puede ser
+        // falsa, y en la fila que explica si te estás quedando atrás.
+        texto = 'Estás al día. No hay ninguna versión nueva.';
+        tono = 'is-al-dia';
+      } else {
+        texto = 'Todavía no se ha comprobado. Pulsa «Buscar actualización» para mirar si hay una nueva.';
+        tono = 'is-neutro';
+      }
+    }
+    updateStatusText.textContent = texto;
+    updateStatusText.classList.remove('is-neutro', 'is-hay', 'is-al-dia', 'is-ocupado');
+    updateStatusText.classList.add(tono);
+  }
+  if (checkUpdatesButton) {
+    checkUpdatesButton.disabled = busy || instalando;
+    checkUpdatesButton.textContent = instalando ? 'Instalando…' : 'Buscar actualización';
+  }
+  if (downloadUpdateButton) {
+    // Se habilita SOLO con una versión nueva confirmada. Es la diferencia entre este botón y el
+    // antiguo: el antiguo descargaba con un clic y sin preguntar.
+    downloadUpdateButton.disabled = busy || instalando || !hayActualizacion;
+    downloadUpdateButton.textContent = instalando ? 'Instalando…' : 'Descargar actualización';
+  }
 }
-function setUpdateLauncherState(icon, label, spinning = false) {
-  updateLauncherState = { icon, label, spinning };
-  renderUpdateLauncherButton();
-}
-// Los dos canales del botón de actualizar, en un objeto sustituible. ContextBridge
+window.pokeGridUpdateState = estadoDeActualizacion;
+// Los dos canales del boton de actualizar, en un objeto sustituible. ContextBridge
 // congela lo que expone en el mundo principal, así que window.pokeGrid no se puede
 // reemplazar desde una prueba. Poner los dos aquí detrás de unos métodos con valor
 // por defecto deja la aplicación hablando con la ventana igual que siempre y permite
@@ -363,13 +405,20 @@ const pokeGridUpdatePoll = {
     if (resultado.hayActualizacion) {
       this.recordar(resultado.masReciente);
       window.pokeGridNotifications.set('updater', 1);
-      updateLauncherButton.title = `Hay una versión nueva: ${resultado.masReciente}. Púlsala para instalarla.`;
+      // El estado se guarda aqui y se pinta en Configuraciones. Antes se escribia el `title` de un
+      // boton que estaba en el menu: un texto que solo se leia si alguien pasaba el raton por encima
+      // de aquel boton, y que nadie mira. El aviso de verdad es el del panel de notificaciones.
+      estadoDeActualizacion.hayActualizacion = true;
+      estadoDeActualizacion.masReciente = String(resultado.masReciente || '').trim();
+      estadoDeActualizacion.comprobado = true;
+      pintarEstadoDeActualizacion();
     } else {
       this.olvidar();
       window.pokeGridNotifications.set('updater', 0);
-      if (resultado.actual) {
-        updateLauncherButton.title = `Buscar actualizaciones · Versión actual ${resultado.actual}`;
-      }
+      estadoDeActualizacion.hayActualizacion = false;
+      estadoDeActualizacion.masReciente = '';
+      estadoDeActualizacion.comprobado = true;
+      pintarEstadoDeActualizacion();
     }
     return resultado;
   },
@@ -384,11 +433,11 @@ window.pokeGridUpdatePoll = pokeGridUpdatePoll;
 Promise.resolve(window.pokeGrid.getAppVersion?.())
   .then((version) => {
     currentLauncherVersion = String(version || '').trim();
-    renderUpdateLauncherButton();
-    if (currentLauncherVersion) updateLauncherButton.title = `Buscar actualizaciones · Versión actual ${currentLauncherVersion}`;
   })
-  .catch(() => renderUpdateLauncherButton())
+  .catch(() => { currentLauncherVersion = ''; })
   .finally(() => {
+    estadoDeActualizacion.version = currentLauncherVersion;
+    pintarEstadoDeActualizacion();
     // Guardar la versión local para que el sondeo pueda decidir, y arrancar el sondeo.
     // Va después de leer la versión, no antes: sin ella no se puede saber si la
     // pendiente guardada es la que ya tienes. Va en finally y no en el then para que
@@ -1375,21 +1424,25 @@ const ICONOS_MENU = {
   '#cleanupMemoryButton': 'trash',
   '#loginAllButton': 'play',
   '#reloadAllButton': 'refresh',
-  '#updateLauncherButton': 'download',
   '#viewModeButton': 'layout',
   // Faltaba, y por eso el engranaje salia como un cuadro vacio: esta lista es la que rellena el
   // hueco del icono de cada boton del menu, y el engranaje no estaba en ella. Cuando vivia en la
   // barra de pestañas se lo ponia una linea propia —`innerHTML` sobre el boton entero— y al
   // quitar esa linea por vaciar el nombre, se quedo sin ninguna de las dos cosas.
-  '#instanceSettingsButton': 'settings'
+  '#instanceSettingsButton': 'settings',
+  // El de perfiles. SUPUESTO iba bien y salia VACIO, por lo mismo que el engranaje pero con otro
+  // disfraz: el boton llevaba `data-icon="profile"`, y hay un bucle que rellena los `[data-icon]`...
+  // que solo corre al abrir el modal de farmeo, no al arrancar. Es decir: el atributo estaba a la
+  // vista en el HTML, el nombre del icono existia en la tabla y el icono seguia sin salir, porque
+  // la lista que de verdad pinta la barra es ESTA. Ese bucle se ha quitado mas abajo: tener dos
+  // caminos para lo mismo es lo que permite que uno se rompa en silencio. Si anades un boton al menu,
+  // anadelo aqui.
+  '#perfilesButton': 'profile'
 };
 function aplicarIconosMenu() {
   for (const [selector, icono] of Object.entries(ICONOS_MENU)) {
     const boton = document.querySelector(selector);
     if (!boton) continue;
-    // El de actualizar se repinta entero en cada cambio de estado, así que se
-    // deja a su propio camino y no se toca.
-    if (boton.id === 'updateLauncherButton') continue;
     // El icono es el primer hijo con esa clase: en algunos botones, el badge de
     // actualizaciones va antes y también lleva `menu-update-badge`.
     const hueco = boton.querySelector('.top-action-icon');
@@ -8325,13 +8378,14 @@ function aplicarIconosBarraFarmeo() {
   const huecoDetener = detener?.querySelector('.top-action-icon');
   if (huecoDetener) huecoDetener.innerHTML = launcherUiIcon('stop');
 
-  // Los huecos que se rellenan por atributo `data-icon`, sin tener que conocer de antemano el boton.
-  // Van en la misma pasada que los de la barra del farmeo y por el mismo motivo: un icono escrito
-  // a mano en el HTML es un icono que nadie encuentra al buscarlo en la tabla.
-  for (const hueco of document.querySelectorAll('[data-icon]')) {
-    hueco.classList.add('menu-svg-icon');
-    hueco.innerHTML = launcherUiIcon(hueco.dataset.icon);
-  }
+  // Los huecos marcados con `data-icon` en el HTML ya NO se pintan aqui. Se pintaban, y por eso el
+  // icono de perfiles salia vacio: este bucle corre solo cuando se abre el modal de farmeo, de modo
+  // que en el arranque —que es cuando se ve la barra del menu— no se ejecutaba nunca. Ese boton esta
+  // ahora en `ICONOS_MENU`, que si se ejecuta al arrancar.
+  //
+  // Se quita el bucle y no se arregla porque solo funcione entonces: con dos rutas para pintar los
+  // iconos del menu, la que falla no dice nada. Un icono vacio no da error, no aparece en la consola
+  // y la captura hay que buscarla a ojo. Una sola ruta, o al menos una que se ejecute siempre.
 }
 
 function renderAccountProfile(panel, profile) {
@@ -9401,6 +9455,9 @@ function updateBrowserInstanceSelection() {
   // manejador de clic porque TODA forma de cambiar de instancia pasa por esta funcion: el atajo, el
   // boton, la restauracion del arranque y el cambio al entrar en pantalla completa.
   aplicarDescanso();
+  // Y con la pestaña cambia el perfil de la cabecera del menu, porque esa cabecera dice el perfil de
+  // la pestaña que se esta mirando. Aqui y no en el manejador de clic, por el mismo motivo.
+  pintarPerfilEnLaCabecera();
 }
 // El proceso principal solo sabe de webContents. Este mapa traduce de uno a la pantalla que le
 // corresponde.
@@ -10678,6 +10735,10 @@ function pintarGestorDePerfiles() {
   }
   lista.appendChild(circuloDeCrear());
   pintarEditorDePerfil();
+  // Y la cabecera del menu. Todo cambio de perfil —nombre, color, avatar— pasa por este pintado, asi
+  // que se repinta aqui una vez y no en cada uno de los siete sitios que guardan. Si se olvidara uno,
+  // el nombre del perfil en la cabecera se quedaria en el viejo sin que nada avise.
+  pintarPerfilEnLaCabecera();
 }
 
 // Un círculo. Sin sprite, la inicial del nombre; que un perfil se pueda identificar sin foto es lo que
@@ -10727,6 +10788,45 @@ function circuloDeCrear() {
     + '<span class="perfil-circulo-nombre">Perfil nuevo</span>';
   celda.addEventListener('click', crearPerfilDesdeElGestor);
   return celda;
+}
+
+// EL PERFILO EN LA CABECERA DEL MENU.
+//
+// El perfil de la cabecera es el de la pestana que se esta mirando, no el ultimo perfil que se toco.
+// Puede haber ventanas de dos perfiles abiertos a la vez —para eso existen los perfiles— y lo que
+// hace falta es saber en cual de las dos se esta ahora. Por eso sale de `activeBrowserInstanceId`.
+//
+// Si no se puede averiguar (el perfil se borro a mano, la instancia ya no esta), cae en el Principal:
+// un sitio vacio en la cabecera se lee como «falta algo», y aqui no falta nada.
+function perfilDeLaCabecera() {
+  const fila = browserInstances.find((una) => una.id === activeBrowserInstanceId) || null;
+  const perfilId = window.pokeGridPerfiles?.resolver(fila ? fila.perfilId : '') || PERFIL_POR_DEFECTO;
+  return (window.pokeGridPerfiles?.listar?.() || []).find((p) => p.id === perfilId) || null;
+}
+
+function pintarPerfilEnLaCabecera() {
+  const nombre = document.querySelector('#sidebarProfileName');
+  const foto = document.querySelector('#sidebarProfileAvatar');
+  if (!nombre || !foto) return;
+  const perfil = perfilDeLaCabecera();
+  nombre.textContent = (perfil && perfil.nombre) || 'Principal';
+  foto.style.background = (perfil && perfil.color) || '';
+  foto.replaceChildren();
+  const sprite = perfil ? spritesDePerfil.get(perfil.avatar) : '';
+  if (sprite) {
+    const imagen = document.createElement('img');
+    imagen.src = sprite;
+    imagen.alt = '';
+    foto.appendChild(imagen);
+  } else {
+    foto.textContent = ((perfil && perfil.nombre) || 'P').trim().charAt(0) || 'P';
+  }
+  // El sprite se pide una sola vez y se queda en `spritesDePerfil`. Se pide al pintar y no al abrir
+  // el gestor porque la cabecera se ve en el menu, que es lo primero que se abre: si el perfil tiene
+  // foto, se ve sin un paso de por medio. Si no hay red, sale la inicial y no pasa nada.
+  if (perfil && perfil.avatar && !spritesDePerfil.has(perfil.avatar)) {
+    spriteDeEspecie(perfil.avatar).then(() => pintarPerfilEnLaCabecera());
+  }
 }
 
 function abrirGestorDePerfiles() {
@@ -10806,6 +10906,11 @@ function sincronizarModoElegido() {
 // Se llama al abrir el modal y cada vez que se crea uno desde aqui mismo. Un perfil sin nombre sale
 // como «Perfil sin nombre» y no con un nombre inventado: el usuario no escribio ninguno, y poner uno
 // seria mentir sobre lo que hay guardado.
+//
+// En la 0.39.0 este selector ya no crea perfiles —se creo el boton «Perfil nuevo» aqui y se ha
+// quitado— y ademas enseña el circulo del perfil que esta elegido. Un desplegable con texto pelado
+// obliga a recordar de memoria como se llama cada perfil, y como los nombres son libres, dos
+// perfiles «Amazon» y «Amazon 2» no se distinguen de otra manera.
 function pintarSelectorDePerfiles(elegido) {
   const selector = browserInstancePerfil;
   if (!selector) return;
@@ -10818,8 +10923,29 @@ function pintarSelectorDePerfiles(elegido) {
     selector.appendChild(opcion);
   }
   // Sin `elegido` se deja el Principal: es con lo que nace una ventana nueva, y no con lo que se
-  // USO la ultima vez, que ya seria una sorpresa.
+  // uso la ultima vez, que ya seria una sorpresa.
   selector.value = window.pokeGridPerfiles?.resolver(elegido ?? '') || PERFIL_POR_DEFECTO;
+  pintarVistaDelPerfilElegido();
+}
+
+// El circulo de al lado del desplegable: el MISMO que en el gestor, para que el perfil se parezca a
+// como se ve ahi y no haga falta mirar en dos sitios para saber cual es.
+function pintarVistaDelPerfilElegido() {
+  const vista = document.querySelector('#browserInstancePerfilVista');
+  if (!vista || !browserInstancePerfil) return;
+  const id = window.pokeGridPerfiles?.resolver(browserInstancePerfil.value) || PERFIL_POR_DEFECTO;
+  const perfil = (window.pokeGridPerfiles?.listar() || []).find((uno) => uno.id === id);
+  vista.style.background = (perfil && perfil.color) || '';
+  vista.replaceChildren();
+  const sprite = perfil ? spritesDePerfil.get(perfil.avatar) : '';
+  if (sprite) {
+    const imagen = document.createElement('img');
+    imagen.src = sprite;
+    imagen.alt = '';
+    vista.appendChild(imagen);
+  } else {
+    vista.textContent = ((perfil && perfil.nombre) || 'P').trim().charAt(0) || 'P';
+  }
 }
 
 // Crear un perfil con el nombre escrito. Solo crea y lo devuelve: quien llame decide que pintar
@@ -10832,28 +10958,14 @@ function crearPerfilConNombre(nombre) {
   return window.pokeGridPerfiles?.crear(String(nombre || '').trim()) || null;
 }
 
-function mostrarFormDePerfilNuevo() {
-  const form = document.querySelector('#nuevoPerfilForm');
-  const campo = document.querySelector('#nuevoPerfilNombre');
-  if (!form || !campo) return;
-  form.hidden = false;
-  campo.value = '';
-  campo.focus();
-}
-
-function ocultarFormDePerfilNuevo() {
-  const form = document.querySelector('#nuevoPerfilForm');
-  if (form) form.hidden = true;
-}
-
-// El camino del modal: crear aqui y que el selector se quede en el perfil nuevo, sin cerrarse.
-function crearPerfilDesdeElSelector() {
-  const campo = document.querySelector('#nuevoPerfilNombre');
-  const creado = crearPerfilConNombre(campo?.value);
-  if (!creado) return;
-  pintarSelectorDePerfiles(creado.id);
-  ocultarFormDePerfilNuevo();
-}
+// En este modal YA NO se crean perfiles.
+//
+// Se quito el boton «Perfil nuevo» en la 0.39.0, y con el se fueron el formulario, el campo y las
+// funciones que los manejaban. El motivo de quitarlo no es estetico. Un desplegable de perfiles que
+// ademas propone crear uno mezcla dos cosas que se estorban: aqui se esta eligiendo con que perfil se
+// abre UNA ventana, y crear un perfil es decidir como se llama una sesion que tendra sus propias
+// ventanas. Encima se acababa creando un perfil sin querer, con un nombre en blanco, cada vez que
+// se buscaba uno que ya existia. Crear perfiles es cosa del gestor, y del boton «Perfiles» del menu.
 
 function openBrowserInstanceModal() {
 
@@ -10865,7 +10977,6 @@ function openBrowserInstanceModal() {
   // El selector de perfiles se repinta al abrir, y no solo al arrancar: si se crea un perfil desde el
   // gestor con el launcher abierto, la siguiente ventana nueva tiene que poder elegirlo.
   pintarSelectorDePerfiles();
-  ocultarFormDePerfilNuevo();
   // Sin esta llamada, los campos se quedaban como estaban de la ultima vez. Con el modo por defecto
   // en «navegador», la URL seguia siendo obligatoria y ambos campos a la vista, que es justo lo que
   // se pidio quitar. Los valores se limpian arriba, pero el modo hay que aplicarlo.
@@ -11958,8 +12069,6 @@ document.querySelector('#instanceSettingsPerfil')?.addEventListener('change', (e
   if (!aplicarPerfilAInstancia(instancia.id, evento.target.value)) pintarPerfilEnLosAjustes();
 });
 
-document.querySelector('#nuevoPerfilButton')?.addEventListener('click', mostrarFormDePerfilNuevo);
-
 // El perfil que se esta editando en el gestor, o cadena vacia si no hay ninguno.
 //
 // Va en un modulo aparte y no en `window` porque es estado de PANTALLA: se pierde al cerrar el dialogo
@@ -11974,9 +12083,31 @@ let perfilEditandoId = '';
 // perfil por cada arranque para pintar una foto que cabe en memoria.
 const spritesDePerfil = new Map();
 
+// LA PALETA. Diez colores planos y doce degradados.
+//
+// Los degradados estan al final y no repartidos: los planos son «un color», se eligen por el nombre
+// que uno tiene en la cabeza («el rojo», «el azul»), y un degradado se elige porque mola. Mezclarlos
+// haria que al recorrer la paleta el ojo no sepa si esta leyendo un color o una mezcla.
+//
+// El angulo va de 135 grados, el mismo en todos, para que en el circulo ninguno se vea «mas rayado»
+// que otro. Los degradados van en la convencion de siempre: color claro arriba, color fuerte abajo,
+// que es lo que hace que un circulo con sprite se lea bien y el fondo no compita con la imagen.
 const COLORES_DE_PERFIL = [
   '', '#e63946', '#f4a261', '#e9c46a', '#2a9d8f', '#3a86ff',
-  '#8338ec', '#ff006e', '#8d99ae', '#2b2d42'
+  '#8338ec', '#ff006e', '#8d99ae', '#2b2d42',
+
+  'linear-gradient(135deg, #ffd166, #ef476f)',
+  'linear-gradient(135deg, #8ecae6, #023047)',
+  'linear-gradient(135deg, #a8dadc, #457b9d)',
+  'linear-gradient(135deg, #f4acb7, #9d4e5a)',
+  'linear-gradient(135deg, #bde0fe, #a2d2ff)',
+  'linear-gradient(135deg, #cdb4db, #5a189a)',
+  'linear-gradient(135deg, #caffbf, #38b000)',
+  'linear-gradient(135deg, #ffdd00, #ff8500)',
+  'linear-gradient(135deg, #9bf6ff, #0096c7)',
+  'linear-gradient(135deg, #ffd6ff, #c77dff)',
+  'linear-gradient(135deg, #f8f9fa, #adb5bd)',
+  'linear-gradient(135deg, #7b2cbf, #3a0ca3)'
 ];
 
 // El sprite de una especie, o cadena vacia.
@@ -12030,6 +12161,11 @@ function pintarEditorDePerfil() {
   const esPrincipal = perfil.id === PERFIL_POR_DEFECTO;
   const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
 
+  // El nombre de quien se esta editando, en su propia linea. El titulo del dialogo dice «Perfiles» y
+  // no cambia nunca; lo que cambia es cual de ellos, y sin esto no se sabe que se esta tocando otro.
+  const corto = document.querySelector('#perfilEditorNombreCorto');
+  if (corto) corto.textContent = perfil.nombre || 'Perfil sin nombre';
+
   const nombre = document.querySelector('#perfilEditorNombre');
   // Solo se escribe si esta vacio: si se reescribe en cada repintado, al teclear «Curro» se leeria
   // «C» en el siguiente `change` de otro control y el texto saltaria.
@@ -12067,7 +12203,14 @@ function pintarPaletaDeColor(perfil) {
       boton.setAttribute('aria-label', 'Sin color de fondo');
     } else {
       boton.style.background = color;
-      boton.setAttribute('aria-label', `Color ${color}`);
+      // El degradado se anuncia como degradado. Dejar «Color linear-gradient(135deg, #ffd166,
+      // #ef476f)» en la etiqueta que lee el lector de pantalla es un texto que no le sirve a nadie;
+      // lo que hace falta es saber que es una mezcla, no cuales son los numeros.
+      const degradado = color.startsWith('linear-gradient');
+      if (degradado) boton.classList.add('es-degradado');
+      boton.setAttribute('aria-label', degradado
+        ? 'Degradado de color para el perfil'
+        : `Color ${color}`);
     }
     if ((perfil.color || '') === color) boton.classList.add('es-elegido');
     boton.addEventListener('click', () => {
@@ -12079,8 +12222,57 @@ function pintarPaletaDeColor(perfil) {
   }
 }
 
-// La rejilla de Pokémon. Solo se pinta con el panel abierto: son 36 imágenes y no tiene sentido
-// bajarlas todas al abrir el gestor, que es lo que se pidió —nada hasta que se elige uno—.
+// La rejilla de Pokémon.
+//
+// SIGUE PINTANDOSE SOLO CON EL PANEL ABIERTO —no se bajan sprites al arrancar el launcher— pero DENTRO
+// del panel si se muestran todos. Eso cambio en la 0.39.0: mientras no se enseñaban, la rejilla eran
+// ciento treinta cuadros vacios con un nombre debajo, y un desplegable tiene que enseñar las fotos
+// para poder elegir una. Lo que se evita es lo de verdad caro, que es pedirlas sin que nadie las este
+// mirando.
+// UNA CELDA DE LA REJILLA DE AVATARES.
+//
+// Se separa del pintado por una razon concreta: las imagenes llegan DESPUES. Antes de eso la celda
+// tiene que existir, tener su forma y su sitio, y solo entonces le llega el sprite. Si la celda se
+// creara al llegar la imagen, la rejilla daria saltos mientras se rellena y habria que repintarla
+// entera, que es lo que hacia el codigo de antes con cada imagen que llegaba.
+function celdaDeAvatar(perfil, especie) {
+  const celda = document.createElement('button');
+  celda.type = 'button';
+  celda.className = 'perfil-avatar' + (perfil.avatar === especie ? ' es-elegido' : '');
+  celda.title = especie.charAt(0).toUpperCase() + especie.slice(1);
+  celda.setAttribute('aria-label', celda.title);
+  celda.dataset.especie = especie;
+  celda.addEventListener('click', async () => {
+    celda.classList.add('es-cargando');
+    const datos = await spriteDeEspecie(especie);
+    celda.classList.remove('es-cargando');
+    // Se dibuja lo que ha vuelto, haya algo o no. Una celda vacia no dice «no hay imagen»: dice
+    // «no se ha podido cargar», y el usuario no tiene forma de saber cual de las dos cosas es.
+    pintarSpriteEnCeldaDeAvatar(celda, datos || especie);
+    if (window.pokeGridPerfiles?.ponerAvatar(perfil.id, especie, perfil.color)) pintarGestorDePerfiles();
+  });
+  return celda;
+}
+
+// Pone el sprite en su celda, o una marca de que no ha llegado.
+//
+// La marca NO es un hueco en blanco. Un hueco en blanco en una rejilla de 130 cosas parece que
+// funciona mal; una silueta apagada parece una foto que no carga, que es lo que de verdad pasa. Y
+// cuando el sprite no existe porque la especie esta mal escrita, se ve igual, que tambien vale.
+function pintarSpriteEnCeldaDeAvatar(celda, datos) {
+  celda.classList.remove('es-cargando', 'es-sin-sprite');
+  celda.replaceChildren();
+  if (datos) {
+    const imagen = document.createElement('img');
+    imagen.src = datos;
+    imagen.alt = '';
+    celda.appendChild(imagen);
+    return;
+  }
+  celda.classList.add('es-sin-sprite');
+  celda.textContent = (celda.dataset.especie || '?').charAt(0).toUpperCase();
+}
+
 function pintarRejillaDeAvatares(perfil) {
   const rejilla = document.querySelector('#perfilAvatarGrid');
   if (!rejilla || rejilla.hidden) return;
@@ -12098,34 +12290,51 @@ function pintarRejillaDeAvatares(perfil) {
   rejilla.appendChild(ninguno);
 
   for (const especie of especies) {
-    const celda = document.createElement('button');
-    celda.type = 'button';
-    celda.className = 'perfil-avatar' + (perfil.avatar === especie ? ' es-elegido' : '');
-    celda.title = especie.charAt(0).toUpperCase() + especie.slice(1);
-    celda.setAttribute('aria-label', celda.title);
-    celda.dataset.especie = especie;
-    const guardado = spritesDePerfil.get(especie);
-    if (guardado) {
-      const imagen = document.createElement('img');
-      imagen.src = guardado;
-      imagen.alt = '';
-      celda.appendChild(imagen);
-    }
-    celda.addEventListener('click', async () => {
-      // El sprite se pide al PULSAR, no al pintar la rejilla. Es lo que evita descargar 36 imagenes
-      // para teach una sola.
-      celda.classList.add('es-cargando');
-      const datos = await spriteDeEspecie(especie);
-      celda.classList.remove('es-cargando');
-      if (datos) {
-        const imagen = document.createElement('img');
-        imagen.src = datos;
-        imagen.alt = '';
-        celda.replaceChildren(imagen);
-      }
-      if (window.pokeGridPerfiles?.ponerAvatar(perfil.id, especie, perfil.color)) pintarGestorDePerfiles();
-    });
+    const celda = celdaDeAvatar(perfil, especie);
+    pintarSpriteEnCeldaDeAvatar(celda, spritesDePerfil.get(especie) || '');
     rejilla.appendChild(celda);
+  }
+  // Y ahora sí, a por los que falten. Antes no se pedía ninguno al abrir: los sprites se pedían al
+  // PULSAR una celda, y como no habia ninguno en la cache, la rejilla salia con ciento treinta
+  // cuadros VACIOS la primera vez. Eso no es un selector de avatar: es una lista de huecos con un
+  // nombre debajo. Un desplegable tiene queenseñar las fotos para poder elegir una.
+  cargarSpritesDeLasEspecies(especies);
+}
+
+// LOS SPRITES DE LA REJILLA.
+//
+// Van por tandas de ocho y NO BLOQUEAN nada: se piden, y cada imagen que llega se pinta en su celda
+// sola. Se puede seguir usando el gestor mientras se rellena, y al cerrarlo y volver a abrirlo ya
+// esta todo.
+//
+// Las ocho de golpe y no uno a uno es lo que hace que tarde dos segundos en vez de medio minuto: son
+// dos peticiones por especie —el id y el sprite— y van en cadena, de ahi el agua. Y ocho a la vez no
+// es un capricho: es lo que se mantiene por debajo de lo que un navegador considera
+// «demasiadas peticiones a la vez». Mas de ahi y PokéAPI contesta con 429 y la rejilla se queda con
+// la mitad de los avatares sin saber por que.
+const AVATARES_POR_TANDA = 8;
+let tandaDeAvataresEnCurso = false;
+
+async function cargarSpritesDeLasEspecies(especies) {
+  if (tandaDeAvataresEnCurso) return;
+  const faltan = especies.filter((especie) => !spritesDePerfil.has(especie));
+  if (!faltan.length) return;
+  tandaDeAvataresEnCurso = true;
+  try {
+    for (let i = 0; i < faltan.length; i += AVATARES_POR_TANDA) {
+      const tanda = faltan.slice(i, i + AVATARES_POR_TANDA);
+      await Promise.all(tanda.map(async (especie) => {
+        await spriteDeEspecie(especie);
+        // La celda puede que ya no este: el usuario ha cerrado el gestor mientras se descargaba, o
+        // ha cambiado de perfil y se ha repintado la rejilla entera. Se busca por el atributo y, si
+        // no esta, no se hace nada. Es lo normal, no es un fallo.
+        const celda = document.querySelector(`#perfilAvatarGrid .perfil-avatar[data-especie="${especie}"]`);
+        if (!celda) return;
+        pintarSpriteEnCeldaDeAvatar(celda, spritesDePerfil.get(especie) || '');
+      }));
+    }
+  } finally {
+    tandaDeAvataresEnCurso = false;
   }
 }
 
@@ -12162,6 +12371,9 @@ function eliminarPerfilEditando() {
 const perfilesBackdrop = document.querySelector('#perfilesBackdrop');
 const cerrarGestor = () => { if (perfilesBackdrop) perfilesBackdrop.hidden = true; };
 document.querySelector('#perfilesButton')?.addEventListener('click', abrirGestorDePerfiles);
+// La cabecera del menu abre el mismo gestor. Es la pregunta que se hace uno al abrir el menu —¿este
+// es el perfil que quiero?— y asi se responde sin salir de ahi.
+document.querySelector('#sidebarProfileButton')?.addEventListener('click', abrirGestorDePerfiles);
 document.querySelector('#closePerfilesButton')?.addEventListener('click', cerrarGestor);
 document.querySelector('[data-close-perfiles]')?.addEventListener('click', cerrarGestor);
 document.querySelector('#perfilEditorGuardar')?.addEventListener('click', guardarPerfilEditando);
@@ -12178,13 +12390,11 @@ document.querySelector('#perfilEditorNombre')?.addEventListener('change', guarda
 perfilesBackdrop?.addEventListener('click', (evento) => {
   if (evento.target === perfilesBackdrop) cerrarGestor();
 });
-// Enter tambien crea. En un campo de texto de un modal, lo raro es tener que pulsar un boton de al lado.
-document.querySelector('#nuevoPerfilNombre')?.addEventListener('keydown', (evento) => {
-  if (evento.key !== 'Enter') return;
-  evento.preventDefault();
-  crearPerfilDesdeElSelector();
-});
-document.querySelector('#nuevoPerfilCrear')?.addEventListener('click', crearPerfilDesdeElSelector);
+
+// El circulo del selector de perfiles del modal se repinta al cambiar el desplegable. Sin esto
+// seguira enseñando el perfil anterior hasta que se vuelva a abrir el modal, que es como se
+// comprueba que el selector esta vivo o no.
+browserInstancePerfil?.addEventListener('change', pintarVistaDelPerfilElegido);
 
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -12352,11 +12562,18 @@ cleanupMemoryButton.addEventListener('click', async () => {
 });
 if (window.pokeGrid.onUpdateProgress) {
   window.pokeGrid.onUpdateProgress((progress = {}) => {
-    if (!updateLauncherButton.disabled) updateLauncherButton.disabled = true;
-    if (progress.phase === 'download') {
-      setUpdateLauncherState('download', `Descargando ${Number(progress.percent) || 0}%`);
+    // El progreso se ve mientras descarga, no solo «ocupado». Setenta megas dan para cinco minutos de
+// pantalla quieta, y una fila que no se mueve parece colgada. El porcentaje va en el texto de estado.
+if (progress.phase === 'download') {
+      estadoDeActualizacion.busy = true;
+      estadoDeActualizacion.instalando = true;
+      estadoDeActualizacion.mensaje = `Descargando la versión ${estadoDeActualizacion.masReciente || ''}… ${Number(progress.percent) || 0}%`;
+      pintarEstadoDeActualizacion();
     } else if (progress.phase === 'verify') {
-      setUpdateLauncherState('clock', 'Verificando');
+      estadoDeActualizacion.busy = true;
+      estadoDeActualizacion.instalando = true;
+      estadoDeActualizacion.mensaje = `Descargada. Comprobando que el archivo esté bien…`;
+      pintarEstadoDeActualizacion();
     }
   });
 }
@@ -12366,78 +12583,97 @@ if (window.pokeGrid.onUpdateProgress) {
 if (window.pokeGrid.onDescansoCambiado) {
   window.pokeGrid.onDescansoCambiado(() => aplicarDescanso());
 }
-updateLauncherButton.addEventListener('click', async () => {
-  updateLauncherButton.disabled = true;
-  updateLauncherButton.setAttribute('aria-busy', 'true');
-  setUpdateLauncherState('spinner', 'Buscando', true);
-  // Mientras se reinicia el botón no se rehabilita: el proceso está a punto de morir,
-  // y dejarlo pulsable invitaría a lanzar una segunda instalación en paralelo.
-  let instalando = false;
+// LOS DOS BOTONES DE LAS ACTUALIZACIONES.
+//
+// Antes habia uno, en el menu, y hacia las dos cosas: comprobar y descargar. Pulsarlo miraba y, si
+// habia algo, preguntaba y descargaba. Ahora estan separados, y esa separacion es el cambio de fondo:
+// con un boton no hay manera de saber si hay actualizacion sin pulsar, y un pulsado son setenta
+// megas y una pregunta.
+//
+// «Buscar» solo mira. Nunca instala, nunca pregunta por instalar y no puede cerrar el launcher.
+// «Descargar» solo hace falta si hay algo, y no se habilita hasta que se ha confirmado que lo hay.
+async function buscarActualizacion() {
+  if (estadoDeActualizacion.busy || estadoDeActualizacion.instalando) return null;
+  estadoDeActualizacion.busy = true;
+  estadoDeActualizacion.mensaje = '';
+  pintarEstadoDeActualizacion();
   try {
-    // Primero mirar, instalar después. app:check-update descarga, instala, borra la
-    // versión anterior y cierra el launcher, así que no puede ser lo primero: pulsar
-    // el botón sin más ya instalaba sin preguntar, que es justo lo que no se quiere
-    // de un botón que cierra la aplicación.
     const peek = await pokeGridUpdateChannels.peek();
     if (!peek || !peek.ok) throw new Error(peek?.error || 'No se pudo buscar la actualización.');
+    estadoDeActualizacion.version = String(peek.actual || estadoDeActualizacion.version || '').trim();
+    estadoDeActualizacion.hayActualizacion = Boolean(peek.hayActualizacion);
+    estadoDeActualizacion.masReciente = String(peek.masReciente || '').trim();
+    estadoDeActualizacion.comprobado = true;
     if (peek.status === 'development') {
-      setUpdateLauncherState('download', 'Modo desarrollo');
-      updateLauncherButton.title = 'La instalación automática se comprueba desde el paquete portátil.';
-      return;
-    }
-    if (!peek.hayActualizacion) {
-      setUpdateLauncherState('check', 'Está actualizado');
-      updateLauncherButton.title = `Versión actual ${peek.actual}`;
+      estadoDeActualizacion.mensaje = 'Esto está en desarrollo. La instalación automática se comprueba desde el paquete portátil.';
+    } else if (estadoDeActualizacion.hayActualizacion) {
+      // La versión nueva es pendiente aunque luego se cancele la descarga: se registra al VERLA, no
+      // al aceptarla. Si se dejara para despues, cancelar dejaria el aviso apagado cuando la
+      // actualizacion sigue ahi.
+      window.pokeGridUpdatePoll.recordar(peek.masReciente);
+      window.pokeGridNotifications.set('updater', 1);
+    } else {
       window.pokeGridUpdatePoll.olvidar();
       window.pokeGridNotifications.set('updater', 0);
-      return;
     }
-    // La versión nueva es pendiente aunque el usuario cancele, así que se registra y se
-    // avisa antes de preguntar y no solo si se acepta. Si se dejara para después,
-    // cancelar dejaría el aviso apagado cuando la actualización sigue ahí.
-    window.pokeGridUpdatePoll.recordar(peek.masReciente);
-    window.pokeGridNotifications.set('updater', 1);
-    const aceptado = window.confirm(
-      'Hay una versión nueva del launcher.\n\n'
-      + `Versión actual: ${peek.actual}\n`
-      + `Versión disponible: ${peek.masReciente}\n\n`
-      + 'Se descargará y se instalará. El launcher se cerrará al terminar.\n\n'
-      + '¿Continuar?'
-    );
-    if (!aceptado) {
-      // Cancelar no apaga el aviso: sigue pendiente hasta que se instale de verdad. Es
-      // lo único que le queda al usuario para volver a intentarlo más tarde.
-      setUpdateLauncherState('download', 'Actualización pendiente');
-      return;
-    }
+    return peek;
+  } catch (error) {
+    estadoDeActualizacion.mensaje = error.message || 'No se pudo buscar la actualización.';
+    // El aviso no se apaga: un fallo al comprobar no dice que ya se este al dia, solo que esta vez
+    // no se pudo saber.
+    return null;
+  } finally {
+    estadoDeActualizacion.busy = false;
+    pintarEstadoDeActualizacion();
+  }
+}
+
+async function descargarActualizacion() {
+  if (estadoDeActualizacion.busy || estadoDeActualizacion.instalando) return;
+  if (!estadoDeActualizacion.hayActualizacion) return;
+  const aceptado = window.confirm(
+    'Hay una versión nueva del launcher.\n\n'
+    + `Versión actual: ${estadoDeActualizacion.version || 'desconocida'}\n`
+    + `Versión disponible: ${estadoDeActualizacion.masReciente}\n\n`
+    + 'Se descargará en la carpeta de al lado de la del launcher y se instalará al cerrar el '
+    + 'launcher.\n\n'
+    + '¿Continuar?'
+  );
+  if (!aceptado) {
+    // Cancelar no apaga el aviso: sigue pendiente hasta que se instale de verdad. Es lo unico que le
+    // queda al usuario para volver a intentarlo mas tarde.
+    pintarEstadoDeActualizacion();
+    return;
+  }
+  estadoDeActualizacion.instalando = true;
+  estadoDeActualizacion.mensaje = '';
+  pintarEstadoDeActualizacion();
+  try {
     const result = await pokeGridUpdateChannels.instalar();
     if (!result.ok) throw new Error(result.error || 'No se pudo completar la actualización.');
-    currentLauncherVersion = String(result.currentVersion || currentLauncherVersion || '').trim();
     if (result.status === 'installing') {
-      instalando = true;
+      // Mientras se reinicia la fila no se rehabilita: el proceso esta a punto de morir, y dejarla
+      // pulsable invitaria a lanzar una segunda instalacion en paralelo.
       window.pokeGridUpdatePoll.olvidar();
       window.pokeGridNotifications.set('updater', 0);
-      setUpdateLauncherState('spinner', `Instalando ${result.latestVersion}`, true);
-      updateLauncherButton.title = `Instalando la versión ${result.latestVersion}`;
+      estadoDeActualizacion.masReciente = String(result.latestVersion || estadoDeActualizacion.masReciente);
     } else {
-      setUpdateLauncherState('check', 'Está actualizado');
-      updateLauncherButton.title = `Versión actual ${currentLauncherVersion}`;
+      estadoDeActualizacion.hayActualizacion = false;
+      estadoDeActualizacion.instalando = false;
+      estadoDeActualizacion.version = String(result.currentVersion || estadoDeActualizacion.version || '').trim();
     }
   } catch (error) {
-    setUpdateLauncherState('!', 'Error de actualización');
-    updateLauncherButton.title = error.message || 'No se pudo actualizar.';
-    // El aviso tampoco se apaga aquí: un fallo al instalar no dice que ya estés al
-    // día, solo que esta vez no se pudo.
-    window.setTimeout(() => {
-      if (!updateLauncherButton.disabled && !instalando) setUpdateLauncherState('download', 'Actualización pendiente');
-    }, 4000);
-  } finally {
-    if (!instalando) {
-      updateLauncherButton.disabled = false;
-      updateLauncherButton.removeAttribute('aria-busy');
-    }
+    estadoDeActualizacion.instalando = false;
+    estadoDeActualizacion.mensaje = error.message || 'No se pudo actualizar.';
+    // El aviso tampoco se apaga aqui: un fallo al instalar no dice que ya estes al dia, solo que
+    // esta vez no se pudo. El mensaje se deja puesto en vez de desaparecer a los cuatro segundos
+    // como antes: en un dialogo cerrado no hay nadie mirando a los cuatro segundos.
+    pintarEstadoDeActualizacion();
   }
-});
+}
+
+checkUpdatesButton?.addEventListener('click', () => { buscarActualizacion(); });
+downloadUpdateButton?.addEventListener('click', () => { descargarActualizacion(); });
 document.querySelector('#loginAllButton').addEventListener('click', () => {
   panels.forEach((panel, index) => {
     window.setTimeout(() => {
@@ -12725,6 +12961,10 @@ window.__pokeGridScheduleRecoveryPreview = (index = 0) => {
 };
 (async function initialize() {
   applySidebarState(localStorage.getItem('launcherSidebarOpen') === '1', { persist: false });
+  // Y aqui, y no junto a `aplicarIconosMenu()`: `pintarPerfilEnLaCabecera` lee `spritesDePerfil`, que
+  // es un `const` declarado mas abajo. Llamarla antes de que el fichero llegue ahi la deja en zona
+  // muerta temporal y revienta con un ReferenceError que no dice nada del perfil.
+  pintarPerfilEnLaCabecera();
   applyTopbarCollapsedState(localStorage.getItem('launcherTopbarCollapsed') === '1', { persist: false });
   await hydrateNotificationArchive();
   saveLauncherNotifications();

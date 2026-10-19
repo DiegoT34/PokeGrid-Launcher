@@ -98,8 +98,13 @@ const QUE_SI = [
     ['el selector de perfil esta en el modal', /id="browserInstancePerfil"/, html],
     ['y su valor se guarda al crear la ventana', /perfilId: browserInstancePerfil\?\.value \|\| PERFIL_POR_DEFECTO/, renderer],
     ['los perfiles se pintan al abrir el modal', /pintarSelectorDePerfiles\(\);/, renderer],
-    ['crear un perfil se hace con un campo en la pantalla, no con un prompt',
-      /function crearPerfilDesdeElSelector\(\)/, renderer],
+    // Antes decia «crear un perfil se hace con un campo en la pantalla, no con un prompt» y miraba
+    // `crearPerfilDesdeElSelector`. Ese camino salio del modal en la 0.39.0 —crear perfiles es cosa del
+    // gestor— y una invariante que mira una funcion que ya no esta no comprueba nada: sigue dando
+    // verde mientras no mire nada. Lo que se comprueba ahora es lo de aqui abajo, en el bloque de las
+    // ausencias: que en el modal no quede NINGUN camino para crear un perfil.
+    ['el circulo del perfil elegido se pinta al lado del desplegable',
+      /function pintarVistaDelPerfilElegido\(\)/, renderer],
 
     // ---- el gestor de perfiles
     ['el gestor de perfiles tiene su modal', /id="perfilesBackdrop"/, html],
@@ -157,6 +162,21 @@ const QUE_NO = [
   ['la preferencia que prohibia atenuar', /backgroundThrottling: false/, mainProceso],
   ['la preferencia en las webviews', /setAttribute\('webpreferences', 'backgroundThrottling=no/, renderer],
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer],
+
+  // ---- 0.39.0: lo que tiene que haber desaparecido
+  // Crear un perfil desde el modal de crear instancia: el boton, el formulario, el campo y las dos
+  // funciones que los manejaban. Aqui se esta eligiendo con que perfil se abre UNA ventana; crear un
+  // perfil es decidir como se llama una sesion que tendra las suyas, y eso es cosa del gestor. Ademas
+  // se acababa creando un perfil en blanco cada vez que se buscaba uno que ya existia.
+  ['el boton de «Perfil nuevo» del modal', /nuevoPerfilButton/, renderer + html],
+  ['su formulario y su campo', /nuevoPerfilForm|nuevoPerfilNombre/, renderer + html],
+  ['las funciones que lo manejaban',
+    /mostrarFormDePerfilNuevo|ocultarFormDePerfilNuevo|crearPerfilDesdeElSelector/, renderer],
+  ['su CSS', /\.browser-instance-perfil-form|\.browser-instance-perfil-nuevo/, styles],
+  // Y el boton de «Actualizar» del menu, que se fue a Configuraciones con sus dos botones.
+  ['el boton de actualizar del menu', /id="updateLauncherButton"/, html],
+  ['su icono en la lista del menu', /'#updateLauncherButton': 'download'/, renderer],
+  ['y sus reglas', /\.button-update|\.update-launcher-copy|\.update-launcher-version/, styles],
 
     // ---- 0.36.0: lo que tiene que haber desaparecido
     ['la particion compartida con el prefijo que se borra', /PARTICION_COMPARTIDA = 'persist:pokegrid-instance-compartida'/, renderer],

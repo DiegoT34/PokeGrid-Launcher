@@ -155,17 +155,29 @@ app.whenReady().then(async () => {
     assert.ok(/Fuente de aviso desconocida/.test(error),
       `Una fuente desconocida tiene que avisar, no romperse. Mensaje: "${error}"`);
 
-    // El badge del botón de Actualizar tiene que SOBREVIVIR a que el botón se
-    // repinte. renderUpdateLauncherButton() rehace el contenido del botón entero, y
-    // rehacerlo entero se lleva por delante cualquier elemento que alguien haya
-    // añadido dentro. El aviso del actualizador se perdía así: sin nodo, el registro
-    // lo busca, no lo encuentra y sigue sin avisar, sin error y sin rastro.
-    await waitFor(ventana, "document.querySelector('#updateLauncherButton .update-launcher-copy')");
-    const sigueElBadge = await ventana.webContents.executeJavaScript(
-      "Boolean(document.getElementById('updateLauncherBadge'))"
-    );
-    assert.equal(sigueElBadge, true,
-      'El badge de actualizaciones tiene que seguir en el botón después de que el botón se repinte.');
+    // El badge del actualizador tiene que SEGUIR EN EL DOM.
+//
+// Antes de la 0.39.0 estaba dentro del boton de «Actualizar» del menu, y ese boton se repintaba entero
+// en cada cambio de estado: `renderUpdateLauncherButton()` rehacia su contenido, y con el se iba
+// cualquier elemento que alguien hubiera puesto dentro. El aviso se perdia asi —sin nodo, el registro
+// lo busca, no lo encuentra y sigue sin avisar, sin error y sin rastro—.
+//
+// Ahora el boton salio del menu y el badge esta en el de Configuraciones, que no se repinta entero. El
+// motivo del fallo sigue siendo real: cualquier repintado que se lleve por delante el badge lo
+// repetiria. Por eso el badge se mira por su id, en cualquier parte que este.
+const sigueElBadge = await ventana.webContents.executeJavaScript(`(() => {
+      const badge = document.getElementById('updateLauncherBadge');
+      const padre = badge?.closest('button');
+      return {
+        existe: Boolean(badge),
+        // Y ahora vive en el boton de Configuraciones, que es donde esta lo de las actualizaciones.
+        enConfiguraciones: padre?.id === 'instanceSettingsButton'
+      };
+    })()`);
+    assert.equal(sigueElBadge.existe, true,
+      'El badge de actualizaciones tiene que estar en el DOM, no dentro de un boton que se repinte entero.');
+    assert.equal(sigueElBadge.enConfiguraciones, true,
+      'Y tiene que estar en el boton de Configuraciones, que es donde vive ahora lo de las actualizaciones.');
 
     await ventana.webContents.executeJavaScript(`(() => { window.pokeGridNotifications.set('updater', 1); return true; })()`);
     await wait(150);

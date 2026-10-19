@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Continue'
 # haber escrito nada. Un directorio que se puede ir no puede dar por hecho que existe.
 $carpeta = 'C:\Users\Shockviny\AppData\Local\Temp\opencode'
 if (-not (Test-Path $carpeta)) { New-Item -ItemType Directory -Force -Path $carpeta | Out-Null }
-$salida = Join-Path $carpeta 'area-0380.txt'
+$salida = Join-Path $carpeta 'area-0390.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
@@ -40,7 +40,14 @@ $pruebas = @(
   @{ nombre = 'usuarios';          comando = 'node'; args = @('tests\lanzar.cjs', 'tests\userscripts-manager-smoke.js');  espera = 120 },
   @{ nombre = 'cuentas-iconos-0340'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\cuentas-iconos-0340-smoke.js'); espera = 100 },
   @{ nombre = 'perfiles-almacen';   comando = 'node'; args = @('tests\lanzar.cjs', 'tests\perfiles-almacen-smoke.js');   espera = 80 },
-  @{ nombre = 'perfiles-sesion';     comando = 'node'; args = @('tests\lanzar.cjs', 'tests\perfiles-sesion-0370-smoke.js'); espera = 80 }
+  @{ nombre = 'perfiles-sesion';     comando = 'node'; args = @('tests\lanzar.cjs', 'tests\perfiles-sesion-0370-smoke.js'); espera = 80 },
+  # Las de lo que se ha tocado en la 0.39.0: los iconos de la barra, el sitio donde se guarda la
+  # actualizacion, los dos botones que la sustituyen y el badge que avisa de que hay version nueva.
+  @{ nombre = 'launcher-iconos';   comando = 'node'; args = @('tests\launcher-icons-smoke.js');                       espera = 30 },
+  @{ nombre = 'launcher-updater';  comando = 'node'; args = @('tests\launcher-updater-smoke.js');                      espera = 40 },
+  @{ nombre = 'notification-hub';  comando = 'node'; args = @('tests\lanzar.cjs', 'tests\notification-hub-smoke.js');    espera = 100 },
+  @{ nombre = 'update-poll';       comando = 'node'; args = @('tests\lanzar.cjs', 'tests\update-poll-persistence-smoke.js'); espera = 110 },
+  @{ nombre = 'launcher-visual';   comando = 'node'; args = @('tests\lanzar.cjs', 'tests\launcher-visual-smoke.js');     espera = 130 }
 )
 # `verificar-paquete` y `comprobar-entrega` NO estan aqui a proposito. Comprueban el ARTEFACTO, y antes
 # de compilar mirarian el build de la entrega anterior: darian verde —o fallarian— por un fichero que

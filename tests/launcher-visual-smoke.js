@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
     }])); })()`);
     window.webContents.reload();
     await waitFor(window, 'window.__pokeGridPreviewNotifications && document.querySelectorAll(".panel").length === 4');
-    await waitFor(window, 'document.querySelector("#updateLauncherButton .update-launcher-version")?.textContent === "v0.22.7"');
+    await waitFor(window, 'document.querySelector("#updateCurrentVersion")?.textContent === "v0.22.7"');
     const migratedNotification = await window.webContents.executeJavaScript(`({
       legendaryCount: document.querySelector('#legendaryNotificationCount').textContent,
       types: JSON.parse(localStorage.getItem('pokegrid:notifications:v1'))[0].types,
@@ -80,8 +80,12 @@ app.whenReady().then(async () => {
       sidebarExpanded: document.querySelector('#topbarToggle')?.getAttribute('aria-expanded'),
       sidebarHidden: document.querySelector('#globalActions')?.getAttribute('aria-hidden'),
       updateButton: Boolean(document.querySelector('#updateLauncherButton')),
-      updateText: document.querySelector('#updateLauncherButton')?.textContent.replace(/\s+/g, ' ').trim(),
-      updateVersion: document.querySelector('#updateLauncherButton .update-launcher-version')?.textContent
+      // Lo que sustituyo al boton: dos botones separados dentro de Configuraciones.
+      buscar: Boolean(document.querySelector('#checkUpdatesButton')),
+      descargar: Boolean(document.querySelector('#downloadUpdateButton')),
+      descargarPulsable: !document.querySelector('#downloadUpdateButton')?.disabled,
+      textoActualizacion: document.querySelector('#updateStatusText')?.textContent.replace(/\s+/g, ' ').trim(),
+      updateVersion: document.querySelector('#updateCurrentVersion')?.textContent
     })`);
     if (!toolbarState.pokepediaText.endsWith('Pokepedia') ||
         !toolbarState.pokepediaClass.includes('button-pokepedia') ||
@@ -91,12 +95,15 @@ app.whenReady().then(async () => {
         // mismo pack que el resto. Se acepta cualquiera de los dos: lo que no vale
         // es que no haya ninguna señal de que ese botón arranca algo.
         (toolbarState.playIcons + toolbarState.playSvgs !== 1) ||
-        // Los once botones del menú tienen que llevar SVG, y ninguno puede quedarse
+        // Los botones del menú tienen que llevar SVG, y ninguno puede quedarse
         // con el emoji o el glifo que traían.
         toolbarState.menuSvgs !== 9 || toolbarState.menuGlyphs !== 0 ||
         toolbarState.hamburgerLines !== 3 ||
-        toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' || !toolbarState.updateButton ||
-        !toolbarState.updateText.includes('Actualizar') || !toolbarState.updateText.includes('v0.22.7') ||
+        toolbarState.sidebarExpanded !== 'false' || toolbarState.sidebarHidden !== 'true' ||
+        // El boton de actualizar no vuelve al menu, y en su sitio esta el par buscar/descargar con el
+        // de descargar apagado: no hay nada confirmado todavia, y por eso no puede estar pulsable.
+        toolbarState.updateButton ||
+        !toolbarState.buscar || !toolbarState.descargar || toolbarState.descargarPulsable ||
         toolbarState.updateVersion !== 'v0.22.7') {
       throw new Error(`Launcher toolbar controls failed: ${JSON.stringify(toolbarState)}`);
     }

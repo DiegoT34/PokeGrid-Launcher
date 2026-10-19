@@ -111,13 +111,14 @@ for (const [selector, icono] of [
   ['#cleanupMemoryButton', 'trash'],
   ['#loginAllButton', 'play'],
   ['#reloadAllButton', 'refresh'],
-  ['#updateLauncherButton', 'download'],
-  ['#viewModeButton', 'layout']
+  ['#viewModeButton', 'layout'],
+  ['#perfilesButton', 'profile'],
+  ['#instanceSettingsButton', 'settings']
 ]) {
   assert.ok(renderer.includes(`'${selector}': '${icono}'`),
     `${selector} no tiene icono propio en ICONOS_MENU.`);
 }
-console.log('ok  los once botones del menú tienen icono propio.');
+console.log('ok  los botones del menú tienen icono propio.');
 
 // --- Y que el botón de farmeo, que se rehace entero, también lo lleva ---------
 // setFarmButtonRunning reconstruye el innerHTML del botón en cada cambio de
@@ -127,9 +128,13 @@ assert.ok(/\$\{launcherUiIcon\('play'\)\}<span>Farmeando<\/span>/.test(renderer)
   'El estado «Farmeando» tiene que llevar SVG: ese botón se rehace entero en cada cambio.');
 assert.ok(/\$\{launcherUiIcon\('timer'\)\}<span>Modo farmeo<\/span>/.test(renderer),
   'El estado «Modo farmeo» tiene que llevar SVG, por lo mismo.');
-assert.ok(/icon\.innerHTML = launcherUiIcon\(updateLauncherState\.icono \|\| 'download'\)/.test(renderer),
-  'El botón de actualizar se repinta entero: con textContent volvería el glifo.');
-console.log('ok  los tres botones que se rehacen enteros también llevan SVG.');
+// El tercer boton que se repintaba entero era el de actualizar, y en la 0.39.0 salio del menu: ahora
+// son dos botones de texto sin icono, dentro de Configuraciones, y no se repintan enteros. Comprobar
+// el icono de un boton que ya no existe solo servia para que esta prueba se quedara mirando el sitio
+// viejo sin avisar.
+assert.doesNotMatch(renderer, /updateLauncherState/,
+  'El estado del boton de actualizar salio del menu junto con el boton.');
+console.log('ok  los dos botones que se rehacen enteros también llevan SVG.');
 
 // --- El orden de la llamada, que es donde esto se rompió -----------------------
 // Las tablas de iconos son `const`. Una función que las lee, llamada antes de su

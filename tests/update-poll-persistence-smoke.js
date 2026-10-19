@@ -107,22 +107,40 @@ app.whenReady().then(async () => {
     assert.equal(hayCostura, true,
       'El botón de actualizar necesita un objeto de canales sustituible: contextBridge congela window.pokeGrid y sin esta costura no se puede probar que pregunte antes de instalar.');
 
-    // Pulsar el botón con versión nueva tiene que PREGUNTAR. Hoy no pregunta:
-    // instalar sin avisar es justo lo que hace el canal que estamos respetando.
+    // Pulsar «Descargar» con versión nueva tiene que PREGUNTAR. Y tiene que ser un boton aparte: en la
+    // 0.39.0 «Buscar» y «Descargar» se separaron, y esto es lo que comprueba la razon de separarlos.
+    // Con un solo boton no habria forma de saber si hay algo sin pulsar, y pulsar era descargar.
     const cancelar = await ventana.webContents.executeJavaScript(`(async () => {
       window.__preguntas = [];
       window.__confirmOriginal = window.confirm;
       window.confirm = (texto) => { window.__preguntas.push(String(texto)); return false; };
       window.__llamadoInstall = 0;
-      window.pokeGridUpdateChannels.peek = async () => ({ ok: true, hayActualizacion: true, actual: '0.23.5', masReciente: '0.23.9' });
+      window.__llamadoPeek = 0;
+      window.pokeGridUpdateChannels.peek = async () => {
+        window.__llamadoPeek += 1;
+        return { ok: true, hayActualizacion: true, actual: '0.23.5', masReciente: '0.23.9' };
+      };
       window.pokeGridUpdateChannels.instalar = async () => {
         window.__llamadoInstall += 1;
         return { ok: true, status: 'installing', currentVersion: '0.23.5', latestVersion: '0.23.9' };
       };
-      document.querySelector('#updateLauncherButton').click();
+      // Primero «Buscar». Solo mira: no pregunta nada y no descarga.
+      document.querySelector('#checkUpdatesButton').click();
+      await new Promise((r) => setTimeout(r, 600));
+      const trasBuscar = {
+        peek: window.__llamadoPeek,
+        install: window.__llamadoInstall,
+        preguntas: window.__preguntas.length,
+        texto: document.querySelector('#updateStatusText').textContent,
+        descargaHabilitada: !document.querySelector('#downloadUpdateButton').disabled,
+        pendiente: window.pokeGridNotifications.get('updater').count
+      };
+      // Y ahora «Descargar», que si pregunta.
+      document.querySelector('#downloadUpdateButton').click();
       await new Promise((r) => setTimeout(r, 600));
       const salida = {
         confirmPisable: window.__confirmOriginal !== window.confirm,
+        trasBuscar,
         preguntas: window.__preguntas,
         llamadoInstall: window.__llamadoInstall,
         pendiente: window.pokeGridNotifications.get('updater').count
@@ -132,6 +150,15 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(cancelar.confirmPisable, true,
       'La prueba tiene que poder sustituir window.confirm. Si no se puede, no puede comprobar que el launcher pregunte.');
+    assert.equal(cancelar.trasBuscar.peek, 1, '«Buscar» mira una vez.');
+    assert.equal(cancelar.trasBuscar.install, 0, '«Buscar» NO puede instalar: mirar y descargar son cosas distintas.');
+    assert.equal(cancelar.trasBuscar.preguntas, 0, '«Buscar» no pregunta por instalar: todavia no se ha pedido instalar.');
+    assert.ok(/0\.23\.9/.test(cancelar.trasBuscar.texto),
+      `«Buscar» tiene que decir que version hay, no "${cancelar.trasBuscar.texto}".`);
+    assert.equal(cancelar.trasBuscar.descargaHabilitada, true,
+      'Sabiendo que hay version nueva, el boton de descargar tiene que quedar pulsable.');
+    assert.equal(cancelar.trasBuscar.pendiente, 1,
+      'Ver la version nueva ya enciende el aviso, sin esperar a que se acepte descargarla.');
     assert.equal(cancelar.preguntas.length, 1, `Instalar tiene que pedir confirmación una vez. Preguntas: ${JSON.stringify(cancelar.preguntas)}`);
     assert.ok(/0\.23\.9/.test(cancelar.preguntas[0]), `La pregunta dice qué versión hay, no "${cancelar.preguntas[0]}".`);
     assert.ok(/0\.23\.5/.test(cancelar.preguntas[0]), `La pregunta dice cuál tienes, no "${cancelar.preguntas[0]}".`);
@@ -139,11 +166,11 @@ app.whenReady().then(async () => {
     assert.equal(cancelar.pendiente, 1, 'Cancelar la instalación NO puede apagar el aviso: sigue pendiente.');
 
     // Aceptando, sí se llama al canal que instala y se apaga la bolita.
-    await waitFor(ventana, "!document.querySelector('#updateLauncherButton').disabled");
+    await waitFor(ventana, "!document.querySelector('#downloadUpdateButton').disabled");
     const aceptando = await ventana.webContents.executeJavaScript(`(async () => {
       window.confirm = () => true;
       window.__llamadoInstall = 0;
-      document.querySelector('#updateLauncherButton').click();
+      document.querySelector('#downloadUpdateButton').click();
       await new Promise((r) => setTimeout(r, 600));
       const salida = { llamadoInstall: window.__llamadoInstall, pendiente: window.pokeGridNotifications.get('updater').count };
       window.confirm = window.__confirmOriginal;

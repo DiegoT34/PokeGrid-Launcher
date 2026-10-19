@@ -218,10 +218,15 @@ const SESIONES_5360 = [
     /\.browser-instance-panelbar \{[^}]*justify-content: flex-start/.test(styles)],
   ['el selector de perfil tiene estilo',
     /\.browser-instance-perfil-field select \{/.test(styles)
-    && /\.browser-instance-perfil-form input \{/.test(styles)
+    && /\.perfil-selector-vista \{/.test(styles)
     // Y el CSS del interruptor que se fue no puede quedar por ahi: se veria en la pagina sin que nada
     // lo escuchara, que es la forma mas traicionera de dejar algo a medias.
-    && !/\.switch-line/.test(styles)]
+    && !/\.switch-line/.test(styles)
+    // El formulario de «Perfil nuevo» salio del modal en la 0.39.0. Su CSS tambien: unas reglas que
+    // no tienen a nadie que las aplique no hacen dano, pero hacen que la proxima persona que busque
+    // «el formulario del perfil nuevo» lo encuentre y no entienda por que no esta.
+    && !/\.browser-instance-perfil-form/.test(styles)
+    && !/\.browser-instance-perfil-nuevo/.test(styles)]
 ];
 for (const [que, ok] of SESIONES_5360) {
   if (!ok) fallos++;

@@ -7,6 +7,110 @@ Las versiones van en orden. La carpeta `dist/` conserva todas; nada se sustituye
 
 ---
 
+## 0.39.0 — los avatares que se ven, el perfil en el menú y el actualizador con dos botones
+
+Diez cosas en una entrega. Casi todas son defectos que se veían y uno es un cambio de fondo: el botón
+de actualizar sale del menú y se parte en dos dentro de Configuraciones.
+
+### El icono de «Perfiles» salía vacío, y era el mismo fallo por segunda vez
+
+En la 0.38.0 se añadió el icono del botón de Perfiles con un atributo `data-icon`, y con un bucle que
+lo rellenaba. Nevera: **ese bucle solo corre al abrir el modal de farmeo**, así que en el arranque —que
+es cuando se ve la barra— no se ejecutaba. El icono no salía. Encima el botón no definía
+`--toolbar-accent`, y sin esa variable el `currentColor` del SVG se queda sin pintar: la caja de
+cristal se veía, el dibujo no.
+
+Lo importante no es el fallo sino que **ya había pasado antes** con el engranaje, por el mismo motivo, y
+la prueba que se escribió aquel día miraba `#instanceSettingsButton` y solo ese botón. Un fallo que se
+repite necesita una comprobación que cubra el caso entero. La de ahora recorre **todos** los botones de
+la barra y exige tres cosas de cada uno: que tenga un dibujo, que tenga color de acento, y que el
+dibujo mida lo mismo que los demás. Esta vez el fallo se ve en la prueba, no en una captura.
+
+De paso se quitó el bucle de `[data-icon]`: con dos caminos para pintar los iconos, el que falla no
+avisa.
+
+### Los avatares no se previsualizaban, porque la rejilla solo pintaba lo que ya estaba en caché
+
+La rejilla dibujaba un sprite si `spritesDePerfil` lo tenía, y como los sprites solo se pedían al
+**pulsar** una celda, la primera vez salían ciento treinta cuadros vacíos con un nombre debajo. Eso no
+es un selector de avatar.
+
+Ahora, al abrir la rejilla, los sprites se piden en tandas de ocho y cada imagen que llega se pinta en
+su celda sola, sin bloquear nada. Sigue sin bajarse nada al arrancar el launcher, que es lo caro. Y una
+especie sin sprite muestra una inicial apagada en vez de un hueco: un hueco en blanco se lee como
+«esto está roto».
+
+La lista pasa de 36 a **132** especies: los *beginnings* de cada generación y los que se piden por el
+nombre.
+
+### El perfil, en la cabecera del menú
+
+El menú decía «MENÚ PRINCIPAL / Herramientas del launcher», que es el nombre de la ventana del sistema
+y ya se ve en la barra de tareas de Windows. Ahora dice **el nombre del perfil de la pestaña activa**,
+con su círculo al lado. No es un adorno: con ventanas de perfil, dos sesiones pueden estar dentro a la
+vez y el color y el avatar son lo único que las distingue. El botón entero abre el gestor.
+
+Se repinta desde `updateBrowserInstanceSelection()` y no desde el manejador de clic, porque por esa
+función pasa **toda** forma de cambiar de pestaña.
+
+### El actualizador: dos botones, y la descarga en la carpeta de al lado
+
+Estaba en el menú un botón que al pulsarse miraba, preguntaba y descargaba 60 MB. No había forma de
+saber si había actualización sin pulsar, y pulsar era descargar. Ahora en Configuraciones hay:
+
+- **Buscar actualización** — solo mira. Nunca instala, nunca pregunta por instalar.
+- **Descargar actualización** — sale apagado hasta que se ha confirmado que hay algo.
+
+Y el texto dice si estás al día o qué versión hay, con color.
+
+La descarga **deja de ir a la carpeta de Descargas** y va a la carpeta que contiene la del launcher: si
+el launcher está en `D:\Juegos\PokeGrid-Launcher\`, el ZIP aparece en `D:\Juegos\`. El portable nuevo se
+despliega ahí también, que es lo coherente. Sin empaquetar se sigue usando Descargas —el ejecutable
+está dentro de `node_modules` y ahí no se deja un ZIP— y si la carpeta de al lado no existe o no se
+puede escribir, también.
+
+El aviso de que hay versión nueva sigue llegando por el panel de notificaciones, y su insignia se mudó
+al botón de Configuraciones.
+
+### En el modal de crear instancia ya no se crean perfiles
+
+El desplegable llevaba un botón «Perfil nuevo». Mezclaba dos cosas que se estorban: ahí se elige con
+qué perfil se abre **una** ventana, y crear un perfil es decidir cómo se llama una sesión que tendrá
+las suyas. Encima se acababa creando un perfil en blanco cada vez que se buscaba uno que ya existía.
+Ahora el desplegable enseña el círculo del perfil elegido y crear perfiles es cosa del gestor.
+
+### La «X» de las pestañas, la campana del panel de notificaciones y el tamaño de los iconos
+
+La «X» estaba pegada al final del nombre —separada 2 px— y se leía como parte del texto. Ahora tiene
+10 px de aire y es un cuadrado con fondo, que se lee como botón aunque no tenga borde.
+
+La campana de la cabecera de notificaciones era un `::before` con `position: absolute` que se montaba
+**encima del título**: se leía «campana NOTIFICACIONES» y tapaba las tres primeras letras del subtítulo.
+La causa estaba a mil líneas de distancia: el bloque de rediseño reescribió la cabecera con
+`padding: 13px 15px 12px` y se comió los 61 px de la izquierda que dejaban sitio a la campana. Dos
+reglas que no se ven la una a la otra. Ahora la campana está **en el flujo** —`position: static` sobre un
+`display: flex` la convierte en un elemento más de la fila— y es un SVG con `mask`, no el emoji 🔔 que
+se quedó fuera de la decisión de la 0.35.0.
+
+El icono de Notificaciones era más grande que los demás: era el único cuyo `<svg>` era **a la vez la caja
+y el dibujo**, así que medía 22 px contra los 13 del resto. Con once iconos medidos por fin se ve que
+ahora los once son iguales.
+
+### El gestor de perfiles
+
+Un rótulo encima de la fila —«TUS PERFILES»—, círculos con más presencia, y el editor dice de quién
+era. Antes salía del nada debajo de la lista, y con tres perfiles no se sabía si lo que se estaba
+cambiando era el que estaba marcado.
+
+### Una herramienta nueva: `herramientas/mirar-pantallas.cjs`
+
+Levanta el launcher de verdad, abre el menú, las notificaciones, el gestor y el modal, y guarda un PNG
+de cada uno. Además **mide** los iconos de la barra y los imprime: una captura enseña que un icono se ve
+más grande que otros, pero no cuál ni por cuánto. Así se diagnosticó que el de notificaciones era un
+número contra otro, y no una sensación.
+
+---
+
 ## 0.38.0 — los perfiles con avatar y color, y la barra de pestañas sin fondo azul
 
 ### Los perfiles dejan de ser filas y pasan a círculos

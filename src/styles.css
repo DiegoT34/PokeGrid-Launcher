@@ -285,14 +285,76 @@ input:focus-visible {
   flex-direction: column;
   border-bottom: 1px solid rgba(139, 160, 177, .16);
 }
-.sidebar-heading span { color: #f0f4f8; font-size: 10px; font-weight: 900; letter-spacing: .12em; }
-.sidebar-heading small { margin-top: 4px; color: #788795; font-size: 8px; }
-.button-update { --toolbar-accent:#55d7f1 !important;color:#d8f8ff !important; }
-.button-update:hover:not(:disabled) { border-color:var(--toolbar-accent) !important;color:#fff !important; }
-.button-update:disabled { cursor:wait;opacity:.78; }
-.update-launcher-copy { min-width:0; display:flex; align-items:flex-start; justify-content:center; flex-direction:column; gap:2px; line-height:1; }
-.update-launcher-version { color:#6fcbe5; font-size:8px; font-weight:800; letter-spacing:.06em; line-height:1; }
-.button-update:hover:not(:disabled) .update-launcher-version { color:#bcefff; }
+/* LA CABECERA DEL MENU: EL PERFILO DE SESION, EN VEZ DE UN TITULO QUE NO DECIA NADA.
+ *
+ * Antes decia «MENU PRINCIPAL / Herramientas del launcher»: el nombre de la ventana del sistema, que
+ * ya se ve en la barra de tareas de Windows y en el titulo de la ventana. Aqui no hace falta. Lo que
+ * si hace falta es saber EN QUE PERFILO se esta, porque con las ventanas de perfil eso no se deduce:
+ * dos ventanas pueden estar dentro con sesiones distintas y solo el color y el avatar los distinguen.
+ *
+ * El boton entero es pulsable y abre el gestor. Es la pregunta que se hace todo el mundo al abrir el
+ * menu («¿estoy en el perfil correcto?») y la deja con un clic.
+ */
+.sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-profile-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-profile-copy strong {
+  color: #f0f4f8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-profile-copy small { margin-top: 3px; color: #788795; font-size: 8px; }
+
+/* El circulo: el MISMO que en el gestor, para que se reconozca el perfil de un vistazo y no haga
+   falta recordar que son dos cosas parecidas. */
+.sidebar-profile-avatar {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .06);
+  color: #e8f0f6;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.sidebar-profile-avatar img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.sidebar-profile:hover .sidebar-profile-avatar { border-color: rgba(120, 200, 240, .55); }
+.sidebar-profile:hover .sidebar-profile-copy strong { color: #ffffff; }
+
+/* Lo que queda del boton de «Actualizar» del menu son seis reglas muertas: el boton salio del menu en
+   la 0.39.0 y se fue a Configuraciones con sus propios estilos, en `.update-status-text` y
+   `.update-actions`. Se borran aqui para que la proxima que busque «como se estilan las actualizaciones»
+   las encuentre en el sitio donde se pintan, y no en un boton que ya no existe. */
 
 .global-actions > .button,
 .global-actions > .notification-button,
@@ -344,11 +406,10 @@ input:focus-visible {
 .global-actions > .button-launch-all { --toolbar-accent: #ff6b62; width: 100%; min-width: 0; padding: 0 11px 0 8px; }
 .global-actions > .button-reload { --toolbar-accent: #57b9e2; }
 .global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #7e96df; }
-.global-actions .notification-bell { font-size: 12px; }
 /* La campana paso de emoji a SVG en la 0.35.0. `.top-action-icon` ya le da el cuadrado de 21 px, asi
    que aqui solo hace falta que el trazo se vea igual de limpio que en los demas iconos del launcher. */
-.global-actions .notification-bell svg,
-.top-action-icon svg { width: 13px; height: 13px; }
+.top-action-icon svg,
+.global-actions .top-action-icon svg { width: 13px; height: 13px; flex: none; }
 
 .notification-button,
 .notification-text-button {
@@ -377,8 +438,10 @@ input:focus-visible {
 }
 .notification-button:hover,
 .notification-button[aria-expanded="true"] { border-color: rgba(255, 208, 49, .72); background: linear-gradient(145deg, rgba(56, 50, 28, .96), rgba(10, 29, 42, .98)); transform: translateY(-1px); }
-.notification-bell { font-size: 14px; }
-.notification-bell svg { width: 15px; height: 15px; }
+/* La campana ya no lleva su propia regla: la pinta `ICONOS_MENU` con el mismo SVG y el mismo
+   tamano que todos los demas iconos de la barra. Antes el `<svg>` era a la vez la caja y el dibujo y
+   media 22 px contra los 13 del resto, que es justo lo que se reporto como «mas grande que los
+   demas». Ahora es un hueco `top-action-icon` mas, como los otros. */
 .notification-badge {
   min-width: 18px;
   height: 18px;
@@ -573,20 +636,35 @@ input:focus-visible {
   border-bottom: 1px solid rgba(60, 152, 216, .34);
   background: linear-gradient(120deg, rgba(5, 53, 93, .98), rgba(3, 27, 58, .98));
 }
+/* LA CAMPANA DE LA CABECERA DE NOTIFICACIONES, Y POR QUE ESTA EN EL FLUJO Y NO FLOTANDO.
+ *
+ * Antes era un `::before` con `position: absolute; left: 10px` y la cabecera(reservaba 61 px de
+ * relleno a la izquierda para que no se montara encima. El bloque de rediseño de mas abajo reescribio
+ * esa cabecera con `padding: 13px 15px 12px` —sin el hueco de la izquierda— y la campana se quedo
+ * encima del titulo: se leia «campana NOTIFICACIONES» y tapaba tambien las tres primeras letras del
+ * subtitulo. Dos reglas a mil lineas de distancia, y el texto no avisa: se ve a ojo.
+ *
+ * Aqui ya no flota. `position: static` sobre un `display: flex` la convierte en un elemento mas de la
+ * fila, y un elemento mas de la fila no se monta sobre nada: por muy estrecho que sea el panel, el
+ * hueco lo hace ella sola y el texto nunca la pisa.
+ *
+ * Y es un SVG con `mask`, no el emoji 🔓... 🔔. El launcher decidio en la 0.35.0 que las campanas
+ * fueran SVG, y esta se quedo fuera: un emoji a 17 px dentro de un circulo de 31 sale mas grande de
+ * lo que cabe, borrosa y con el color del sistema en vez del del launcher. Con `mask` el color lo
+ * pone `background: currentColor`, que es el del launcher.
+ */
 .notification-panel-head::before {
-  content: "\1F514";
-  position: absolute;
-  left: 14px;
-  top: 17px;
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 213, 63, .6);
+  content: "";
+  position: static;
+  flex: 0 0 auto;
+  align-self: center;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  background: #071625;
-  font-size: 17px;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, .45);
+  background: currentColor;
+  color: #ffd33f;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 21a1.94 1.94 0 0 0 3.4 0'/%3E%3Cpath d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'/%3E%3C/svg%3E") center / 78% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 21a1.94 1.94 0 0 0 3.4 0'/%3E%3Cpath d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'/%3E%3C/svg%3E") center / 78% no-repeat;
 }
 .notification-panel-head h2 { margin: 2px 0 0; font-size: 20px; letter-spacing: .03em; text-transform: uppercase; }
 .notification-panel-head p { margin: 3px 0 0; color: #9eb3c7; font-size: 9px; }
@@ -1091,6 +1169,11 @@ body.is-topbar-collapsed .instance-workspace:not(.is-active) { top: 24px; }
   background: #0f1a20; color: #e9f1f6;
 }
 .button-instance-settings .top-action-icon { font-size: 15px; }
+/* El aviso de «hay una versión nueva» se mudó del botón de Actualizar —que salió del menú— al de
+   Configuraciones, que es donde ahora vive lo de las actualizaciones. El badge es `position: absolute`
+   y sin esto se ancla al `<nav>` entero, que es lo que lo coloca en la esquina equivocada. */
+.button-instance-settings { position: relative; }
+.button-instance-settings > .menu-update-badge { top: -5px; right: -3px; }
 /* El aviso de una pantalla —«no caben mas pantallas»— va en la franja, porque un aviso que solo
    existe en una variable no lo ve nadie. El boton es ancho, se recorta al panel, y al pulsarlo
    sale el texto entero: en un mosaico de doce el mensaje completo no cabe ni con letras de 8. */
@@ -2708,17 +2791,42 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
  * vistazo, que es para lo que sirve un selector de perfil, y un perfil más no «empuja» a los de al
  * lado: si no cabe, la lista se desplaza horizontalmente.
  */
+/* EL ROTULO DE LA SECCION.
+ *
+ * El dialogo es de 760 px y con dos perfiles los circulos ocupan una cuarta parte: la mitad del ancho se
+ * queda vacia y parece que falta algo. Un rotulo encima de la fila dice «esto es una lista, y es todo
+ * lo que hay», y eso ya no se lee como un hueco sino como un panel con dos perfiles.
+ */
+.modal-section-label {
+  display: block;
+  margin: 4px 0 0;
+  color: #5d7a91;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+/* QUIEN SE ESTA EDITANDO. */
+.perfil-editor-quien {
+  margin: 0 0 12px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(72, 118, 156, .3);
+  color: #7b93a8;
+  font-size: 11px;
+}
+.perfil-editor-quien b { color: #dfe8f0; font-weight: 800; }
+
 .perfiles-circles {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   align-items: flex-start;
-  margin: 14px 0 6px;
+  margin: 10px 0 6px;
   padding: 4px 2px 8px;
   overflow-x: auto;
 }
 .perfil-circulo {
   flex: 0 0 auto;
-  width: 86px;
+  width: 92px;
   display: grid;
   justify-items: center;
   gap: 6px;
@@ -2736,8 +2844,8 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 /* El círculo de la foto. El color de fondo es el que elige el usuario, y si no elige ninguno se
    queda el del launcher: sin fondo es una opción, no un hueco. */
 .perfil-circulo-foto {
-  width: 76px;
-  height: 76px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -2760,7 +2868,7 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 }
 
 .perfil-circulo-nombre {
-  max-width: 86px;
+  max-width: 90px;
   font-size: 9px;
   font-weight: 800;
   text-align: center;
@@ -2813,13 +2921,16 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
    el perfil que se está editando. */
 .perfil-avatar-grid {
   display: grid;
+  /* 52 px de minimo con 130 avatares da una rejilla de siete u ocho columnas. Con 190 px de alto se ven
+     tres filas y hay que bajar, que es lo que se busca: es una lista larga a proposito, y esconderla
+     detras de un desplegable obligaria a abrirlo para ver si hay algo. */
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
   gap: 7px;
   padding: 9px;
   border: 1px solid #1e3149;
   border-radius: 10px;
   background: #0b141f;
-  max-height: 190px;
+  max-height: 232px;
   overflow-y: auto;
 }
 .perfil-avatar {
@@ -2840,6 +2951,22 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .perfil-avatar.es-elegido { border-color: #4cc2e8; box-shadow: 0 0 0 2px rgba(76, 194, 232, .25); }
 .perfil-avatar.es-sin-avatar { font-size: 14px; }
 .perfil-avatar.es-cargando { opacity: .5; cursor: progress; }
+
+/* CUANDO EL SPRITE NO LLEGA. La celda no se deja vacia.
+ *
+ * Un hueco en blanco en una rejilla de ciento treinta cuadros se lee como «esta roto». Una inicial
+ * apagada, encima, se lee como «esta foto no carga», que es exactamente lo que ha pasado: sin red, o
+ * con la especie mal escrita. La diferencia entre las dos cosas es toda la diferencia entre un
+ * selector que parece funcionar y uno del que nadie se fia.
+ */
+.perfil-avatar.es-sin-sprite {
+  color: #33475c;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: #0d1826;
+}
+.perfil-avatar.es-sin-sprite img { display: none; }
 
 /* La paleta. El primer botón es «sin fondo», que es una opción de verdad y no un color más. */
 .perfil-color-palette { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -2872,17 +2999,40 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   background: #07131e;
   color: #dbe8f2;
 }
-.browser-instance-perfil-nuevo { justify-self: start; margin-top: 1px; }
-.browser-instance-perfil-form { display: flex; gap: 6px; }
-.browser-instance-perfil-form input {
-  flex: 1 1 auto;
+/* EL SELECTOR DE PERFILES DEL MODAL DE CREAR INSTANCIA.
+ *
+ * El circulo va a la IZQUIERDA del desplegable y no encima, para que los dos se lean en la misma
+ * linea y el nombre siga siendo lo que ocupa el sitio. Es el mismo circulo que en el gestor, con el
+ * color y el avatar del perfil: el desplegable dice COMO se llama y el circulo dice CUAL es, que no
+ * es lo mismo y para eso estan los dos.
+ */
+.perfil-selector {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid #22384f;
-  border-radius: 7px;
-  background: #07131e;
-  color: #dbe8f2;
+}
+.perfil-selector > select { flex: 1 1 auto; min-width: 0; }
+.perfil-selector-vista {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .06);
+  color: #cfe0ee;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.perfil-selector-vista img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 /* Los iconos de la lupa del buscador y del boton «Verificar» de la Shop eran emoji. Mismo cambio que en
@@ -5637,13 +5787,16 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
 .global-actions > .button-launch-all { --toolbar-accent: #5ec98a; }
 .global-actions > .button-reload { --toolbar-accent: #57b9e2; }
 .global-actions > .view-mode-control > .button-view-mode { --toolbar-accent: #7e96df; }
-.global-actions > .button-update { --toolbar-accent: #55cfe6; }
+/* El de perfiles. Sin esto el icono salia VACIO: `.top-action-icon` pinta con
+   `color: var(--toolbar-accent)`, y una variable que no existe deja el color sin resolver, el SVG se
+   queda con `currentColor` sin pintar y lo unico que se ve es el cuadrado de cristal. Todos los
+   demas botones de la barra definen la suya; este se habia quedado sin ella. */
+.global-actions > #perfilesButton { --toolbar-accent: #4cc2e8; }
 
-/* Nada de `color` forzado por botón: el texto es uno solo para los once. */
+/* Nada de `color` forzado por botón: el texto es uno solo para el resto. */
 .global-actions > .button,
 .global-actions > .notification-button,
-.global-actions > .view-mode-control > .button,
-.global-actions > .button-update {
+.global-actions > .view-mode-control > .button {
   color: #c3cfd8;
 }
 
@@ -5687,8 +5840,34 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   color: #bdf0d3;
 }
 
-.button-update { color: #c3cfd8; }
-.button-update:hover:not(:disabled) { color: #eaf1f6; border-color: rgba(85, 207, 230, .4); background: rgba(85, 207, 230, .1); }
+/* LA FILA DE ACTUALIZACIONES DE CONFIGURACIONES.
+ *
+ * El texto del estado se pinta con una clase de tono —`is-al-dia`, `is-hay`, `is-ocupado`— y el
+ * color va en la clase y no en el texto. Es la unica parte del dialogo que cambia de color segun lo
+ * que pase, y a proposito: es la unica que responde a una pregunta («¿esta al dia?») y la respuesta
+ * tiene que verse sin leerla.
+ */
+.update-status-text {
+  margin: 2px 0 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #8fa6ba;
+}
+.update-status-text.is-al-dia { color: #63c39a; }
+.update-status-text.is-hay { color: #ffc65c; }
+.update-status-text.is-ocupado { color: #7fb6dd; }
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+/* El boton de descargar es el que actua, y tiene queverse distinto al de consultar. Apagado mientras
+   no haya nada confirmado, que es justo cuando no debe pulsarse. */
+.update-actions .button:disabled { cursor: default; opacity: .55; }
+.update-actions .button-primary:disabled:hover {
+  border-color: rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .04);
+}
 
 /* La insignia de notificaciones conserva su color: es una alerta, y ahí el color
    es información, no decoración. */
@@ -7767,11 +7946,34 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
  */
 .instance-tab-shell > .instance-tab { padding: 0 4px; max-width: none; }
 .instance-tab-shell > .instance-tab > b { max-width: 20ch; }
+
+/* LA X, A LA DERECHA Y SUELTA.
+ *
+ * La complaint era «esta pegada al final del nombre», y con razon: el separador eran 2 px, asi que un
+ * glifo suelto a continuacion del texto. Pegado a «Poke Idle World» el asterisco se lee como parte del
+ * nombre, no como un boton.
+ *
+ * Dos cosas lo arreglan. Una: aire de verdad entre el texto y la X (10 px, no 2). Dos: que la X sea un
+ * CUADRO con fondo, no un caracter suelto — con su propio fondo apagado que se enciende al pasar por
+ * encima—. Un cuadrado se lee como boton aunque no tenga borde; un asterisco pegado al texto no.
+ *
+ * El ancho del shell sigue siendo el del nombre (`flex: 0 1 auto`), que es lo que se pidio: la
+ * `justify-content` de abajo no empuja nada en el caso normal y solo ordena cuando la barra reparte el
+ * espacio sobrante.
+ */
+.instance-tab-shell { justify-content: space-between; }
 .instance-tab-shell .instance-tab-close {
-  margin-right: 4px;
-  margin-left: 2px;
+  margin-right: 5px;
+  margin-left: 10px;
   flex: 0 0 auto;
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  background: rgba(255, 255, 255, .05);
 }
+.instance-tab-shell .instance-tab-close:hover { background: #43242a; }
 
 /* La activa: fondo mas claro y una linea de color ABAJO, pegada al panel. Con ocho pestañas abiertas
    es lo unico que dice «estas aqui» sin tener que leer los nombres. */

@@ -207,6 +207,56 @@ app.whenReady().then(async () => {
         JSON.stringify(engranaje));
     }
 
+    // ESTO ES EL MISMO FALLO, Y ESTA VEZ PARA TODOS LOS BOTONES.
+    //
+    // Arriba se mira `#instanceSettingsButton` y solo ese: la comprobacion se escribio el dia que el
+    // engranaje salio como un cuadro vacio. Mas tarde el icono de perfiles fallo IGUAL —el boton no
+    // estaba en `ICONOS_MENU`, que es la lista que de verdad los pinta al arrancar— y ninguna prueba
+    // lo noto, porque la unica miraba otro boton. Un fallo que se repite necesita una comprobacion
+    // que cubra el caso entero, no el boton que te dio el aviso.
+    //
+    // Ademas el icono se mide, no solo se comprueba que exista: el de notificaciones era un `<svg>` que
+    // era a la vez la caja y el dibujo, y por eso media 22 px contra los 13 de los demas. Se veia mas
+    // grande de lo que debia sin que nada fallara.
+    const iconosDeLaBarra = await ventana.webContents.executeJavaScript(`(() => {
+      const salida = [];
+      for (const boton of document.querySelectorAll('#globalActions button')) {
+        const caja = boton.querySelector('.top-action-icon');
+        if (!caja) continue;
+        const dibujo = caja.querySelector('svg, .launcher-ui-icon');
+        const r = dibujo ? dibujo.getBoundingClientRect() : { width: 0, height: 0 };
+        salida.push({
+          boton: boton.id || '(sin id)',
+          tieneDibujo: Boolean(dibujo),
+          ancho: Math.round(r.width),
+          alto: Math.round(r.height),
+          color: getComputedStyle(caja).color
+        });
+      }
+      return salida;
+    })()`).catch(() => null);
+
+    if (Array.isArray(iconosDeLaBarra) && iconosDeLaBarra.length) {
+      const vacios = iconosDeLaBarra.filter((i) => !i.tieneDibujo).map((i) => i.boton);
+      comprobar(vacios.length === 0,
+        'todos los iconos de la barra tienen un dibujo dentro, ninguno es un cuadro vacío',
+        JSON.stringify(vacios));
+
+      // El color sale de `--toolbar-accent`. Un boton que no la define deja el color sin resolver y el
+      // SVG con `currentColor` sin pintar: la caja se ve, el dibujo no. Solo se nota mirandolo.
+      const sinColor = iconosDeLaBarra.filter((i) => !i.color || i.color === 'rgba(0, 0, 0, 0)')
+        .map((i) => i.boton);
+      comprobar(sinColor.length === 0,
+        'y todos tienen color de acento definido, que es lo que los pinta',
+        JSON.stringify(sinColor));
+
+      const medidas = [...new Set(iconosDeLaBarra.filter((i) => i.tieneDibujo)
+        .map((i) => i.ancho + 'x' + i.alto))];
+      comprobar(medidas.length === 1,
+        `y todos los dibujos miden lo mismo (${medidas.join(', ')})`,
+        JSON.stringify(iconosDeLaBarra.filter((i) => i.tieneDibujo)));
+    }
+
     // Y se cierra, que el resto de la prueba necesita la barra como estaba.
     await ventana.webContents.executeJavaScript(`(() => {
       document.querySelector('#topbarToggle').click();

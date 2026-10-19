@@ -160,11 +160,49 @@ function replaceFileAtomically(source, destination) {
   }
 }
 
-function persistVerifiedRelease({ app, archivePath, checksumPath, archiveName }) {
-  const downloadsDirectory = path.resolve(app.getPath('downloads'));
-  if (path.parse(downloadsDirectory).root === downloadsDirectory) {
-    throw new Error('La carpeta de Descargas configurada no es segura.');
+// DONDE SE GUARDA LA ACTUALIZACION.
+//
+// Una carpeta MAS FUERA de la del launcher. Si el launcher esta en `D:\Juegos\PokeGrid-Launcher\`,
+// aqui se guarda en `D:\Juegos\`. Antes caia en la carpeta de Descargas de Windows, que no tiene
+// nada que ver con el launcher: el archivo aparecia entre los PDF del curro y habia que ir a buscarlo
+// ahi, y si el launcher estaba en otra unidad —un pendrive, por ejemplo— la descarga terminaba en
+// otra parte del disco.
+//
+// Y no solo se guarda ahi el ZIP: el portable nuevo se despliega en una carpeta hermana, al lado de
+// la del launcher. Es lo coherente con lo que se pide, y ademas hace que la carpeta del launcher y la
+// de la version nueva esten en el mismo disco, que es lo que hace rapido el reemplazo.
+//
+// CUANDO NO SE USA. Sin empaquetar —estando en desarrollo— el ejecutable esta dentro de
+// `node_modules`, y ahi dentro no se va a dejar un ZIP de 60 MB. Ahi se sigue usando Descargas.
+//
+// Y si la carpeta de al lado no existe o no se puede escribir, se vuelve a Descargas. Un
+// `accessSync` que falla tiene que acabar en un sitio alterno y no en una excepcion: el launcher
+// quedaria sin poder arrancar por una carpeta que no existe.
+function carpetaDeDescargaDeActualizaciones(app) {
+  const segura = (carpeta) => {
+    const resuelta = path.resolve(carpeta);
+    if (!resuelta || path.parse(resuelta).root === resuelta) return '';
+    return resuelta;
+  };
+  if (app.isPackaged) {
+    const carpetaDelLauncher = path.dirname(path.resolve(app.getPath('exe')));
+    const exterior = segura(path.dirname(carpetaDelLauncher));
+    if (exterior) {
+      try {
+        if (fs.statSync(exterior).isDirectory()) {
+          fs.accessSync(exterior, fs.constants.W_OK);
+          return exterior;
+        }
+      } catch {}
+    }
   }
+  const descargas = segura(app.getPath('downloads'));
+  if (!descargas) throw new Error('No hay ninguna carpeta donde guardar la actualización.');
+  return descargas;
+}
+
+function persistVerifiedRelease({ app, archivePath, checksumPath, archiveName }) {
+  const downloadsDirectory = carpetaDeDescargaDeActualizaciones(app);
   const savedArchivePath = path.join(downloadsDirectory, archiveName);
   const savedChecksumPath = `${savedArchivePath}.sha256`;
   replaceFileAtomically(archivePath, savedArchivePath);
@@ -274,7 +312,7 @@ $StatusPath = [IO.Path]::GetFullPath($StatusPath)
 if ([IO.Path]::GetPathRoot($InstallDir) -eq $InstallDir) { throw 'Ruta de instalación demasiado amplia.' }
 if ([IO.Path]::GetPathRoot($DownloadsDir) -eq $DownloadsDir) { throw 'Ruta de Descargas demasiado amplia.' }
 if ([IO.Path]::GetPathRoot($TargetDir) -eq $TargetDir) { throw 'Ruta de destino demasiado amplia.' }
-if ((Split-Path -Parent $TargetDir) -ine $DownloadsDir) { throw 'La nueva versión debe instalarse directamente en la carpeta de Descargas.' }
+if ((Split-Path -Parent $TargetDir) -ine $DownloadsDir) { throw 'La nueva versión debe desplegarse en la carpeta de destino.' }
 if ($InstallDir -ieq $TargetDir) { throw 'La carpeta nueva coincide con la versión anterior.' }
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { throw 'No se encontró el paquete descargado.' }
 $oldExe = Join-Path $InstallDir $ExecutableName
@@ -583,6 +621,7 @@ module.exports = {
   peekLatestVersion,
   safePortableDirectoryName,
   persistVerifiedRelease,
+  carpetaDeDescargaDeActualizaciones,
   prepareUpdate,
   launchPreparedUpdate,
   updaterPowerShell,

@@ -33,11 +33,30 @@
   });
   const perfilPrincipal = { ...PERFIL_PRINCIPAL_BASE };
 
-  // Un color es `#rrggbb`. Se comprueba con la forma, no con el nombre: `CSS.supports` no existe en un
-  // fichero que se carga sin pagina, y aqui no hay donde mirar. Lo que no pase por esta forma se trata
-  // como «sin fondo», que es lo que el usuario quiere decir cuando escribe algo que no es un color.
+  // Un color es `#rrggbb`, o un degradado lineal, o la cadena vacia —que es «sin fondo»—. Se comprueba
+  // con la forma, no con el nombre: `CSS.supports` no existe en un fichero que se carga sin pagina, y
+  // aqui no hay donde mirar. Lo que no pase por estas formas se trata como «sin fondo», que es lo que
+  // el usuario quiere decir cuando escribe algo que no es un color.
+  // El color de un perfil es un color PLANO (`#rrggbb`) o un DEGRADADO lineal. Las dos cosas se
+  // ponen en `style.background` igual, asi que de ahi no se distingue; lo que se distingue es lo que
+  // se acepta guardar, y por eso el degradado se valida pieza a pieza en vez de pasar tal cual.
+  //
+  // POR QUE NO SE ACEPTA CUALQUIER CADENA. Este valor sale del almacenamiento local y acaba en un
+  // `background`. Con `url(...)` alguien podria apuntar a un archivo que el launcher lee, y con
+  // `image-set()` a una imagen remota. Se podria decir que el almacenamiento es del propio usuario y
+  // que no hay de que, y es verdad; pero el que lo escribe puede ser un archivo de perfiles importado
+  // de otra parte, o un texto pegado. Aceptar solo «linear-gradient con un angulo y colores hex» no
+  // cuesta nada y quita la categoria entera de problemas.
+  const COLOR_PLANO = /^#[0-9a-f]{6}$/;
+  const COLOR_GRADIENTE = /^linear-gradient\(\s*-?\d{1,3}deg\s*,\s*#[0-9a-f]{6}\s*,\s*#[0-9a-f]{6}\s*\)$/;
+
   function esColor(texto) {
-    return /^#[0-9a-f]{6}$/.test(texto);
+    const valor = String(texto || '').trim();
+    return COLOR_PLANO.test(valor) || COLOR_GRADIENTE.test(valor);
+  }
+
+  function esColorPlano(texto) {
+    return COLOR_PLANO.test(String(texto || '').trim());
   }
 
   // El avatar es el NOMBRE de la especie en minusculas —`pikachu`— y no una URL.
@@ -203,13 +222,59 @@
   // El valor es el nombre de la especie en la forma de PokéAPI, en minúsculas y sin tildes. No se
   // escribe el nombre bonito aparte porque se compone del primero: `bulbasaur` → «Bulbasaur». Así no
   // pueden quedar desincronizados el nombre que se enseña y el que se busca.
+  //
+  // LA LISTA CRECE EN LA 0.39.0, DE 36 A 132. Treinta y seis se quedan cortos en cuanto se abre el
+  // gestor: son los que se ven rapido, y a los cinco segundos uno ya los conoce todos. Lo que se ha
+  // anadido son los beginnings de cada generacion —para que de un vistazo se vea de que generacion
+  // es cada uno— y los que la gente quiere de verdad: Rayquaza, Gengar, Eevee y companyia.
+  //
+  // Va escrito aqui y no se pide a PokéAPI porque el menu tiene que aparecer sin red: si la lista
+  // saliera de ahi, sin conexion no habria ni un solo avatar que elegir.
   const ESPECIES_DE_AVATAR = Object.freeze([
+    // Los 36 de siempre, al principio y en su orden.
     'bulbasaur', 'charmander', 'squirtle', 'chikorita', 'cyndaquil', 'totodile',
     'treecko', 'torchic', 'mudkip', 'turtwig', 'chimchar', 'piplup',
     'rowlet', 'litten', 'popplio', 'grookey', 'scorbunny', 'sobble',
     'eevee', 'snorlax', 'gengar', 'lapras', 'meowth', 'pikachu',
     'charizard', 'blastoise', 'alakazam', 'gyarados', 'dragonite', 'mewtwo',
-    'ho-oh', 'jigglypuff', 'vaporeon', 'flareon', 'jolteon', 'umbreon'
+    'ho-oh', 'jigglypuff', 'vaporeon', 'flareon', 'jolteon', 'umbreon',
+
+    // Generacion I.
+    'raichu', 'vulpix', 'nidoran-f', 'nidoran-m', 'clefairy', 'zubat',
+    'oddish', 'diglett', 'psyduck', 'mankey', 'growlithe', 'poliwag',
+    'abra', 'machop', 'geodude', 'slowpoke', 'onix', 'rhyhorn',
+    'tangela', 'kangaskhan', 'scyther', 'electabuzz', 'tauros', 'mew',
+
+    // Generacion II.
+    'sentret', 'noctowl', 'ledian', 'houndour', 'kingdra', 'donphan',
+    'stantler', 'miltank', 'blissey', 'raikou', 'entei', 'suicune', 'lugia',
+
+    // Generacion III.
+    'sceptile', 'blaziken', 'swampert', 'gardevoir', 'metagross', 'flygon',
+    'absol', 'salamence', 'milotic', 'sharpedo', 'aggron', 'manectric',
+    'hariyama', 'torkoal', 'rayquaza', 'kyogre', 'groudon', 'deoxys',
+
+    // Generacion IV.
+    'infernape', 'empoleon', 'staraptor', 'roserade', 'garchomp', 'lucario',
+    'gastrodon', 'mamoswine', 'glaceon', 'leafeon', 'weavile', 'heatran',
+    'dialga', 'palkia', 'arceus', 'darkrai',
+
+    // Generacion V.
+    'excadrill', 'ferrothorn', 'volcarona', 'landorus', 'reshiram', 'zekrom',
+
+    // Generacion VI.
+    'greninja', 'delphox', 'talonflame', 'hawlucha', 'klefki', 'trevenant',
+    'gourgeist', 'zygarde', 'xerneas', 'yveltal', 'sylveon', 'goomy',
+
+    // Generacion VII.
+    'toucannon', 'vikavolt', 'ribombee', 'comfey', 'silvally', 'magearna',
+
+    // Generacion VIII y IX.
+    'dragapult', 'corviknight', 'gholdengo', 'zacian', 'eternatus',
+    'sprigatito', 'fuecoco', 'quaxly', 'pawmot', 'kingambit',
+
+    // Los que se piden por el nombre, con o sin generacion.
+    'rotom', 'aegislash', 'mimikyu', 'salazzle', 'naganadel'
   ]);
 
   window.pokeGridPerfiles.especiesDeAvatar = () => ESPECIES_DE_AVATAR.slice();

@@ -37,30 +37,31 @@
 
       <nav id="globalActions" class="global-actions" aria-label="Men&uacute; principal del launcher">
         <header class="sidebar-heading">
-          <span>MEN&Uacute; PRINCIPAL</span>
-          <small>Herramientas del launcher</small>
+          <button id="sidebarProfileButton" class="sidebar-profile" type="button" title="Ver y cambiar el perfil de sesion">
+            <span class="sidebar-profile-copy">
+              <strong id="sidebarProfileName">Principal</strong>
+              <small>Herramientas del launcher</small>
+            </span>
+            <span id="sidebarProfileAvatar" class="sidebar-profile-avatar" aria-hidden="true">P</span>
+          </button>
         </header>
         <button id="farmButton" class="button button-farm" type="button"><span class="top-action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>Modo farmeo</span></button>
         <button id="pokepediaButton" class="button button-pokepedia" type="button" title="Abrir Pokepedia en una ventana independiente"><span class="top-action-icon" aria-hidden="true">&#9672;</span><span>Pokepedia</span></button>
         <button id="scriptsButton" class="button button-scripts" type="button"><span class="top-action-icon is-code" aria-hidden="true">&lt;/&gt;</span><span>Scripts</span><span id="scriptsMenuBadge" class="menu-update-badge is-scripts" hidden>0</span></button>
         <button id="notificationButton" class="notification-button" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Abrir notificaciones">
-          <svg class="notification-bell top-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+          <span class="top-action-icon" aria-hidden="true"></span>
           <span class="notification-button-label">Notificaciones</span>
           <span id="notificationBadge" class="notification-badge" hidden>0</span>
         </button>
         <button id="accountsButton" class="button button-secondary button-accounts" type="button"><span class="top-action-icon" aria-hidden="true">&#128101;</span><span>Cuentas</span></button>
-        <!-- Sin icono a proposito en el menu de la izquierda: son dos palabras y un icono ocupa mas
-             sitio del que ahorra en un boton de menu. En la barra superior si lo lleva, porque ahi si
-             es lo que da ritmo al resto de botones. -->
-        <button id="perfilesButton" class="button button-secondary" type="button"><span class="top-action-icon" aria-hidden="true" data-icon="profile"></span><span>Perfiles</span></button>
+        <button id="perfilesButton" class="button button-secondary" type="button"><span class="top-action-icon" aria-hidden="true"></span><span>Perfiles</span></button>
         <button id="cleanupMemoryButton" class="button button-secondary memory-cleanup-button" type="button" title="Optimizar memoria sin recargar sesiones, borrar datos ni detener procesos"><span class="top-action-icon" aria-hidden="true">&#129529;</span><span>RAM</span></button>
         <button id="loginAllButton" class="button button-primary button-launch-all" type="button" aria-label="Iniciar todas las cuentas" title="Iniciar todas las cuentas"><span class="top-action-icon launch-all-icon" aria-hidden="true"><span class="play-icon"></span></span><span>Iniciar todas</span></button>
         <button id="reloadAllButton" class="button button-secondary button-reload" type="button"><span class="top-action-icon" aria-hidden="true">&#8635;</span><span>Recargar todas</span></button>
-        <button id="updateLauncherButton" class="button button-secondary button-update" type="button" title="Buscar y aplicar actualizaciones del launcher"><span id="updateLauncherBadge" class="menu-update-badge is-update" hidden>0</span><span class="top-action-icon" aria-hidden="true">&#10515;</span><span class="update-launcher-copy"><span>Actualizar</span><small class="update-launcher-version" aria-label="Versión actual">Cargando versión…</small></span></button>
         <div class="view-mode-control">
           <button id="viewModeButton" class="button button-secondary button-view-mode" type="button" aria-expanded="false" aria-controls="viewModeMenu"><span class="top-action-icon" aria-hidden="true">&#9638;</span><span>Modo vista</span></button>
         </div>
-        <button id="instanceSettingsButton" class="button button-secondary button-instance-settings" type="button"><span class="top-action-icon" aria-hidden="true">&#9881;</span><span>Configuraciones</span></button>
+        <button id="instanceSettingsButton" class="button button-secondary button-instance-settings" type="button"><span class="top-action-icon" aria-hidden="true">&#9881;</span><span>Configuraciones</span><span id="updateLauncherBadge" class="menu-update-badge is-update" hidden>0</span></button>
       </nav>
     </header>
 
@@ -124,6 +125,26 @@
           <small class="field-help">Cambiarlo reinicia las pantallas de esta ventana y hay que volver a
             entrar en los sitios donde estuvieras conectado.</small>
         </div>
+
+        <!-- LAS ACTUALIZACIONES DEL LAUNCHER. Vivian en el menu, como un boton mas entre «Cuentas» y
+             «RAM», y alli no tenian sitio: pulsaba y empezaba a descargar, sin preguntar, sin decir
+             que version era ni donde se guardaba. Aqui caben las tres cosas que hace falta saber
+             antes de descargar 60 MB: si hay algo, que version es, y donde va a parar. -->
+        <div class="instance-settings-separator"></div>
+        <div class="instance-settings-field" id="instanceSettingsUpdatesField">
+          <span class="instance-settings-label">ACTUALIZACIONES DEL LAUNCHER</span>
+          <p id="updateStatusText" class="update-status-text" role="status">Version actual:
+            <b id="updateCurrentVersion">...</b></p>
+          <div class="update-actions">
+            <button id="checkUpdatesButton" class="button button-secondary" type="button">Buscar
+              actualizaci&oacute;n</button>
+            <button id="downloadUpdateButton" class="button button-primary" type="button" disabled>Descargar
+              actualizaci&oacute;n</button>
+          </div>
+          <small class="instance-settings-help">El ZIP se guarda en la carpeta de al lado de la del
+            launcher, no en Descargas, y al descargarlo se instala solo al cerrar el launcher.</small>
+        </div>
+
         <p id="instanceSettingsMessage" class="modal-message" role="status"></p>
       </section>
     </div>
@@ -140,10 +161,13 @@
           </div>
         </header>
         <p class="modal-copy">Un perfil es una sesi&oacute;n con nombre. Las ventanas con el mismo perfil
-          comparten lo que tengas iniciado en ellas, as&iacute; que entras una vez en Google y ya lo tienes en
-          todas. Las cuentas del juego no se tocan: siguen con su propia sesi&oacute;n.</p>
+          comparten lo que tengas iniciado en ellas. Las cuentas del juego no se tocan.</p>
+        <span class="modal-section-label">TUS PERFILES</span>
         <div id="perfilesList" class="perfiles-circles"></div>
         <div id="perfilEditor" class="perfil-editor" hidden>
+          <!-- Que el editor diga de QUIEN es. Antes salia del nada debajo de la fila, y con dos o tres
+               perfiles no se sabia si lo que se estaba cambiando era el que estaba marcado. -->
+          <p class="perfil-editor-quien">Editando <b id="perfilEditorNombreCorto">Principal</b></p>
           <label class="perfil-editor-campo">
             <span>NOMBRE</span>
             <input id="perfilEditorNombre" type="text" maxlength="40" placeholder="Nombre del perfil">
@@ -211,15 +235,18 @@
                Las ventanas con perfiles distintos NO se ven entre si. -->
           <label class="field browser-instance-perfil-field">
             <span>PERFIL</span>
-            <select id="browserInstancePerfil"></select>
-            <small class="field-help">Las ventanas con el mismo perfil comparten lo que tengas
-              iniciado en ellas.</small>
-            <button id="nuevoPerfilButton" class="button button-secondary browser-instance-perfil-nuevo" type="button">Perfil nuevo</button>
-            <span id="nuevoPerfilForm" class="browser-instance-perfil-form" hidden>
-              <input id="nuevoPerfilNombre" type="text" maxlength="40" placeholder="Nombre del perfil"
-                aria-label="Nombre del perfil nuevo">
-              <button id="nuevoPerfilCrear" class="button button-secondary" type="button">Crear</button>
+            <!-- El selector enseña el circulo del perfil elegido al lado del desplegable. Un desplegable
+                 de texto pelado obliga a recordar de memoria como se llama cada perfil, y con los
+                 nombres libres que se permiten dos perfiles se parecen tanto que no se distinguen. El
+                 desplegable se queda por debajo —es lo que anuncia el lector de pantalla y lo que
+                 guarda el valor— y el circulo es solo la vista. -->
+            <span class="perfil-selector">
+              <span id="browserInstancePerfilVista" class="perfil-selector-vista" aria-hidden="true">P</span>
+              <select id="browserInstancePerfil"></select>
             </span>
+            <small class="field-help">Las ventanas con el mismo perfil comparten lo que tengas
+              iniciado en ellas. Los perfiles se crean y se cambian de color en el gestor
+              (botón Perfiles del menú).</small>
           </label>
           <label class="field">
             <span>PANTALLAS / CUENTAS</span>
