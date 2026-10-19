@@ -7,6 +7,46 @@ Las versiones van en orden. La carpeta `dist/` conserva todas; nada se sustituye
 
 ---
 
+## 0.38.0 — los perfiles con avatar y color, y la barra de pestañas sin fondo azul
+
+### Los perfiles dejan de ser filas y pasan a círculos
+
+Como los de Disney: un círculo con avatar, el nombre debajo, cuántas ventanas lo usan, y el botón
+«+» al final. El círculo y no un cuadro porque el avatar ya es redondo y un cuadro obligaría a
+recortarlo. El «+» se ve siempre, como en Netflix, porque es lo que más se usa.
+
+**Un perfil se personaliza** con un Pokémon de avatar y un color de fondo, con opción de dejarlos
+vacíos. Sin avatar se enseña la inicial, que es lo que hace que todo siga siendo usable sin conexión.
+
+### Los avatares: PokéAPI, y solo al elegir
+
+La lista de 36 especies está escrita en el código, no se descarga. La razón es una: el menú tiene que
+aparecer **sin red**. Si dependiera de una llamada, sin conexión el gestor se quedaría vacío justo
+cuando se quiere crear un perfil, que es cuando peor viene que falle. Los **sprites sí se piden al
+pulsar**, que es lo que se pidió: esto solo dice qué hay.
+
+Y van **por el proceso principal**, no con `fetch` desde la ventana, porque la CSP del launcher no
+incluye `raw.githubusercontent.com`, que es de donde PokéAPI los sirve. El proceso principal valida el
+origen y devuelve `data:`, que sí está permitido. Una imagen que no carga no da ningún error, así que
+esto fallaría en silencio: el perfil se quedaría con la inicial y nadie sabría por qué.
+
+### La barra de pestañas
+
+- **Fuera el fondo azul.** `#080d15` se leía como una franja pegada encima, no como parte del
+  launcher. Ahora es transparente.
+- **El tamaño manda el nombre.** Antes: `min-width: 128px`, `max-width: 230px` y reparto del sobrante,
+  con lo que la misma pestaña medía distinto según cuántas hubiera abiertas y un nombre corto salía
+  con un vacío enorme. Ahora mide lo que mide su nombre, con un tope de **20 caracteres** escrito en
+  `ch` —no en píxeles— para que no se descuadre al cambiar la fuente, y con el relleno justo.
+
+### Un fallo mío que salió por el camino
+
+Al cambiar el nombre de las particiones en la 0.37.0, `main.js` dejó de reconocer las ventanas del
+navegador: solo aceptaba las que empezaban por `instance-`. Ninguna ventana quedó registrada —sin
+permisos, sin modo de apertura, sin zoom— y **no petaba**, solo dejaba de hacer unas cosas.
+
+---
+
 ## 0.37.0 — perfiles de sesión, como los de Chrome
 
 ### Qué son

@@ -29,6 +29,9 @@ require('../src/main.js');
 const { app, BrowserWindow } = electronApi;
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+// La hoja de estilos se lee en el proceso principal, no dentro del renderer: las reglas del tamano de
+// la pestana se comprueban como texto, y no hay forma de leer una regla CSS desde el navegador.
+const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
 const fallos = [];
 const comprobar = (ok, que, detalle) => {
   if (!ok) fallos.push(`${que}${detalle ? ` (${detalle})` : ''}`);
@@ -133,25 +136,25 @@ app.whenReady().then(async () => {
       comprobar(ancho.barraMax === 'none',
         'la lista de pestañas ya no tiene el tope de 680 px', `max-width: ${ancho.barraMax}`);
 
-      // MINIMO 128 y MAXIMO 230, no 132 y 240. Hay DOS reglas de `.instance-tab-shell` en la hoja:
-      // la de arriba (min 132 / max 240 / flex 0 1 auto) y la del bloque de rediseño, mas abajo, que
-      // la pisa con 128 / 230 / flex 1 1 auto. Gana la segunda. Esta prueba seguia mirando los numeros
-      // de la primera, que hace tiempo que no son los que se aplican.
+      // EL TAMAÑO MANDA EL CONTENIDO, y no hay ni minimo ni maximo en pixeles.
       //
-      // Y con `flex: 1 1 auto` las pestañas SI reparten el ancho: con pocas, cada una crece hasta el
-      // maximo; con muchas, se encogen hasta el minimo; y solo desbordan cuando ni asi cabe. Medido:
-      // 230 px con dos, 160 px con cinco, 128 px con veinte. La prueba pedia que la misma pestaña
-      // midiese lo mismo con dos que con cinco, que es el reparto del diseño anterior al rediseño.
-      comprobar(ancho.conDos.primera >= ancho.conCinco.primera
-        && ancho.conDos.primera >= 128 && ancho.conDos.primera <= 230,
-        'con menos pestañas cada una tiene más sitio, y ninguna se sale del mínimo ni del máximo',
+      // Antes: `min-width: 128px; max-width: 230px; flex: 1 1 auto`, con reparto del sobrante. La misma
+      // pestaña media distinto segun cuantas hubiera abiertas, y un nombre de ocho letras salia con un
+      // vacio enorme a su derecha. Ahora: tan ancha como su nombre, con un tope de 20 caracteres, y el
+      // relleno justo. Lo que se comprueba abajo es ese contrato, no una cifra.
+      comprobar(ancho.conDos.primera === ancho.conCinco.primera,
+        'la misma pestaña mide lo mismo haya dos pestañas o cinco: manda su nombre, no el reparto',
         `con dos: ${ancho.conDos.primera} px, con cinco: ${ancho.conCinco.primera} px`);
-      comprobar(ancho.conDos.max <= 230 && ancho.conCinco.max <= 230,
-        'y ninguna pasa del máximo, por largo que sea el nombre',
-        `máximos: ${ancho.conDos.max} y ${ancho.conCinco.max}`);
-      comprobar(ancho.conVeinte.min >= 128,
-        'con veinte, la más estrecha sigue teniendo el mínimo: no se aplastan',
-        `la más estrecha con 20: ${ancho.conVeinte.min} px`);
+      comprobar(ancho.conDos.max > ancho.conDos.min,
+        'y un nombre largo mide mas que uno corto, en vez de todas iguales',
+        `la mas ancha: ${ancho.conDos.max} px, la mas estrecha: ${ancho.conDos.min} px`);
+      comprobar(ancho.conVeinte.min === ancho.conDos.min,
+        'con veinte tampoco se aplastan por debajo de lo que el nombre necesita',
+        `la mas estrecha con 20: ${ancho.conVeinte.min} px, con 2: ${ancho.conDos.min} px`);
+      comprobar(/max-width: 20ch/.test(styles),
+        'y el tope esta en 20 caracteres de verdad, no en pixeles acertados a ojo');
+      comprobar(/\.instance-tab-shell\s*\{[^}]*min-width: 0/.test(styles),
+        'sin minimo fijo: una pestaña estrecha tiene que poder ser estrecha');
       comprobar(ancho.desbordaConVeinte && !ancho.desbordaConCinco,
         'y desbordan cuando de verdad no caben, que es lo que llaman a las flechas',
         `5 pestañas desborda: ${ancho.desbordaConCinco}, 20: ${ancho.desbordaConVeinte}`);

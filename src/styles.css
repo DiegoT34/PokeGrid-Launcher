@@ -2702,34 +2702,163 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
    `.field-help` lo usan el selector de perfil del modal y los ajustes de la instancia. */
 .field-help { color: #7e97ad; font-size: 8px; line-height: 1.35; }
 
-/* El gestor de perfiles. Cada perfil es una fila con su nombre, cuantas ventanas lo usan, y las dos
-   acciones. Las que no se pueden usar —el Principal, y borrar uno con ventanas— se ven apagadas y sin
-   que haya que pulsarlas para saberlo. */
-.perfiles-list { display: grid; gap: 7px; margin: 10px 0; }
-.perfil-fila {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid #1e3149;
-  border-radius: 9px;
-  background: #0c1522;
+/* El gestor de perfiles: círculos con avatar, como los de Disney.
+ *
+ * Una fila que puede desbordar, no una rejilla. La fila deja el ojo comparar los círculos de un
+ * vistazo, que es para lo que sirve un selector de perfil, y un perfil más no «empuja» a los de al
+ * lado: si no cabe, la lista se desplaza horizontalmente.
+ */
+.perfiles-circles {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin: 14px 0 6px;
+  padding: 4px 2px 8px;
+  overflow-x: auto;
 }
-.perfil-fila.es-principal { border-color: #2b4f74; background: #0e1a2a; }
-/* La fila de crear tiene solo dos columnas, porque no tiene ni contador ni acciones. */
-.perfil-fila.es-nueva { grid-template-columns: minmax(0, 1fr) auto; border-style: dashed; }
-.perfil-fila input[type="text"] {
-  min-width: 0;
+.perfil-circulo {
+  flex: 0 0 auto;
+  width: 86px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 4px 2px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #9db0c4;
+  font: inherit;
+  cursor: pointer;
+}
+.perfil-circulo:hover { background: rgba(255, 255, 255, .04); color: #d7e4ee; }
+.perfil-circulo:focus-visible { outline: 2px solid #4cc2e8; outline-offset: 1px; }
+
+/* El círculo de la foto. El color de fondo es el que elige el usuario, y si no elige ninguno se
+   queda el del launcher: sin fondo es una opción, no un hueco. */
+.perfil-circulo-foto {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #1b2836;
+  border: 2px solid #2b3f54;
+  font-size: 26px;
+  font-weight: 800;
+  color: #eaf3fa;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.perfil-circulo-foto img { width: 82%; height: 82%; object-fit: contain; image-rendering: pixelated; }
+.perfil-circulo-foto.es-inicial { font-size: 30px; }
+
+/* El que se está editando: un anillo por fuera, no un relleno distinto. Un relleno taparía el avatar,
+   que es justo lo que se está mirando. */
+.perfil-circulo.es-activo .perfil-circulo-foto {
+  border-color: #4cc2e8;
+  box-shadow: 0 0 0 3px rgba(76, 194, 232, .25);
+}
+
+.perfil-circulo-nombre {
+  max-width: 86px;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perfil-circulo-uso { font-size: 7px; color: #7e97ad; }
+
+.perfil-circulo.es-nuevo .es-nueva-foto {
+  background: transparent;
+  border-style: dashed;
+  color: #7e97ad;
+  font-size: 30px;
+  font-weight: 400;
+}
+.perfil-circulo.es-nuevo:hover .es-nueva-foto { border-color: #4cc2e8; color: #4cc2e8; }
+
+/* --- El editor del perfil que se ha elegido --- */
+.perfil-editor {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #1e3149;
+  border-radius: 11px;
+  background: #0b141f;
+}
+.perfil-editor-campo { display: grid; gap: 5px; }
+.perfil-editor-campo > span {
+  color: #7e97ad;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+.perfil-editor-campo input[type="text"] {
   height: 32px;
   padding: 0 9px;
   border: 1px solid #22384f;
   border-radius: 7px;
   background: #07131e;
   color: #dbe8f2;
+  font: inherit;
+  font-size: 9px;
 }
-.perfil-fila input:disabled { color: #8fa6ba; background: #0a1420; }
-.perfil-uso { color: #7e97ad; font-size: 8px; white-space: nowrap; }
+.perfil-editor-campo input:disabled { color: #8fa6ba; background: #0a1420; }
+.perfil-editor-acciones { display: flex; gap: 8px; }
+.perfil-editor-acciones .is-danger:disabled { opacity: .55; cursor: not-allowed; }
+
+/* La rejilla de Pokémon. Se abre y se cierra; no está siempre ahí porque son 36 celdas y tapan
+   el perfil que se está editando. */
+.perfil-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid #1e3149;
+  border-radius: 10px;
+  background: #0b141f;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.perfil-avatar {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #22384f;
+  border-radius: 9px;
+  background: #101d2b;
+  color: #7e97ad;
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.perfil-avatar img { width: 88%; height: 88%; object-fit: contain; image-rendering: pixelated; }
+.perfil-avatar:hover { border-color: #35536f; background: #142334; }
+.perfil-avatar.es-elegido { border-color: #4cc2e8; box-shadow: 0 0 0 2px rgba(76, 194, 232, .25); }
+.perfil-avatar.es-sin-avatar { font-size: 14px; }
+.perfil-avatar.es-cargando { opacity: .5; cursor: progress; }
+
+/* La paleta. El primer botón es «sin fondo», que es una opción de verdad y no un color más. */
+.perfil-color-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.perfil-color {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid #22384f;
+  cursor: pointer;
+  padding: 0;
+}
+.perfil-color.es-es-inicial, .perfil-color.es-sin-color {
+  background: #0a1420;
+  color: #7e97ad;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+.perfil-color.es-elegido { border-color: #4cc2e8; box-shadow: 0 0 0 2px rgba(76, 194, 232, .25); }
 
 /* El selector de perfil, en el modal de nueva ventana. El boton va debajo porque aqui no cabe al
    lado sin apretar el desplegable. El campo de crear aparece debajo del boton, no encima: aparecer
@@ -7584,16 +7713,38 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   gap: 3px;
   align-items: stretch;
   padding: 0;
-  background: #080d15;
+  /* SIN FONDO. Estaba en #080d15, un azul casi negro que se veía como una franja Cold: el fondo de la
+     barra del launcher es del mismo tono y esa franja se leia como algo pegado encima, no como parte
+  /* del launcher. Transparente: se ve lo que hay detras, que es lo unico que no puede chocar con el. */
+  background: transparent;
   border-bottom: 1px solid #1b2a3c;
 }
 
+/* EL TAMAÑO DE UNA PESTAÑA, que es lo que mas se nota de la barra.
+ *
+ * Antes: `min-width: 128px; max-width: 230px; flex: 1 1 auto` —o sea, un minimo y un maximo fijos y
+ * reparto del sobrante. Con eso todas las pestañas median lo mismo mas o menos y dos webs de nombre
+ * corto se comian el hueco de tres de nombre largo. Ademas el minimo de 128 px hacia que un nombre de
+ * ocho letras saliera con un vacio enorme a su derecha.
+ *
+ * Ahora manda el CONTENIDO:
+ *  - tan estrecha como su nombre, con un relleno pequeno;
+ *  - como maximo, 20 caracteres de ese nombre, y a partir de ahi, puntos suspensivos;
+ *  - y detras, la X con su propio relleno, que es lo unico que hay que poder pulsar sin acertar.
+ *
+ * El maximo se escribe en `ch` y no en pixeles a proposito: `ch` es el ancho del glifo «0», asi que
+ * 20ch son 20 caracteres de verdad, con cualquier fuente. Poner 160 px era acertar a ojo con la fuente
+ * de hoy, y se descuadraba en cuanto el nombre cambie o el launcher se escale.
+ */
+ */
 .instance-tab-shell {
   position: relative;
-  min-width: 128px;
-  max-width: 230px;
+  min-width: 0;
+  max-width: none;
   height: 36px;
-  flex: 1 1 auto;
+  /* `0 1 auto`: no crece —cada una mide lo que mide su nombre— pero si encoge cuando no cabe, que es
+     lo que evita que la barra desborde con muchas ventanas abiertas. */
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   border: 1px solid transparent;
@@ -7605,6 +7756,22 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
   transition: transform .14s ease, background-color .14s ease, color .14s ease;
 }
 .instance-tab-shell:hover { background: rgba(255, 255, 255, .045); color: #cfdeeb; }
+
+/* EL RELLENO DE LA PESTAÑA Y EL DE LA X, que son cosas distintas y no pueden ser el mismo numero.
+ *
+ * El de la pestana es pequeño a proposito: ahora la pestaña se ajusta a su nombre, asi que cada
+ * pixel de relleno se nota cuatro veces mas que antes, cuando todas median lo mismo y el aire se
+ * repartia. 4 px a cada lado es lo justo para que el texto no toque el borde.
+ *
+ * El de la X es un poco mayor porque es un boton: tiene que verse pulsable y pulsarse sin acertar.
+ */
+.instance-tab-shell > .instance-tab { padding: 0 4px; max-width: none; }
+.instance-tab-shell > .instance-tab > b { max-width: 20ch; }
+.instance-tab-shell .instance-tab-close {
+  margin-right: 4px;
+  margin-left: 2px;
+  flex: 0 0 auto;
+}
 
 /* La activa: fondo mas claro y una linea de color ABAJO, pegada al panel. Con ocho pestañas abiertas
    es lo unico que dice «estas aqui» sin tener que leer los nombres. */

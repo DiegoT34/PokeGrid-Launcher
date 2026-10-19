@@ -20,7 +20,35 @@
   const PERFILES_KEY = 'pokegrid:session-profiles:v1';
   const PERFIL_POR_DEFECTO = 'principal';
 
-  const perfilPrincipal = Object.freeze({ id: PERFIL_POR_DEFECTO, nombre: 'Principal', creado: 0 });
+  // El Principal no está en el almacen: se crea solo y por eso se puede renombrar o cambiar su
+  // avatar sin tocar `localStorage`. Se guarda la forma base congelada y una copia viva: la congelada
+  // es la que no se puede alterar por accidente, y la viva es la que `ponerAvatar` cambia cuando el
+  // usuario personaliza el Principal.
+  const PERFIL_PRINCIPAL_BASE = Object.freeze({
+    id: PERFIL_POR_DEFECTO,
+    nombre: 'Principal',
+    creado: 0,
+    avatar: '',
+    color: ''
+  });
+  const perfilPrincipal = { ...PERFIL_PRINCIPAL_BASE };
+
+  // Un color es `#rrggbb`. Se comprueba con la forma, no con el nombre: `CSS.supports` no existe en un
+  // fichero que se carga sin pagina, y aqui no hay donde mirar. Lo que no pase por esta forma se trata
+  // como «sin fondo», que es lo que el usuario quiere decir cuando escribe algo que no es un color.
+  function esColor(texto) {
+    return /^#[0-9a-f]{6}$/.test(texto);
+  }
+
+  // El avatar es el NOMBRE de la especie en minusculas —`pikachu`— y no una URL.
+  //
+  // Guardar la URL seria un error que solo se nota dentro de seis meses: PokéAPI numera las especies y
+  // un numero puede cambiar, y entonces el sprite guardado no apunta a nada y el perfil aparece sin
+  // foto sin que se sepa por que. Con el nombre se resuelve cada vez que se pinta, y si PokéAPI no
+  // responde se cae a la inicial.
+  function esEspecie(texto) {
+    return /^[a-z0-9-]{1,40}$/.test(texto);
+  }
 
   // Lo que venga de `localStorage` pasa por aqui: una lista editada a mano, o de una version vieja,
   // no puede dejar al launcher sin el Principal ni con dos perfiles que se llamen igual.
@@ -38,7 +66,11 @@
       return [perfilPrincipal, ...limpios.map((fila) => ({
         id: String(fila.id),
         nombre: String(fila.nombre || '').slice(0, 40),
-        creado: Number(fila.creado) || 0
+        creado: Number(fila.creado) || 0,
+        // Lo que venga raro se deja en su valor neutro en vez de propagarse: un color que no es un
+        // color se pinta como si no hubiera color, que es lo que el usuario quiere decir.
+        avatar: esEspecie(String(fila.avatar || '').toLowerCase()) ? String(fila.avatar).toLowerCase() : '',
+        color: esColor(String(fila.color || '').toLowerCase()) ? String(fila.color).toLowerCase() : ''
       }))];
     } catch {
       return [perfilPrincipal];
@@ -91,10 +123,40 @@
       const perfil = {
         id: nuevoId(),
         nombre: String(nombre || '').trim().slice(0, 40),
-        creado: Date.now()
+        creado: Date.now(),
+        avatar: '',
+        color: ''
       };
       escribir([...leer(), perfil]);
       return perfil;
+    },
+
+    // Poner avatar y color de golpe. Se hacen juntos porque en la pantalla se cambian juntos —es el
+    // mismo círculo— y porque un «poner solo el avatar» y un «poner solo el color» exigirian dos
+    // caminos para la misma fila.
+    //
+    // El Principal SI se puede personalizar. Lo que no puede es renombrarse ni borrarse, y eso se
+    // decide en `renombrar` y `borrar`, no aqui.
+    //
+    // Se guardan por id, y no por posición: el `Principal` no está en el almacen, asi que la lista
+    // que recorre esto no lo contiene. Si el id es `principal` se cambia el objeto congelado por otro
+    // identico con los campos nuevos.
+    ponerAvatar(id, especie, color) {
+      const buscado = String(id || '');
+      if (!buscado) return false;
+      const normalizados = {
+        avatar: esEspecie(String(especie || '').toLowerCase()) ? String(especie).toLowerCase() : '',
+        color: esColor(String(color || '').toLowerCase()) ? String(color).toLowerCase() : ''
+      };
+      if (buscado === PERFIL_POR_DEFECTO) {
+        perfilPrincipal.avatar = normalizados.avatar;
+        perfilPrincipal.color = normalizados.color;
+        return true;
+      }
+      const lista = leer();
+      if (!lista.some((perfil) => perfil.id === buscado)) return false;
+      escribir(lista.map((perfil) => (perfil.id === buscado ? { ...perfil, ...normalizados } : perfil)));
+      return true;
     },
 
     renombrar(id, nombre) {
@@ -130,4 +192,25 @@
     // Lo rellena `renderer.js` con una funcion que mira las ventanas. Aqui se queda en null.
     conCuantasVentanas: null
   };
+
+  // LOS POKÉMON PARA LOS AVATARES.
+  //
+  // Una lista CURADA y escrita aqui, y no una consulta a PokéAPI al abrir el diálogo. La razón es una
+  // sola: el menú tiene que aparecer SIN red. Si depende de una llamada, sin conexión —o con PokéAPI
+  // caído— el gestor se queda vacío justo cuando se quiere crear un perfil, que es cuando peor viene
+  // que falle. Los SPRITES sí se descargan al elegir, que es lo que se pidió: esto solo dice qué hay.
+  //
+  // El valor es el nombre de la especie en la forma de PokéAPI, en minúsculas y sin tildes. No se
+  // escribe el nombre bonito aparte porque se compone del primero: `bulbasaur` → «Bulbasaur». Así no
+  // pueden quedar desincronizados el nombre que se enseña y el que se busca.
+  const ESPECIES_DE_AVATAR = Object.freeze([
+    'bulbasaur', 'charmander', 'squirtle', 'chikorita', 'cyndaquil', 'totodile',
+    'treecko', 'torchic', 'mudkip', 'turtwig', 'chimchar', 'piplup',
+    'rowlet', 'litten', 'popplio', 'grookey', 'scorbunny', 'sobble',
+    'eevee', 'snorlax', 'gengar', 'lapras', 'meowth', 'pikachu',
+    'charizard', 'blastoise', 'alakazam', 'gyarados', 'dragonite', 'mewtwo',
+    'ho-oh', 'jigglypuff', 'vaporeon', 'flareon', 'jolteon', 'umbreon'
+  ]);
+
+  window.pokeGridPerfiles.especiesDeAvatar = () => ESPECIES_DE_AVATAR.slice();
 })();

@@ -150,6 +150,56 @@ app.whenReady().then(async () => {
     comprobar('resolver uno que si existe lo devuelve tal cual', P.resolver(trabajo.id) === trabajo.id);
     comprobar('existe dice la verdad', P.existe(trabajo.id) && !P.existe('no-existe'));
 
+    console.log('\nAvatar y color (0.38.0):\n');
+
+    const P38 = cargarAlmacen(almacenFalso());
+    const uno38 = P38.listar();
+    comprobar('un perfil nuevo nace sin avatar', uno38[0].avatar === '', JSON.stringify(uno38[0].avatar));
+    comprobar('y sin color', uno38[0].color === '', JSON.stringify(uno38[0].color));
+
+    const creado38 = P38.crear('Con foto');
+    comprobar('crear tambien los deja vacios',
+      creado38.avatar === '' && creado38.color === '');
+
+    // El Principal se personaliza como cualquier otro. Lo que no puede es renombrarse ni borrarse.
+    const setAvatar = P38.ponerAvatar;
+    comprobar('existe una forma de poner avatar y color', typeof setAvatar === 'function',
+      typeof setAvatar);
+    if (typeof setAvatar === 'function') {
+      comprobar('el Principal acepta avatar',
+        setAvatar('principal', 'pikachu', '#e63946') === true);
+      const pr = P38.listar()[0];
+      comprobar('y quedan guardados', pr.avatar === 'pikachu' && pr.color === '#e63946',
+        JSON.stringify({ avatar: pr.avatar, color: pr.color }));
+      comprobar('seguin sin poder renombrarse', P38.renombrar('principal', 'Otro') === false);
+      comprobar('ni borrarse', P38.borrar('principal') === false);
+      comprobar('con avatar y color tampoco se borra', P38.borrar('principal') === false);
+    }
+
+    // Y que avatar y color sobrevivan a guardar y releer.
+    const persiste = almacenFalso();
+    const P39 = cargarAlmacen(persiste);
+    const conFoto = P39.crear('Squirtle');
+    if (typeof P39.ponerAvatar === 'function') P39.ponerAvatar(conFoto.id, 'squirtle', '#457b9d');
+    const releido = cargarAlmacen(persiste);
+    const tras = releido.listar().find((p) => p.id === conFoto.id);
+    comprobar('avatar y color sobreviven a guardar y releer',
+      tras && tras.avatar === 'squirtle' && tras.color === '#457b9d', JSON.stringify(tras));
+
+    // Un color que no es un color se cae a sin fondo, en vez de pintar algo raro en el circulo.
+    if (typeof P39.ponerAvatar === 'function') {
+      const raro = P39.crear('Raro');
+      P39.ponerAvatar(raro.id, 'pikachu', 'no-es-un-color');
+      const delRaro = releido.listar().find((p) => p.id === raro.id);
+      comprobar('un color que no es un color se cae a sin fondo',
+        delRaro && delRaro.color === '', JSON.stringify(delRaro && delRaro.color));
+      P39.ponerAvatar(raro.id, 'CHARMELEON', '#00FF00');
+      const mayus = releido.listar().find((p) => p.id === raro.id);
+      comprobar('el avatar se guarda en minusculas y el color tambien',
+        mayus && mayus.avatar === 'charmeleon' && mayus.color === '#00ff00',
+        JSON.stringify(mayus && { avatar: mayus.avatar, color: mayus.color }));
+    }
+
     console.log('\nLo que venga roto:\n');
 
     // Editar el almacenamiento a mano, o una version vieja, puede dejar cualquier cosa. Nada de eso

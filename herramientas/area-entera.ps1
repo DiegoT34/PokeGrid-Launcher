@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Continue'
 # haber escrito nada. Un directorio que se puede ir no puede dar por hecho que existe.
 $carpeta = 'C:\Users\Shockviny\AppData\Local\Temp\opencode'
 if (-not (Test-Path $carpeta)) { New-Item -ItemType Directory -Force -Path $carpeta | Out-Null }
-$salida = Join-Path $carpeta 'area-0370.txt'
+$salida = Join-Path $carpeta 'area-0380.txt'
 Remove-Item $salida -Force -ErrorAction SilentlyContinue
 Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
 
@@ -141,5 +141,6 @@ if ($fallos.Count) {
   Add-Content -Path $salida -Value ('las ' + $pruebas.Count + ' pasan') -Encoding utf8
 }
 'LISTO' | Out-File -Encoding utf8 (Join-Path $carpeta 'area-fin.txt')
+
 
 

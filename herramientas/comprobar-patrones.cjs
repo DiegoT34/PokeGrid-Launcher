@@ -11,6 +11,9 @@ const raiz = path.join(__dirname, '..');
 const renderer = fs.readFileSync(path.join(raiz, 'src', 'renderer.js'), 'utf8');
 const mainProceso = fs.readFileSync(path.join(raiz, 'src', 'main.js'), 'utf8');
 const preload = fs.readFileSync(path.join(raiz, 'src', 'preload.js'), 'utf8');
+// El almacen de perfiles se lee aqui tambien: desde la 0.38.0 guarda el avatar y el color, y las
+// invariantes de abajo miran las dos cosas.
+const perfiles = fs.readFileSync(path.join(raiz, 'src', 'perfiles-sesion.js'), 'utf8');
   const usuarios = fs.readFileSync(path.join(raiz, 'src', 'userscripts.js'), 'utf8');
   const html = fs.readFileSync(path.join(raiz, 'src', 'index.html'), 'utf8');
 
@@ -133,7 +136,20 @@ const QUE_SI = [
     ['los botones van detras de la barra y el nombre toma el hueco', /identity\.style\.flex = '1 1 auto';[\s\S]{0,90}panelbar\.append\(identity, actions, masPantallaButton, menosPantallaButton\)/, renderer],
     ['y la barra ya no reparte el hueco entre todos', /\.browser-instance-panelbar \{[^}]*justify-content: flex-start/, styles],
     ['el icono de la lupa esta en la tabla', /search: '<circle cx="11"/, renderer],
-    ['y se expone para el centro de scripts', /window\.launcherUiIcon = launcherUiIcon;/, renderer]
+    ['y se expone para el centro de scripts', /window\.launcherUiIcon = launcherUiIcon;/, renderer],
+
+    // ---- 0.38.0: perfiles con avatar de Pokemon y color de fondo
+    ['el perfil guarda avatar y color', /avatar: ''/, perfiles],
+    ['la lista de Pokemon para avatares esta en el almacen de perfiles',
+      /ESPECIES_DE_AVATAR = Object\.freeze\(\[/, perfiles],
+    ['y se expone para el gestor', /especiesDeAvatar = \(\) => ESPECIES_DE_AVATAR\.slice\(\)/, perfiles],
+    ['el boton de crear perfil se pinta siempre, al final', /function circuloDeCrear\(\)/, renderer],
+    ['sin avatar se ensena la inicial, no un hueco', /es-inicial/, renderer],
+    ['el color se guarda con el almacen, no pintando el DOM a mano',
+      /pokeGridPerfiles\?\.ponerAvatar\(perfil\.id, perfil\.avatar, color\)/, renderer],
+    ['y hay una opcion de SIN color, no solo colores',
+      /const COLORES_DE_PERFIL = \[\s*''/, renderer],
+    ['el sprite pasa por la funcion que ya valida el origen', /spriteDeEspecie\(especie\)/, renderer]
 ];
 
 const QUE_NO = [
@@ -167,6 +183,30 @@ const QUE_NO = [
 ];
 
 let problemas = 0;
+
+// LAS AUSENCIAS QUE NO ENTRAN EN `QUE_NO`.
+//
+// Van fuera a proposito. `QUE_NO` se recorre igual que `QUE_SI` —[texto, expresion regular, donde se
+// busca]— y anadir una entrada de dos posiciones ahi revienta el bucle entero con
+// «re.test is not a function», que no dice que entrada es. Pasa dos veces en este fichero. Con un
+// bloque propio cada ausencia lleva su propio texto y no se puede confundir con las de las listas.
+//
+// Las dos que hay aqui son de la 0.38.0 y son LAS MAS IMPORTANTES DE LAS DOS: los sprites de Pokemon
+// SIEMPRE por el proceso principal. La CSP del launcher no incluye `raw.githubusercontent.com`, que es
+// de donde los sirve PokeAPI, asi que un `fetch` desde el renderer devolveria un sprite que no se
+// pinta nunca. Y lo peor no es que falle: es que NO falla, porque una imagen que no carga no da ningun
+// error. El perfil se quedaria con la inicial y no se sabria por que.
+console.log('\nAusencias que tienen que estar:');
+for (const [que, re, texto] of [
+  ['ningun sprite de Pokemon se pide con fetch desde el renderer',
+    /fetch\(\s*`?https:\/\/raw\.githubusercontent\.com\/PokeAPI/, renderer],
+  ['ni se pone como src en el HTML, que es el mismo problema',
+    /src="https:\/\/raw\.githubusercontent\.com\/PokeAPI/, html]
+]) {
+  const presente = re.test(texto);
+  if (presente) problemas++;
+  console.log(`  ${presente ? 'NO  ' : 'ok  ' } ${que}${presente ? '  — sigue presente' : ''}`);
+}
 console.log('Invariantes que tienen que estar:');
 for (const [que, re, texto] of QUE_SI) {
   const ok = re.test(texto);

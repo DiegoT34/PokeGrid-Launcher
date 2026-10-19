@@ -49,9 +49,10 @@
           <span id="notificationBadge" class="notification-badge" hidden>0</span>
         </button>
         <button id="accountsButton" class="button button-secondary button-accounts" type="button"><span class="top-action-icon" aria-hidden="true">&#128101;</span><span>Cuentas</span></button>
-        <!-- Sin icono a proposito: son dos palabras y un icono ocupa mas sitio del que ahorra en un
-             boton de la barra, que ya va apretada. -->
-        <button id="perfilesButton" class="button button-secondary" type="button"><span>Perfiles</span></button>
+        <!-- Sin icono a proposito en el menu de la izquierda: son dos palabras y un icono ocupa mas
+             sitio del que ahorra en un boton de menu. En la barra superior si lo lleva, porque ahi si
+             es lo que da ritmo al resto de botones. -->
+        <button id="perfilesButton" class="button button-secondary" type="button"><span class="top-action-icon" aria-hidden="true" data-icon="profile"></span><span>Perfiles</span></button>
         <button id="cleanupMemoryButton" class="button button-secondary memory-cleanup-button" type="button" title="Optimizar memoria sin recargar sesiones, borrar datos ni detener procesos"><span class="top-action-icon" aria-hidden="true">&#129529;</span><span>RAM</span></button>
         <button id="loginAllButton" class="button button-primary button-launch-all" type="button" aria-label="Iniciar todas las cuentas" title="Iniciar todas las cuentas"><span class="top-action-icon launch-all-icon" aria-hidden="true"><span class="play-icon"></span></span><span>Iniciar todas</span></button>
         <button id="reloadAllButton" class="button button-secondary button-reload" type="button"><span class="top-action-icon" aria-hidden="true">&#8635;</span><span>Recargar todas</span></button>
@@ -141,7 +142,28 @@
         <p class="modal-copy">Un perfil es una sesi&oacute;n con nombre. Las ventanas con el mismo perfil
           comparten lo que tengas iniciado en ellas, as&iacute; que entras una vez en Google y ya lo tienes en
           todas. Las cuentas del juego no se tocan: siguen con su propia sesi&oacute;n.</p>
-        <div id="perfilesList" class="perfiles-list"></div>
+        <div id="perfilesList" class="perfiles-circles"></div>
+        <div id="perfilEditor" class="perfil-editor" hidden>
+          <label class="perfil-editor-campo">
+            <span>NOMBRE</span>
+            <input id="perfilEditorNombre" type="text" maxlength="40" placeholder="Nombre del perfil">
+          </label>
+          <div class="perfil-editor-campo">
+            <span>AVATAR</span>
+            <button id="perfilEditorAvatar" class="button button-secondary" type="button">Cambiar avatar</button>
+            <small class="field-help">Los sprites salen de PokéAPI. Si no hay red, el c&iacute;rculo se queda
+              con la inicial y el perfil sigue funcionando.</small>
+          </div>
+          <div id="perfilAvatarGrid" class="perfil-avatar-grid" hidden></div>
+          <div class="perfil-editor-campo">
+            <span>COLOR</span>
+            <div id="perfilColorPalette" class="perfil-color-palette"></div>
+          </div>
+          <div class="perfil-editor-acciones">
+            <button id="perfilEditorGuardar" class="button button-primary" type="button">Guardar</button>
+            <button id="perfilEditorEliminar" class="button button-secondary is-danger" type="button">Eliminar</button>
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="button button-primary" type="button" data-close-perfiles>Cerrar</button>
         </div>

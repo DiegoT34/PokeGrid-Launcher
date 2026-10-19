@@ -8274,6 +8274,10 @@ const LAUNCHER_ICON_PATHS = Object.freeze({
   check: '<path d="M20 6 9 17l-5-5"/>',
   live: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
   ring: '<circle cx="12" cy="12" r="7"/>',
+  // El de perfiles. Un circulo con un busto dentro es «una persona»; para lo que de verdad significa un
+  // perfil —que tiene nombre y una sesion— va un contorno de ficha con una linea, que es lo que dice
+  // «esto es un perfil». Trazo de 2 como el resto del pack.
+  profile: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M5.5 18.5a7.5 7.5 0 0 1 13 0"/>',
   aoe: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>',
   empty: '<path d="m12 3 8 9-8 9-8-9z"/>',
   filled: '<path d="m12 3 8 9-8 9-8-9z" fill="currentColor" stroke="none"/>',
@@ -8320,6 +8324,14 @@ function aplicarIconosBarraFarmeo() {
   const detener = document.querySelector('#stopFarmButton');
   const huecoDetener = detener?.querySelector('.top-action-icon');
   if (huecoDetener) huecoDetener.innerHTML = launcherUiIcon('stop');
+
+  // Los huecos que se rellenan por atributo `data-icon`, sin tener que conocer de antemano el boton.
+  // Van en la misma pasada que los de la barra del farmeo y por el mismo motivo: un icono escrito
+  // a mano en el HTML es un icono que nadie encuentra al buscarlo en la tabla.
+  for (const hueco of document.querySelectorAll('[data-icon]')) {
+    hueco.classList.add('menu-svg-icon');
+    hueco.innerHTML = launcherUiIcon(hueco.dataset.icon);
+  }
 }
 
 function renderAccountProfile(panel, profile) {
@@ -10646,96 +10658,82 @@ function aplicarPerfilAInstancia(instanceId, perfilId) {
   return true;
 }
 
-// El gestor de perfiles. Es la tercera pantalla del sistema: sin ella no hay forma de renombrar un
-// perfil ni de quitar el que sobra, y un sistema sin mantenimiento se queda como se creo.
+// El gestor de perfiles: círculos con avatar, como los de Disney.
 //
-// La fila de crear va la primera, con la misma pinta que las de renombrar. Es un campo mas de la
-// lista, no un boton que abre otra cosa: un boton que abre un formulario aparte seria un segundo
-// camino para lo mismo, y de los dos solo se recordaria uno.
+// POR QUE UNA LISTA Y NO UNA REJILLA. El círculo del avatar ya es redondo, y un cuadro obligaría a
+// recortarlo con bordes o a dejar el fondo en formato cuadrado sobre un círculo, que es la mitad del
+// trabajo de un avatar. Y en una fila de círculos el ojo los compara de un vistazo, que es justo para
+// lo que se usa un selector de perfil: elegir entre varios.
+//
+// El botón «+» va SIEMPRE al final y no se esconde. En Netflix tampoco, y por el mismo motivo: es lo
+// que más se usa, y si aparece solo cuando hace falta alguien no lo encuentra.
 function pintarGestorDePerfiles() {
   const lista = document.querySelector('#perfilesList');
   if (!lista) return;
   const perfiles = window.pokeGridPerfiles?.listar() || [];
   lista.replaceChildren();
 
-  const nueva = document.createElement('div');
-  nueva.className = 'perfil-fila es-nueva';
-  const nombreNuevo = document.createElement('input');
-  nombreNuevo.type = 'text';
-  nombreNuevo.maxLength = 40;
-  nombreNuevo.placeholder = 'Nombre del perfil nuevo';
-  nombreNuevo.setAttribute('aria-label', 'Nombre del perfil nuevo');
-  const crear = document.createElement('button');
-  crear.type = 'button';
-  crear.className = 'button button-primary';
-  crear.textContent = 'Crear';
-  const crearDesdeLaFila = () => {
-    if (!crearPerfilConNombre(nombreNuevo.value)) return;
-    pintarGestorDePerfiles();
-  };
-  crear.addEventListener('click', crearDesdeLaFila);
-  // Enter tambien crea, igual que en el modal.
-  nombreNuevo.addEventListener('keydown', (evento) => {
-    if (evento.key !== 'Enter') return;
-    evento.preventDefault();
-    crearDesdeLaFila();
-  });
-  nueva.append(nombreNuevo, crear);
-  lista.appendChild(nueva);
-
   for (const perfil of perfiles) {
-    const esPrincipal = perfil.id === PERFIL_POR_DEFECTO;
-    const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
-
-    const fila = document.createElement('div');
-    fila.className = 'perfil-fila';
-    if (esPrincipal) fila.classList.add('es-principal');
-
-    const nombre = document.createElement('input');
-    nombre.type = 'text';
-    nombre.maxLength = 40;
-    nombre.value = perfil.nombre;
-    nombre.disabled = esPrincipal;
-    nombre.setAttribute('aria-label', 'Nombre del perfil');
-
-    const uso = document.createElement('span');
-    uso.className = 'perfil-uso';
-    uso.textContent = ventanas === 0
-      ? 'sin ventanas'
-      : `${ventanas} ${ventanas === 1 ? 'ventana' : 'ventanas'}`;
-
-    const renombrar = document.createElement('button');
-    renombrar.type = 'button';
-    renombrar.className = 'button button-secondary';
-    renombrar.textContent = 'Guardar';
-    renombrar.disabled = esPrincipal;
-    renombrar.addEventListener('click', () => {
-      if (window.pokeGridPerfiles?.renombrar(perfil.id, nombre.value)) pintarGestorDePerfiles();
-    });
-
-    const borrar = document.createElement('button');
-    borrar.type = 'button';
-    borrar.className = 'button button-secondary is-danger';
-    borrar.textContent = 'Eliminar';
-    borrar.disabled = esPrincipal;
-    borrar.addEventListener('click', () => {
-      // Con ventanas dentro no se puede, y se dice ANTES de intentarlo. Si no, el boton pareceria
-      // roto: no avisa de nada, sencillamente no hace nada.
-      if (ventanas > 0) {
-        window.alert('Ese perfil tiene ventanas. Muevelas a otro perfil antes de eliminarlo.');
-        return;
-      }
-      const nombreVisible = perfil.nombre || 'Perfil sin nombre';
-      if (!window.confirm(`Eliminar el perfil "${nombreVisible}"? Se pierde lo que tengas iniciado en el.`)) return;
-      if (window.pokeGridPerfiles?.borrar(perfil.id)) pintarGestorDePerfiles();
-    });
-
-    fila.append(nombre, uso, renombrar, borrar);
-    lista.appendChild(fila);
+    lista.appendChild(circuloDePerfil(perfil, perfil.id === perfilEditandoId));
   }
+  lista.appendChild(circuloDeCrear());
+  pintarEditorDePerfil();
+}
+
+// Un círculo. Sin sprite, la inicial del nombre; que un perfil se pueda identificar sin foto es lo que
+// hace que esto siga siendo usable sin red, y no un hueco.
+function circuloDePerfil(perfil, activo) {
+  const celda = document.createElement('button');
+  celda.type = 'button';
+  celda.className = 'perfil-circulo' + (activo ? ' es-activo' : '');
+  celda.dataset.perfilId = perfil.id;
+  celda.setAttribute('aria-pressed', String(Boolean(activo)));
+
+  const foto = document.createElement('span');
+  foto.className = 'perfil-circulo-foto';
+  if (perfil.color) foto.style.background = perfil.color;
+  const sprite = spritesDePerfil.get(perfil.avatar);
+  if (sprite) {
+    const imagen = document.createElement('img');
+    imagen.src = sprite;
+    imagen.alt = '';
+    foto.appendChild(imagen);
+  } else {
+    foto.textContent = (perfil.nombre || perfil.nombre === '' ? perfil.nombre : 'P').trim().charAt(0) || 'P';
+    foto.classList.add('es-inicial');
+  }
+
+  const etiqueta = document.createElement('span');
+  etiqueta.className = 'perfil-circulo-nombre';
+  etiqueta.textContent = perfil.nombre || 'Perfil sin nombre';
+
+  const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
+  const usos = document.createElement('span');
+  usos.className = 'perfil-circulo-uso';
+  usos.textContent = ventanas === 0 ? 'sin ventanas' : `${ventanas} ${ventanas === 1 ? 'ventana' : 'ventanas'}`;
+
+  celda.append(foto, etiqueta, usos);
+  celda.addEventListener('click', () => { perfilEditandoId = perfil.id; pintarGestorDePerfiles(); });
+  return celda;
+}
+
+function circuloDeCrear() {
+  const celda = document.createElement('button');
+  celda.type = 'button';
+  celda.className = 'perfil-circulo es-nuevo';
+  celda.id = 'perfilNuevoBoton';
+  celda.setAttribute('aria-label', 'Crear un perfil nuevo');
+  celda.innerHTML = '<span class="perfil-circulo-foto es-nueva-foto">+</span>'
+    + '<span class="perfil-circulo-nombre">Perfil nuevo</span>';
+  celda.addEventListener('click', crearPerfilDesdeElGestor);
+  return celda;
 }
 
 function abrirGestorDePerfiles() {
+  // Se entra siempre con el editor cerrado. Si se abriera con el último perfil editado, aparecería
+  // como seleccionado algo que en este momento no se ha elegido, y el botón «+» —que es lo que más
+  // se usa— quedaría en segundo plano.
+  perfilEditandoId = '';
   pintarGestorDePerfiles();
   const capa = document.querySelector('#perfilesBackdrop');
   if (capa) capa.hidden = false;
@@ -11962,12 +11960,221 @@ document.querySelector('#instanceSettingsPerfil')?.addEventListener('change', (e
 
 document.querySelector('#nuevoPerfilButton')?.addEventListener('click', mostrarFormDePerfilNuevo);
 
+// El perfil que se esta editando en el gestor, o cadena vacia si no hay ninguno.
+//
+// Va en un modulo aparte y no en `window` porque es estado de PANTALLA: se pierde al cerrar el dialogo
+// y no tiene que sobrevivir a nada. Si se guardara, al volver a abrir el gestor apareceria editado un
+// perfil que hace mil no se eligio.
+let perfilEditandoId = '';
+
+// Los sprites ya bajados, por nombre de especie.
+//
+// Se guardan aqui y no en el perfil porque son de 4 KB de base64 y el perfil va a `localStorage`, que
+// esta en disco y se lee en cada arranque. Guardar un `data:` en el almacen seria escribir 4 KB por
+// perfil por cada arranque para pintar una foto que cabe en memoria.
+const spritesDePerfil = new Map();
+
+const COLORES_DE_PERFIL = [
+  '', '#e63946', '#f4a261', '#e9c46a', '#2a9d8f', '#3a86ff',
+  '#8338ec', '#ff006e', '#8d99ae', '#2b2d42'
+];
+
+// El sprite de una especie, o cadena vacia.
+//
+// Pasa por el proceso principal y no por un `fetch` del renderer porque la CSP del launcher no
+// incluye `raw.githubusercontent.com`, que es de donde PokéAPI sirve los sprites. El proceso principal
+// si puede, valida el origen y devuelve `data:`, que la CSP si admite.
+//
+// `especie` vacia es «pon la inicial», y tambien lo que se guarda: el perfil recuerda que no quiere
+// foto, no que se quedó sin ella.
+async function spriteDeEspecie(especie) {
+  const nombre = String(especie || '').trim().toLowerCase();
+  if (!nombre) return '';
+  if (spritesDePerfil.has(nombre)) return spritesDePerfil.get(nombre);
+  try {
+    const id = await resolvePokeApiSpeciesId({ slug: nombre });
+    if (!id) throw new Error('sin id');
+    const datos = await loadPokeApiSpriteData(id, false);
+    spritesDePerfil.set(nombre, datos || '');
+    return datos || '';
+  } catch {
+    // Sin red, sin Pokémon o sin sprite: el círculo se queda con la inicial. NO es un fallo y no se
+    // avisa de nada, porque el perfil es utilizable igual y avisar cada vez cansa.
+    spritesDePerfil.set(nombre, '');
+    return '';
+  }
+}
+
+function crearPerfilDesdeElGestor() {
+  const creado = crearPerfilConNombre('');
+  if (!creado) return;
+  perfilEditandoId = creado.id;
+  pintarGestorDePerfiles();
+  // El nombre se pone ahi puesto y con el cursor encima: crear y luego tener que buscar el campo
+  // para escribir es un paso de los que hacen que la gente no cree el perfil.
+  document.querySelector('#perfilEditorNombre')?.focus();
+  document.querySelector('#perfilEditorNombre')?.select();
+}
+
+function pintarEditorDePerfil() {
+  const editor = document.querySelector('#perfilEditor');
+  if (!editor) return;
+  const perfiles = window.pokeGridPerfiles?.listar() || [];
+  const perfil = perfiles.find((p) => p.id === perfilEditandoId);
+  if (!perfil) {
+    perfilEditandoId = '';
+    editor.hidden = true;
+    return;
+  }
+  editor.hidden = false;
+  const esPrincipal = perfil.id === PERFIL_POR_DEFECTO;
+  const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
+
+  const nombre = document.querySelector('#perfilEditorNombre');
+  // Solo se escribe si esta vacio: si se reescribe en cada repintado, al teclear «Curro» se leeria
+  // «C» en el siguiente `change` de otro control y el texto saltaria.
+  if (nombre && document.activeElement !== nombre) nombre.value = perfil.nombre || '';
+  if (nombre) nombre.disabled = esPrincipal;
+  if (nombre?.placeholder && esPrincipal) nombre.placeholder = 'El Principal no se renombra';
+
+  const eliminar = document.querySelector('#perfilEditorEliminar');
+  if (eliminar) {
+    eliminar.disabled = esPrincipal || ventanas > 0;
+    eliminar.textContent = ventanas > 0
+      ? `No se puede borrar: ${ventanas} ${ventanas === 1 ? 'ventana' : 'ventanas'} lo usan`
+      : 'Eliminar';
+    eliminar.title = esPrincipal
+      ? 'El Principal existe siempre: es donde caen las ventanas sin perfil.'
+      : (ventanas > 0 ? 'Mueve sus ventanas a otro perfil antes de borrarlo.' : '');
+  }
+  pintarPaletaDeColor(perfil);
+  pintarRejillaDeAvatares(perfil);
+}
+
+// La paleta. El primer botón es «sin fondo», que es una opción de verdad y no un color: el usuario
+// que no quiere color tiene que poder quitarlo, no elegir el negro.
+function pintarPaletaDeColor(perfil) {
+  const paleta = document.querySelector('#perfilColorPalette');
+  if (!paleta) return;
+  paleta.replaceChildren();
+  for (const color of COLORES_DE_PERFIL) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'perfil-color';
+    if (!color) {
+      boton.classList.add('es-sin-color');
+      boton.textContent = 'X';
+      boton.setAttribute('aria-label', 'Sin color de fondo');
+    } else {
+      boton.style.background = color;
+      boton.setAttribute('aria-label', `Color ${color}`);
+    }
+    if ((perfil.color || '') === color) boton.classList.add('es-elegido');
+    boton.addEventListener('click', () => {
+      if (window.pokeGridPerfiles?.ponerAvatar(perfil.id, perfil.avatar, color)) {
+        pintarGestorDePerfiles();
+      }
+    });
+    paleta.appendChild(boton);
+  }
+}
+
+// La rejilla de Pokémon. Solo se pinta con el panel abierto: son 36 imágenes y no tiene sentido
+// bajarlas todas al abrir el gestor, que es lo que se pidió —nada hasta que se elige uno—.
+function pintarRejillaDeAvatares(perfil) {
+  const rejilla = document.querySelector('#perfilAvatarGrid');
+  if (!rejilla || rejilla.hidden) return;
+  const especies = window.pokeGridPerfiles?.especiesDeAvatar?.() || [];
+  rejilla.replaceChildren();
+
+  const ninguno = document.createElement('button');
+  ninguno.type = 'button';
+  ninguno.className = 'perfil-avatar es-sin-avatar' + (perfil.avatar ? '' : ' es-elegido');
+  ninguno.textContent = 'X';
+  ninguno.title = 'Sin avatar: la inicial del nombre';
+  ninguno.addEventListener('click', async () => {
+    if (window.pokeGridPerfiles?.ponerAvatar(perfil.id, '', perfil.color)) pintarGestorDePerfiles();
+  });
+  rejilla.appendChild(ninguno);
+
+  for (const especie of especies) {
+    const celda = document.createElement('button');
+    celda.type = 'button';
+    celda.className = 'perfil-avatar' + (perfil.avatar === especie ? ' es-elegido' : '');
+    celda.title = especie.charAt(0).toUpperCase() + especie.slice(1);
+    celda.setAttribute('aria-label', celda.title);
+    celda.dataset.especie = especie;
+    const guardado = spritesDePerfil.get(especie);
+    if (guardado) {
+      const imagen = document.createElement('img');
+      imagen.src = guardado;
+      imagen.alt = '';
+      celda.appendChild(imagen);
+    }
+    celda.addEventListener('click', async () => {
+      // El sprite se pide al PULSAR, no al pintar la rejilla. Es lo que evita descargar 36 imagenes
+      // para teach una sola.
+      celda.classList.add('es-cargando');
+      const datos = await spriteDeEspecie(especie);
+      celda.classList.remove('es-cargando');
+      if (datos) {
+        const imagen = document.createElement('img');
+        imagen.src = datos;
+        imagen.alt = '';
+        celda.replaceChildren(imagen);
+      }
+      if (window.pokeGridPerfiles?.ponerAvatar(perfil.id, especie, perfil.color)) pintarGestorDePerfiles();
+    });
+    rejilla.appendChild(celda);
+  }
+}
+
+function guardarPerfilEditando() {
+  const perfil = (window.pokeGridPerfiles?.listar() || []).find((p) => p.id === perfilEditandoId);
+  if (!perfil) return;
+  const nombre = document.querySelector('#perfilEditorNombre')?.value ?? perfil.nombre;
+  // El Principal no se renombra, y el almacen lo rechaza. Aqui no se avisa de nada porque el campo
+  // ya sale apagado y no se puede escribir en el: el aviso solo se veria al forzar con el teclado.
+  window.pokeGridPerfiles?.renombrar(perfil.id, nombre);
+  pintarGestorDePerfiles();
+}
+
+function eliminarPerfilEditando() {
+  const perfiles = window.pokeGridPerfiles?.listar() || [];
+  const perfil = perfiles.find((p) => p.id === perfilEditandoId);
+  if (!perfil) return;
+  const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
+  // Con ventanas dentro no se puede, y se dice ANTES de intentarlo. Si no, el boton parece roto: no
+  // avisa de nada y sencillamente no hace nada.
+  if (ventanas > 0) {
+    window.alert('Ese perfil tiene ventanas. Muevelas a otro perfil antes de eliminarlo.');
+    return;
+  }
+  const visible = perfil.nombre || 'Perfil sin nombre';
+  if (!window.confirm(`Eliminar el perfil "${visible}"? Se pierde lo que tengas iniciado en el.`)) return;
+  if (window.pokeGridPerfiles?.borrar(perfil.id)) {
+    perfilEditandoId = '';
+    pintarGestorDePerfiles();
+  }
+}
+
 // El gestor de perfiles.
 const perfilesBackdrop = document.querySelector('#perfilesBackdrop');
 const cerrarGestor = () => { if (perfilesBackdrop) perfilesBackdrop.hidden = true; };
 document.querySelector('#perfilesButton')?.addEventListener('click', abrirGestorDePerfiles);
 document.querySelector('#closePerfilesButton')?.addEventListener('click', cerrarGestor);
 document.querySelector('[data-close-perfiles]')?.addEventListener('click', cerrarGestor);
+document.querySelector('#perfilEditorGuardar')?.addEventListener('click', guardarPerfilEditando);
+document.querySelector('#perfilEditorEliminar')?.addEventListener('click', eliminarPerfilEditando);
+document.querySelector('#perfilEditorAvatar')?.addEventListener('click', () => {
+  const rejilla = document.querySelector('#perfilAvatarGrid');
+  if (!rejilla) return;
+  rejilla.hidden = !rejilla.hidden;
+  if (!rejilla.hidden) pintarEditorDePerfil();
+});
+// El nombre se guarda solo al salir del campo. Un botón aparte para eso es un paso de los que se
+// olvidan, y el resultado es el mismo nombre que ya tenía.
+document.querySelector('#perfilEditorNombre')?.addEventListener('change', guardarPerfilEditando);
 perfilesBackdrop?.addEventListener('click', (evento) => {
   if (evento.target === perfilesBackdrop) cerrarGestor();
 });

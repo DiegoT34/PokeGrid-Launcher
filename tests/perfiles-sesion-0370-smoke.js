@@ -319,65 +319,82 @@ app.whenReady().then(async () => {
     await ventanaGestor.loadFile(path.join(RAIZ, 'src', 'index.html'));
     await new Promise((r) => setTimeout(r, 600));
 
+    // El `try` va DENTRO del codigo que se ejecuta en la pagina. Fuera, `executeJavaScript` convierte
+    // cualquier excepcion en un «Script failed to execute» que no dice ni que funcion fallo ni por que,
+    // y hay que adivinarlo.
     const g = await ventanaGestor.webContents.executeJavaScript(`(() => {
-      const archivo = () => {
-        const origen = document.querySelector('#perfilesButton');
-        if (!origen) return null;
-        origen.click();
-        const capa = document.querySelector('#perfilesBackdrop');
-        const abierto = capa && !capa.hidden;
-        const lista = document.querySelector('#perfilesList');
-        const filas = [...lista.querySelectorAll('.perfil-fila')];
-        const primera = filas.find((f) => f.classList.contains('es-nueva'));
-        const normales = filas.filter((f) => !f.classList.contains('es-nueva'));
-        const principal = normales.find((f) => f.classList.contains('es-principal'));
-        const leerBotones = (fila) => fila
-          ? [...fila.querySelectorAll('button')].map((b) => ({ texto: b.textContent, apagado: b.disabled }))
-          : [];
-        return {
-          abierto,
-          hayFilaDeCrear: Boolean(primera),
-          elCampoDeCrearEsElDeLaFila: Boolean(primera && primera.querySelector('input')),
-          cuantos: normales.length,
-          nombres: normales.map((f) => f.querySelector('input')?.value),
-          usos: normales.map((f) => f.querySelector('.perfil-uso')?.textContent),
-          elCampoDelPrincipalEstaApagado: Boolean(principal?.querySelector('input')?.disabled),
-          botonesDelPrincipal: leerBotones(principal),
-          // Crear desde la fila, como lo haria la persona.
-          creada: (() => {
-            if (!primera) return null;
-            const campo = primera.querySelector('input');
-            campo.value = 'Desde el gestor';
-            primera.querySelector('button').click();
-            const tras = [...document.querySelectorAll('#perfilesList .perfil-fila')]
-              .filter((f) => !f.classList.contains('es-nueva'));
-            return {
-              nombres: tras.map((f) => f.querySelector('input')?.value),
-              elGestorSigueAbierto: !document.querySelector('#perfilesBackdrop').hidden
-            };
-          })(),
-          cerrado: (() => {
-            const boton = document.querySelector('[data-close-perfiles]');
-            boton.click();
-            return document.querySelector('#perfilesBackdrop').hidden;
-          })()
-        };
+      try {
+      document.querySelector('#perfilesButton').click();
+      const capa = document.querySelector('#perfilesBackdrop');
+      const lista = document.querySelector('#perfilesList');
+      const circulos = [...lista.querySelectorAll('.perfil-circulo:not(.es-nuevo)')];
+      const nuevo = lista.querySelector('#perfilNuevoBoton');
+      const leer = () => [...lista.querySelectorAll('.perfil-circulo:not(.es-nuevo)')].map((c) => ({
+        nombre: c.querySelector('.perfil-circulo-nombre')?.textContent,
+        uso: c.querySelector('.perfil-circulo-uso')?.textContent,
+        esInicial: Boolean(c.querySelector('.es-inicial')),
+        foto: c.querySelector('.perfil-circulo-foto')?.getAttribute('style') || ''
+      }));
+
+      const inicial = leer();
+      const salir = { abierto: !capa.hidden, circulos: circulos.length, hayNuevo: Boolean(nuevo) };
+
+      // Crear desde el «+», que es el camino de verdad.
+      nuevo.click();
+      const trasCrear = leer();
+      const editorAbierto = !document.querySelector('#perfilEditor').hidden;
+      const conFoco = document.activeElement === document.querySelector('#perfilEditorNombre');
+
+      // Poner color: la paleta, sin abrir nada mas.
+      const paleta = [...document.querySelectorAll('#perfilColorPalette .perfil-color')];
+      const conColor = paleta.filter((b) => b.style.background).length;
+      paleta[1]?.click();
+      const trasColor = leer();
+
+      // Abrir la rejilla de avatares.
+      document.querySelector('#perfilEditorAvatar').click();
+      const rejilla = document.querySelector('#perfilAvatarGrid');
+      const abierto = !rejilla.hidden;
+      const celdas = rejilla.querySelectorAll('.perfil-avatar').length;
+
+      // El editor se cierra solo al reabrir el gestor, y no aparece editing lo ultimo editado.
+      document.querySelector('#closePerfilesButton').click();
+      document.querySelector('#perfilesButton').click();
+      const editorTrasReabrir = !document.querySelector('#perfilEditor').hidden;
+
+      return {
+        salir, inicial, trasCrear, editorAbierto, conFoco,
+        conColor, trasColor, abierto, celdas, editorTrasReabrir, error: ''
       };
-      return archivo();
+      } catch (error) {
+        return { error: String(error && error.stack ? error.stack.split('\\n').slice(0, 4).join(' | ') : error) };
+      }
     })()`);
 
-    comprobar('el gestor se abre desde el boton de la barra', g.abierto === true);
-    comprobar('la primera fila es la de crear, con su campo', g.hayFilaDeCrear === true && g.elCampoDeCrearEsElDeLaFila === true);
-    comprobar('y sale el Principal', g.nombres[0] === 'Principal', JSON.stringify(g.nombres));
-    comprobar('el campo del Principal esta apagado', g.elCampoDelPrincipalEstaApagado === true);
-    comprobar('y sus acciones tambien, sin tener que pulsarlas para enterarte',
-      g.botonesDelPrincipal.every((b) => b.apagado === true), JSON.stringify(g.botonesDelPrincipal));
-    comprobar('cada perfil dice cuantas ventanas lo usan',
-      g.usos.every((u) => typeof u === 'string' && u.length > 0), JSON.stringify(g.usos));
-    comprobar('crear desde la fila funciona y no cierra el gestor',
-      Boolean(g.creada) && g.creada.nombres.includes('Desde el gestor')
-        && g.creada.elGestorSigueAbierto === true, JSON.stringify(g.creada && g.creada.nombres));
-    comprobar('y el boton de Cerrar cierra', g.cerrado === true);
+    if (g.error) {
+      comprobar('el gestor se abre sin reventar', false, g.error);
+    }
+    comprobar('el gestor se abre desde el boton de la barra', g.salir?.abierto === true);
+    comprobar('sale un circulo por perfil, sin el boton de nuevo', g.salir.circulos >= 1, JSON.stringify(g.salir));
+    comprobar('y el boton «+» esta siempre, al final', g.salir.hayNuevo === true);
+    comprobar('cada circulo dice su nombre y cuantas ventanas lo usan',
+      g.inicial.every((c) => c.nombre && c.uso), JSON.stringify(g.inicial));
+    comprobar('un perfil sin avatar enseña la inicial, no un hueco',
+      g.inicial.every((c) => c.esInicial), JSON.stringify(g.inicial));
+
+    comprobar('el «+» crea un perfil de verdad', g.trasCrear.length === g.salir.circulos + 1,
+      `${g.salir.circulos} -> ${g.trasCrear.length}`);
+    comprobar('y abre su editor con el nombre puesto y el cursor ahi',
+      g.editorAbierto === true && g.conFoco === true);
+
+    comprobar('la paleta tiene colores y tambien «sin fondo»', g.conColor >= 8, `colores: ${g.conColor}`);
+    comprobar('elegir un color lo pone en el circulo',
+      g.trasColor.some((c) => /background/.test(c.foto)), JSON.stringify(g.trasColor.map((c) => c.foto)));
+
+    comprobar('la rejilla de avatares se abre al pedirla', g.abierto === true);
+    comprobar('y trae la lista de Pokemon mas la opcion de ninguno', g.celdas >= 30, `celdas: ${g.celdas}`);
+    comprobar('al reabrir el gestor no se queda ningun perfil editado',
+      g.editorTrasReabrir === false);
     ventanaGestor.destroy();
 
     console.log('\n0.36.0 — farmeo en modo pestañas (trasplantado, no es de perfiles):\n');
