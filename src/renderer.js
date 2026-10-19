@@ -10646,6 +10646,101 @@ function aplicarPerfilAInstancia(instanceId, perfilId) {
   return true;
 }
 
+// El gestor de perfiles. Es la tercera pantalla del sistema: sin ella no hay forma de renombrar un
+// perfil ni de quitar el que sobra, y un sistema sin mantenimiento se queda como se creo.
+//
+// La fila de crear va la primera, con la misma pinta que las de renombrar. Es un campo mas de la
+// lista, no un boton que abre otra cosa: un boton que abre un formulario aparte seria un segundo
+// camino para lo mismo, y de los dos solo se recordaria uno.
+function pintarGestorDePerfiles() {
+  const lista = document.querySelector('#perfilesList');
+  if (!lista) return;
+  const perfiles = window.pokeGridPerfiles?.listar() || [];
+  lista.replaceChildren();
+
+  const nueva = document.createElement('div');
+  nueva.className = 'perfil-fila es-nueva';
+  const nombreNuevo = document.createElement('input');
+  nombreNuevo.type = 'text';
+  nombreNuevo.maxLength = 40;
+  nombreNuevo.placeholder = 'Nombre del perfil nuevo';
+  nombreNuevo.setAttribute('aria-label', 'Nombre del perfil nuevo');
+  const crear = document.createElement('button');
+  crear.type = 'button';
+  crear.className = 'button button-primary';
+  crear.textContent = 'Crear';
+  const crearDesdeLaFila = () => {
+    if (!crearPerfilConNombre(nombreNuevo.value)) return;
+    pintarGestorDePerfiles();
+  };
+  crear.addEventListener('click', crearDesdeLaFila);
+  // Enter tambien crea, igual que en el modal.
+  nombreNuevo.addEventListener('keydown', (evento) => {
+    if (evento.key !== 'Enter') return;
+    evento.preventDefault();
+    crearDesdeLaFila();
+  });
+  nueva.append(nombreNuevo, crear);
+  lista.appendChild(nueva);
+
+  for (const perfil of perfiles) {
+    const esPrincipal = perfil.id === PERFIL_POR_DEFECTO;
+    const ventanas = window.pokeGridPerfiles?.conCuantasVentanas?.(perfil.id) || 0;
+
+    const fila = document.createElement('div');
+    fila.className = 'perfil-fila';
+    if (esPrincipal) fila.classList.add('es-principal');
+
+    const nombre = document.createElement('input');
+    nombre.type = 'text';
+    nombre.maxLength = 40;
+    nombre.value = perfil.nombre;
+    nombre.disabled = esPrincipal;
+    nombre.setAttribute('aria-label', 'Nombre del perfil');
+
+    const uso = document.createElement('span');
+    uso.className = 'perfil-uso';
+    uso.textContent = ventanas === 0
+      ? 'sin ventanas'
+      : `${ventanas} ${ventanas === 1 ? 'ventana' : 'ventanas'}`;
+
+    const renombrar = document.createElement('button');
+    renombrar.type = 'button';
+    renombrar.className = 'button button-secondary';
+    renombrar.textContent = 'Guardar';
+    renombrar.disabled = esPrincipal;
+    renombrar.addEventListener('click', () => {
+      if (window.pokeGridPerfiles?.renombrar(perfil.id, nombre.value)) pintarGestorDePerfiles();
+    });
+
+    const borrar = document.createElement('button');
+    borrar.type = 'button';
+    borrar.className = 'button button-secondary is-danger';
+    borrar.textContent = 'Eliminar';
+    borrar.disabled = esPrincipal;
+    borrar.addEventListener('click', () => {
+      // Con ventanas dentro no se puede, y se dice ANTES de intentarlo. Si no, el boton pareceria
+      // roto: no avisa de nada, sencillamente no hace nada.
+      if (ventanas > 0) {
+        window.alert('Ese perfil tiene ventanas. Muevelas a otro perfil antes de eliminarlo.');
+        return;
+      }
+      const nombreVisible = perfil.nombre || 'Perfil sin nombre';
+      if (!window.confirm(`Eliminar el perfil "${nombreVisible}"? Se pierde lo que tengas iniciado en el.`)) return;
+      if (window.pokeGridPerfiles?.borrar(perfil.id)) pintarGestorDePerfiles();
+    });
+
+    fila.append(nombre, uso, renombrar, borrar);
+    lista.appendChild(fila);
+  }
+}
+
+function abrirGestorDePerfiles() {
+  pintarGestorDePerfiles();
+  const capa = document.querySelector('#perfilesBackdrop');
+  if (capa) capa.hidden = false;
+}
+
 function guardarAjustesDeInstancia() {  const instancia = instanciaDeLosAjustes();
   if (!instancia) return;
   instancia.buscador = instanceSettingsSearch.value;
@@ -11866,6 +11961,16 @@ document.querySelector('#instanceSettingsPerfil')?.addEventListener('change', (e
 });
 
 document.querySelector('#nuevoPerfilButton')?.addEventListener('click', mostrarFormDePerfilNuevo);
+
+// El gestor de perfiles.
+const perfilesBackdrop = document.querySelector('#perfilesBackdrop');
+const cerrarGestor = () => { if (perfilesBackdrop) perfilesBackdrop.hidden = true; };
+document.querySelector('#perfilesButton')?.addEventListener('click', abrirGestorDePerfiles);
+document.querySelector('#closePerfilesButton')?.addEventListener('click', cerrarGestor);
+document.querySelector('[data-close-perfiles]')?.addEventListener('click', cerrarGestor);
+perfilesBackdrop?.addEventListener('click', (evento) => {
+  if (evento.target === perfilesBackdrop) cerrarGestor();
+});
 // Enter tambien crea. En un campo de texto de un modal, lo raro es tener que pulsar un boton de al lado.
 document.querySelector('#nuevoPerfilNombre')?.addEventListener('keydown', (evento) => {
   if (evento.key !== 'Enter') return;

@@ -49,6 +49,9 @@
           <span id="notificationBadge" class="notification-badge" hidden>0</span>
         </button>
         <button id="accountsButton" class="button button-secondary button-accounts" type="button"><span class="top-action-icon" aria-hidden="true">&#128101;</span><span>Cuentas</span></button>
+        <!-- Sin icono a proposito: son dos palabras y un icono ocupa mas sitio del que ahorra en un
+             boton de la barra, que ya va apretada. -->
+        <button id="perfilesButton" class="button button-secondary" type="button"><span>Perfiles</span></button>
         <button id="cleanupMemoryButton" class="button button-secondary memory-cleanup-button" type="button" title="Optimizar memoria sin recargar sesiones, borrar datos ni detener procesos"><span class="top-action-icon" aria-hidden="true">&#129529;</span><span>RAM</span></button>
         <button id="loginAllButton" class="button button-primary button-launch-all" type="button" aria-label="Iniciar todas las cuentas" title="Iniciar todas las cuentas"><span class="top-action-icon launch-all-icon" aria-hidden="true"><span class="play-icon"></span></span><span>Iniciar todas</span></button>
         <button id="reloadAllButton" class="button button-secondary button-reload" type="button"><span class="top-action-icon" aria-hidden="true">&#8635;</span><span>Recargar todas</span></button>
@@ -121,6 +124,27 @@
             entrar en los sitios donde estuvieras conectado.</small>
         </div>
         <p id="instanceSettingsMessage" class="modal-message" role="status"></p>
+      </section>
+    </div>
+
+    <div id="perfilesBackdrop" class="modal-backdrop" hidden>
+      <section class="modal perfiles-modal" role="dialog" aria-modal="true" aria-labelledby="perfilesTitle">
+        <header class="modal-heading">
+          <div>
+            <span class="eyebrow">SESIONES DEL NAVEGADOR</span>
+            <h1 id="perfilesTitle">Perfiles</h1>
+          </div>
+          <div class="modal-heading-actions">
+            <button id="closePerfilesButton" class="icon-button" type="button" aria-label="Cerrar">&times;</button>
+          </div>
+        </header>
+        <p class="modal-copy">Un perfil es una sesi&oacute;n con nombre. Las ventanas con el mismo perfil
+          comparten lo que tengas iniciado en ellas, as&iacute; que entras una vez en Google y ya lo tienes en
+          todas. Las cuentas del juego no se tocan: siguen con su propia sesi&oacute;n.</p>
+        <div id="perfilesList" class="perfiles-list"></div>
+        <div class="modal-actions">
+          <button class="button button-primary" type="button" data-close-perfiles>Cerrar</button>
+        </div>
       </section>
     </div>
 

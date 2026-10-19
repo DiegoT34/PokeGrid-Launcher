@@ -304,6 +304,82 @@ app.whenReady().then(async () => {
     comprobar('el selector de los ajustes se pinta al abrir el dialogo',
       /pintarPerfilEnLosAjustes\(\);\s*\}/.test(renderer));
 
+    console.log('\n0.37.0 — el gestor de perfiles:\n');
+
+    // Se abre el gestor de verdad y se leen las filas que pinta, sin copiar su codigo.
+    const ventanaGestor = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload: path.join(RAIZ, 'tests', 'launcher-preview-preload.js'),
+        contextIsolation: true,
+        sandbox: false,
+        webviewTag: true
+      }
+    });
+    await ventanaGestor.loadFile(path.join(RAIZ, 'src', 'index.html'));
+    await new Promise((r) => setTimeout(r, 600));
+
+    const g = await ventanaGestor.webContents.executeJavaScript(`(() => {
+      const archivo = () => {
+        const origen = document.querySelector('#perfilesButton');
+        if (!origen) return null;
+        origen.click();
+        const capa = document.querySelector('#perfilesBackdrop');
+        const abierto = capa && !capa.hidden;
+        const lista = document.querySelector('#perfilesList');
+        const filas = [...lista.querySelectorAll('.perfil-fila')];
+        const primera = filas.find((f) => f.classList.contains('es-nueva'));
+        const normales = filas.filter((f) => !f.classList.contains('es-nueva'));
+        const principal = normales.find((f) => f.classList.contains('es-principal'));
+        const leerBotones = (fila) => fila
+          ? [...fila.querySelectorAll('button')].map((b) => ({ texto: b.textContent, apagado: b.disabled }))
+          : [];
+        return {
+          abierto,
+          hayFilaDeCrear: Boolean(primera),
+          elCampoDeCrearEsElDeLaFila: Boolean(primera && primera.querySelector('input')),
+          cuantos: normales.length,
+          nombres: normales.map((f) => f.querySelector('input')?.value),
+          usos: normales.map((f) => f.querySelector('.perfil-uso')?.textContent),
+          elCampoDelPrincipalEstaApagado: Boolean(principal?.querySelector('input')?.disabled),
+          botonesDelPrincipal: leerBotones(principal),
+          // Crear desde la fila, como lo haria la persona.
+          creada: (() => {
+            if (!primera) return null;
+            const campo = primera.querySelector('input');
+            campo.value = 'Desde el gestor';
+            primera.querySelector('button').click();
+            const tras = [...document.querySelectorAll('#perfilesList .perfil-fila')]
+              .filter((f) => !f.classList.contains('es-nueva'));
+            return {
+              nombres: tras.map((f) => f.querySelector('input')?.value),
+              elGestorSigueAbierto: !document.querySelector('#perfilesBackdrop').hidden
+            };
+          })(),
+          cerrado: (() => {
+            const boton = document.querySelector('[data-close-perfiles]');
+            boton.click();
+            return document.querySelector('#perfilesBackdrop').hidden;
+          })()
+        };
+      };
+      return archivo();
+    })()`);
+
+    comprobar('el gestor se abre desde el boton de la barra', g.abierto === true);
+    comprobar('la primera fila es la de crear, con su campo', g.hayFilaDeCrear === true && g.elCampoDeCrearEsElDeLaFila === true);
+    comprobar('y sale el Principal', g.nombres[0] === 'Principal', JSON.stringify(g.nombres));
+    comprobar('el campo del Principal esta apagado', g.elCampoDelPrincipalEstaApagado === true);
+    comprobar('y sus acciones tambien, sin tener que pulsarlas para enterarte',
+      g.botonesDelPrincipal.every((b) => b.apagado === true), JSON.stringify(g.botonesDelPrincipal));
+    comprobar('cada perfil dice cuantas ventanas lo usan',
+      g.usos.every((u) => typeof u === 'string' && u.length > 0), JSON.stringify(g.usos));
+    comprobar('crear desde la fila funciona y no cierra el gestor',
+      Boolean(g.creada) && g.creada.nombres.includes('Desde el gestor')
+        && g.creada.elGestorSigueAbierto === true, JSON.stringify(g.creada && g.creada.nombres));
+    comprobar('y el boton de Cerrar cierra', g.cerrado === true);
+    ventanaGestor.destroy();
+
     console.log('\n0.36.0 — farmeo en modo pestañas (trasplantado, no es de perfiles):\n');
 
     comprobar('la decision se toma una vez por pasada',

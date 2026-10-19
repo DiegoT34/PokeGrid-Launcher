@@ -98,6 +98,13 @@ const QUE_SI = [
     ['crear un perfil se hace con un campo en la pantalla, no con un prompt',
       /function crearPerfilDesdeElSelector\(\)/, renderer],
 
+    // ---- el gestor de perfiles
+    ['el gestor de perfiles tiene su modal', /id="perfilesBackdrop"/, html],
+    ['el boton de abrir esta en la barra', /id="perfilesButton"/, html],
+    ['y se pinta con las ventanas de cada perfil', /conCuantasVentanas\?\.\(perfil\.id\)/, renderer],
+    ['un perfil con ventanas avisa antes de dejarte eliminarlo', /ese perfil tiene ventanas/i, renderer],
+    ['el Principal sale con sus acciones apagadas', /nombre\.disabled = esPrincipal/, renderer],
+
     // ---- las particiones de perfil tienen que SER de ventana para el proceso principal
     //
     // Esto no es una comprobacion de estilo: sin esto, cambiar el nombre de la particion deja TODAS las

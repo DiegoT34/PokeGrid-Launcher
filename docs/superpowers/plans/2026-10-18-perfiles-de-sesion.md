@@ -853,7 +853,7 @@ de perfil reconstruye las pantallas y hay que decirlo **antes**.
 
 ---
 
-- [ ] **Paso 1: el HTML en los ajustes**
+- [x] **Paso 1: el HTML en los ajustes**
 
 En `src/index.html`, dentro de `#instanceSettingsBackdrop`, añadir antes de los mensajes:
 
@@ -866,7 +866,7 @@ En `src/index.html`, dentro de `#instanceSettingsBackdrop`, añadir antes de los
             </label>
 ```
 
-- [ ] **Paso 2: el aviso, antes de nada**
+- [x] **Paso 2: el aviso, antes de nada**
 
 En `renderer.js`:
 
@@ -888,7 +888,7 @@ function confirmarCambioDePerfil(desde, hasta) {
 }
 ```
 
-- [ ] **Paso 3: aplicarlo**
+- [x] **Paso 3: aplicarlo**
 
 ```js
 function aplicarPerfilAInstancia(instanceId, perfilId) {
@@ -929,7 +929,7 @@ instancia», que aquí sería mentira: la ventana se queda. El aviso de esta fun
 
 ---
 
-- [ ] **Paso 4: enganchar el aviso al cambio**
+- [x] **Paso 4: enganchar el aviso al cambio**
 
 ```js
 document.querySelector('#instanceSettingsPerfil')?.addEventListener('change', (evento) => {
@@ -966,7 +966,7 @@ function pintarPerfilEnLosAjustes() {
 Y hay que llamarla desde `pintarAjustesDeInstancia()`, que es la que se dispara al abrir el diálogo y
 cada vez que se cambia de ventana en él. Si no, el selector llega vacío.
 
-- [ ] **Paso 5: la comprobación que más importa**
+- [x] **Paso 5: la comprobación que más importa**
 
 Añadir a `tests/perfiles-sesion-0370-smoke.js`, dentro de la parte de JavaScript:
 
@@ -980,7 +980,7 @@ comprobar('si se dice que no, el selector vuelve', /pintarPerfilEnLosAjustes\(\)
 Las dos comprobaciones del aviso usan dos expresiones porque el texto está en español y podría llevar
 acentos distintos; lo que importa es que mencione las dos consecuencias, no la redacción exacta.
 
-- [ ] **Paso 6: confirmar**
+- [x] **Paso 6: confirmar**
 
 ```bash
 git add src/index.html src/renderer.js src/styles.css tests/perfiles-sesion-0370-smoke.js
