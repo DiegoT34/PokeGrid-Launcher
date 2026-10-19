@@ -70,6 +70,39 @@ const browserInstanceSessions = new WeakSet();
 // `webContents.session.partition` NO existe —no es API pública— y sin el nombre no se puede abrir
 // una ventana en la MISMA sesión que la webview que la pidió, que es de lo que se trata.
 const particionesDeInstancia = new WeakMap();
+
+// LAS PARTICIONES DE LAS VENTANAS DEL NAVEGADOR, Y CUALES DE ELLAS SE PUEDEN BORRAR
+//
+// Desde la 0.37.0 hay dos formas, y las dos son ventanas del navegador:
+//
+//  - `persist:pokegrid-instance-<id>-<n>`: la de antes, una particion por pantalla. La siguen usando
+//    las ventanas ya guardadas, y es la UNICA que se puede borrar al cerrar.
+//  - `persist:pokegrid-perfil-<id>`: la de ahora, una por perfil de sesion. La comparten todas las
+//    ventanas que eligen el mismo perfil, que es justo para lo que existe.
+//
+// LA DIFERENCIA IMPORTA MAS DE LO QUE PARECE. Todo lo que hace falta en una ventana —que se le
+// concedan o no los permisos, como se abren sus enlaces, cuanto se acerca con la rueda— tiene que
+// reconocer las dos formas: si no, una ventana con perfil se queda sin registrar y se comporta como si
+// no lo fuera, en silencio. En cambio lo que se BORRA al cerrarla tiene que reconocer solo la
+// antigua, porque la de un perfil no es suya: vaciarla seria dejar sin cookies a las demas ventanas
+// que estan en ese perfil.
+//
+// Por eso hay DOS funciones y no una con un parametro: la confusion entre «que es una ventana» y
+// «que es de esta ventana» es justo lo que costaria una sola.
+const PREFIJO_PARTICION_VENTANA = 'persist:pokegrid-instance-';
+const PREFIJO_PARTICION_PERFIL = 'persist:pokegrid-perfil-';
+
+// ¿Es la particion de una ventana del navegador? Vale para las dos formas.
+function esParticionDeVentana(particion) {
+  const p = String(particion || '');
+  return p.startsWith(PREFIJO_PARTICION_VENTANA) || p.startsWith(PREFIJO_PARTICION_PERFIL);
+}
+
+// ¿Es una particion que se puede borrar al cerrar una ventana? Solo la forma antigua. La de un perfil
+// la comparten otras, y borrarla las dejaria sin sesion a todas.
+function esParticionPropiaDeVentana(particion) {
+  return String(particion || '').startsWith(PREFIJO_PARTICION_VENTANA);
+}
 let scriptShopCache = null;
 // Resultado del applyAccountProxies del arranque, en la forma {id, ok, error?}. Se
 // guarda para que el renderer pueda repartir el aviso por panel al pintar la rejilla:
@@ -1209,7 +1242,7 @@ function createWindow() {
 
   mainWindow.webContents.on('will-attach-webview', (_event, webPreferences, params) => {
     const partition = String(params.partition || webPreferences.partition || '');
-    if (!partition.startsWith('persist:pokegrid-instance-')) return;
+    if (!esParticionDeVentana(partition)) return;
     const browserSession = session.fromPartition(partition);
     browserInstanceSessions.add(browserSession);
     sesionesVivas.add(browserSession);
@@ -1747,9 +1780,22 @@ function pideVentanaConMedidas(features) {
 // pasarelas se quedaban muertos y sin decir nada. Preguntar en el instante no es posible, asi que
 // se guarda antes. Lo que no se conoce vale 'ventana', que es lo que se hacia siempre.
 const aperturaDeParticion = new Map();
+// El modo de apertura de UNA pantalla concreta, con el id de su webContents.
+//
+// Desde la 0.37.0 las ventanas comparten particion cuando comparten perfil, y el modo de apertura es
+// de cada ventana: «en esta quiero que los enlaces se abran en otra pestana de aqui». Guardarlo por
+// particion hacia que la ventana que se abrio despues se impusiera a las demas, sin avisar. El
+// manejador de aperturas recibe el `contents`, asi que de ahi sale el id y no hace falta preguntar a
+// nadie. Se borra al destruirse la pantalla, que es lo unico que evita que este mapa crezca.
+const aperturaDePantalla = new Map();
 const MODOS_DE_APERTURA = ['auto', 'panel', 'ventana'];
 
 function modoDeAperturaDeParticion(contents) {
+  // Lo de la pantalla manda sobre lo de la particion: es mas especifico y es el que se registro
+  // con la ventana delante. El de la particion se queda como respaldo para lo que se creo antes de
+  // que existiera esta tabla.
+  const dePantalla = aperturaDePantalla.get(contents.id);
+  if (dePantalla) return dePantalla;
   const particion = particionesDeInstancia.get(contents.session) || '';
   return aperturaDeParticion.get(particion) || 'ventana';
 }
@@ -1885,7 +1931,7 @@ ipcMain.handle('instancia:zoom', (event, id, factor) => {
   const contents = webContents.fromId(Number(id));
   if (!contents || contents.getType() !== 'webview') return { ok: false, error: 'Esa pantalla ya no está.' };
   const particion = particionesDeInstancia.get(contents.session) || '';
-  if (!particion.startsWith('persist:pokegrid-instance-')) return { ok: false, error: 'Esa pantalla no es una instancia.' };
+  if (!esParticionDeVentana(particion)) return { ok: false, error: 'Esa pantalla no es una instancia.' };
   const nivel = aplicarZoom(contents, particion, factor, 'boton');
   return { ok: true, factor: nivel };
 });
@@ -1899,7 +1945,7 @@ ipcMain.on('instancia:rueda', (event, datos) => {
   const contents = event.sender;
   if (!contents || contents.getType() !== 'webview') return;
   const particion = particionesDeInstancia.get(contents.session) || '';
-  if (!particion.startsWith('persist:pokegrid-instance-')) return;
+  if (!esParticionDeVentana(particion)) return;
   const pasos = Math.sign(Number(datos && datos.pasos) || 0);
   if (!pasos) return;
   aplicarZoom(contents, particion, factorDeInstancia(contents, particion) + pasos * ZOOM_PASO, 'rueda');
@@ -2024,7 +2070,7 @@ async function vaciarPendientesDeParticiones() {
 ipcMain.handle('instancia:borrar-particion', async (event, particion) => {
   assertMainWindowSender(event);
   const limpia = String(particion || '');
-  if (!limpia.startsWith('persist:pokegrid-instance-')) {
+  if (!esParticionPropiaDeVentana(limpia)) {
     return { ok: false, error: 'Esa particion no es de una instancia.' };
   }
   const nombre = limpia.slice('persist:'.length);
@@ -2044,7 +2090,7 @@ ipcMain.handle('instancia:borrar-particion', async (event, particion) => {
 ipcMain.handle('instancia:apertura', (event, datos) => {
   assertMainWindowSender(event);
   const particion = String((datos && datos.particion) || '');
-  if (!particion.startsWith('persist:pokegrid-instance-')) {
+  if (!esParticionDeVentana(particion)) {
     return { ok: false, error: 'Esa pantalla no es una instancia.' };
   }
   const modo = String((datos && datos.modo) || '');
@@ -2052,6 +2098,24 @@ ipcMain.handle('instancia:apertura', (event, datos) => {
     return { ok: false, error: 'Modo de apertura desconocido.' };
   }
   aperturaDeParticion.set(particion, modo);
+  return { ok: true, modo };
+});
+
+// El mismo modo, pero dicho de una pantalla y no de una sesion. Es el que manda: con perfiles,
+// varias ventanas comparten particion y cada una puede querer un modo distinto.
+ipcMain.handle('instancia:apertura-pantalla', (event, datos) => {
+  assertMainWindowSender(event);
+  const id = Number(datos && datos.webContentsId);
+  const modo = String((datos && datos.modo) || '');
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, error: 'Pantalla desconocida.' };
+  if (!MODOS_DE_APERTURA.includes(modo)) return { ok: false, error: 'Modo de apertura desconocido.' };
+  aperturaDePantalla.set(id, modo);
+  const contents = webContents.fromId(id);
+  if (contents && !contents.isDestroyed()) {
+    contents.once('destroyed', () => aperturaDePantalla.delete(id));
+  } else {
+    aperturaDePantalla.delete(id);
+  }
   return { ok: true, modo };
 });
 

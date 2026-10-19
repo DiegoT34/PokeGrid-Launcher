@@ -335,7 +335,7 @@ sesión usa cada ventana, y es donde está el riesgo de perder sesiones.
 
 ---
 
-- [ ] **Paso 1: escribir la prueba que falla**
+- [x] **Paso 1: escribir la prueba que falla**
 
 Crear `tests/perfiles-sesion-0370-smoke.js`:
 
@@ -429,7 +429,7 @@ Se pegan al final del bloque `app.whenReady()` de `perfiles-sesion-0370-smoke.js
 `console.log('\nFarmeo y barra de la ventana:\n')` delante. Si no se copian, esas siete cosas dejan de
 comprobarse sin que nadie se entere: la prueba sale de la suite y con ella se va la vigilancia.
 
-- [ ] **Paso 2: ejecutarla y ver que falla**
+- [x] **Paso 2: ejecutarla y ver que falla**
 
 ```
 node tests\lanzar.cjs tests\perfiles-sesion-0370-smoke.js
@@ -437,7 +437,7 @@ node tests\lanzar.cjs tests\perfiles-sesion-0370-smoke.js
 Esperado: falla con «la particion de perfil NO entra en el borrado al cerrar», porque la partición sigue
 llamándose `pokegrid-compartida`.
 
-- [ ] **Paso 3: cambiar las constantes**
+- [x] **Paso 3: cambiar las constantes**
 
 En `src/renderer.js`, sustituir el bloque de constantes de sesión (líneas 8436-8443) por:
 
@@ -450,7 +450,7 @@ const PERFIL_POR_DEFECTO = 'principal';
 
 Borrar `SESIONES_DE_INSTANCIA`, `SESION_POR_DEFECTO` y `PARTICION_COMPARTIDA`.
 
-- [ ] **Paso 4: rellenar `perfilId` al leer la ventana**
+- [x] **Paso 4: rellenar `perfilId` al leer la ventana**
 
 En `normalizarOpcionesDeInstancia`, sustituir:
 
@@ -469,7 +469,7 @@ por:
   return { modo, buscador, apertura, inicio, perfilId };
 ```
 
-- [ ] **Paso 5: escribir la partición del perfil**
+- [x] **Paso 5: escribir la partición del perfil**
 
 Junto a `browserInstancePartition`, añadir:
 
@@ -494,7 +494,7 @@ function browserInstancePartition(instanceId, index, opciones = {}) {
 Los parámetros `instanceId` e `index` se quedan aunque no se usen: quien la llama los pasa, y cambiarlos
 obligaría a tocar el llamador. Es una firma que ya existe y no compensa romperla por esto.
 
-- [ ] **Paso 6: decir cuántas ventanas tiene cada perfil**
+- [x] **Paso 6: decir cuántas ventanas tiene cada perfil**
 
 Añadir junto a las funciones de perfil:
 
@@ -508,7 +508,7 @@ window.pokeGridPerfiles.conCuantasVentanas = (perfilId) => {
 };
 ```
 
-- [ ] **Paso 7: ejecutar la prueba y ver que pasa**
+- [x] **Paso 7: ejecutar la prueba y ver que pasa**
 
 ```
 node tests\lanzar.cjs tests\perfiles-sesion-0370-smoke.js
@@ -516,7 +516,7 @@ node tests\lanzar.cjs tests\perfiles-almacen-smoke.js
 ```
 Esperado: las dos en verde.
 
-- [ ] **Paso 8: apartar la prueba de la 0.36.0**
+- [x] **Paso 8: apartar la prueba de la 0.36.0**
 
 Cuando `perfiles-sesion-0370-smoke.js` ya esté en verde y lleve dentro las comprobaciones del sondeo, la
 prueba vieja se va a `_basura/`. **No se borra**, como todo lo demás que sobra:
@@ -532,7 +532,7 @@ Antes de moverla, comprobar que la nueva tiene las diez comprobaciones trasplant
 node -e "const fs=require('fs');const a=fs.readFileSync('tests/sesiones-compartidas-0360-smoke.js','utf8');const b=fs.readFileSync('tests/perfiles-sesion-0370-smoke.js','utf8');const q=[...a.matchAll(/comprobar\('([^']+)'/g)].map(m=>m[1]);const falta=q.filter(t=>!b.includes(t));console.log(falta.length?'FALTAN: '+falta.join(' | '):'las '+q.length+' comprobaciones estan copiadas')"
 ```
 
-- [ ] **Paso 9: confirmar**
+- [x] **Paso 9: confirmar**
 
 ```bash
 git add -A src/renderer.js tests/perfiles-sesion-0370-smoke.js _basura

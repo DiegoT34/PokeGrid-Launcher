@@ -14,6 +14,12 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   setInstanceZoom: (id, factor) => ipcRenderer.invoke('instancia:zoom', Number(id), Number(factor)),
   setWindowFullScreen: (activa) => ipcRenderer.invoke('instancia:pantalla-completa', Boolean(activa)),
   setInstanceApertura: (particion, modo) => ipcRenderer.invoke('instancia:apertura', { particion, modo }),
+  // El modo de apertura, pero de UNA pantalla y no de una sesion. Hace falta desde la 0.37.0: con los
+  // perfiles, dos ventanas pueden compartir particion, y guardar el modo por particion hacia que la
+  // ultima que se abrio se impusiera a las demas. El modo es de cada ventana, asi que se guarda por
+  // pantalla, que es lo que el manejador de aperturas puede preguntar.
+  setInstanceAperturaDePantalla: (webContentsId, modo) =>
+    ipcRenderer.invoke('instancia:apertura-pantalla', { webContentsId: Number(webContentsId), modo }),
   descargarIcono: (url) => ipcRenderer.invoke('instancia:icono', String(url || '')),
   // Decirle a una pantalla que se duerma o que corra. `duerme = true` la duerme. OJO al nombre: en
   // Electron `setBackgroundThrottling(true)` significa DORMIR, no despertar. La primera version de

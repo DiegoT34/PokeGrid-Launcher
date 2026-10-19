@@ -92,6 +92,34 @@ const QUE_SI = [
     ['el almacen de perfiles es un fichero propio', /<script src="perfiles-sesion\.js"><\/script>/, html],
     ['y va antes que el renderer, que lo usa al arrancar', /<script src="perfiles-sesion\.js"><\/script>\s*<script src="renderer\.js">/, html],
     ['cuantas ventanas usa un perfil se responde desde el renderer', /window\.pokeGridPerfiles\.conCuantasVentanas = /, renderer],
+    ['el selector de perfil esta en el modal', /id="browserInstancePerfil"/, html],
+    ['y su valor se guarda al crear la ventana', /perfilId: browserInstancePerfil\?\.value \|\| PERFIL_POR_DEFECTO/, renderer],
+    ['los perfiles se pintan al abrir el modal', /pintarSelectorDePerfiles\(\);/, renderer],
+    ['crear un perfil se hace con un campo en la pantalla, no con un prompt',
+      /function crearPerfilDesdeElSelector\(\)/, renderer],
+
+    // ---- las particiones de perfil tienen que SER de ventana para el proceso principal
+    //
+    // Esto no es una comprobacion de estilo: sin esto, cambiar el nombre de la particion deja TODAS las
+    // ventanas del navegador sin registrar en el proceso principal. No peta: sencillamente dejan de
+    // tener permisos, sus enlaces se abren aparte y la rueda no hace zoom. Solo se nota al usarlo.
+    // Las dos formas de particion se reconocen JUNTAS en todo lo que hace falta...
+    ['el proceso principal distingue la particion de una ventana', /function esParticionDeVentana\(particion\)/, mainProceso],
+    ['y acepta las dos formas, la vieja y la del perfil',
+      /PREFIJO_PARTICION_VENTANA = 'persist:pokegrid-instance-';\s*\nconst PREFIJO_PARTICION_PERFIL = 'persist:pokegrid-perfil-';/, mainProceso],
+    ['al enganchar la webview se usa la de ventana', /if \(!esParticionDeVentana\(partition\)\) return;/, mainProceso],
+    ['y tambien al guardar el modo de apertura', /instancia:apertura-pantalla/, mainProceso],
+    // ...pero al BORRAR solo vale la vieja: la de un perfil la comparten otras ventanas.
+    ['y al borrar solo se admite la particion propia', /function esParticionPropiaDeVentana\(particion\)/, mainProceso],
+    ['que es solo la forma antigua',
+      /function esParticionPropiaDeVentana\(particion\) \{\s*\n\s*return String\(particion \|\| ''\)\.startsWith\(PREFIJO_PARTICION_VENTANA\);/, mainProceso],
+    ['el borrado al cerrar usa la que es propia',
+      /if \(!esParticionPropiaDeVentana\(limpia\)\)/, mainProceso],
+    ['el modo de apertura se guarda por pantalla y no por sesion',
+      /function modoDeAperturaDeParticion\(contents\) \{\s*\n\s*\/\/ Lo de la pantalla manda/, mainProceso],
+    ['y el renderer lo manda cuando la pantalla ya tiene id',
+      /setInstanceAperturaDePantalla\?\.\(id, instancia\.apertura/, renderer],
+    ['con su puente', /setInstanceAperturaDePantalla: \(webContentsId, modo\)/, preload],
     ['el farmeo decide una vez por pasada si lee todas', /const leerTodas = farmeoEstaEnUso\(\);/, renderer],
     ['y se averigua por el selector o por una cuenta farmeando', /panel\.farmRunState === 'ok' \|\| panel\.farmRunState === 'busy'/, renderer],
     ['la guarda respeta ese decision', /!leerTodas && !panelEstaEnPantalla\(panel\)/, renderer],
