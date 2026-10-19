@@ -283,6 +283,27 @@ app.whenReady().then(async () => {
     await ventanaModal.webContents.executeJavaScript('closeBrowserInstanceModal(); true');
     ventanaModal.destroy();
 
+    console.log('\n0.37.0 — cambiar el perfil de una ventana:\n');
+
+    comprobar('el aviso va ANTES de cambiar nada',
+      /function confirmarCambioDePerfil[\s\S]*?window\.confirm\(/.test(renderer)
+        && renderer.indexOf('confirmarCambioDePerfil(instancia.perfilId') < renderer.indexOf('instancia.perfilId = nuevo'));
+    comprobar('el aviso dice las dos cosas: que se pierden las webs y que hay que volver a entrar',
+      /reiniciaran sus pantallas/.test(renderer) && /volver a entrar/.test(renderer));
+    comprobar('si se dice que no, el selector vuelve a lo que tenia',
+      /if \(!aplicarPerfilAInstancia\(instancia\.id, evento\.target\.value\)\) pintarPerfilEnLosAjustes\(\);/.test(renderer));
+    comprobar('al cambiar se reconstruye la ventana', /createBrowserInstanceWorkspace\(instancia, indice\)/.test(renderer));
+    // Lo que NO puede pasar: que al cambiar de perfil se borre alguna particion. La particion es del
+    // perfil, la comparten varias ventanas, y vaciarla las dejaria a todas sin sesion.
+    const desde = renderer.indexOf('function aplicarPerfilAInstancia');
+    const bloque = desde < 0 ? '' : renderer.slice(desde, desde + 1400);
+    comprobar('y al cambiar NO se borra ninguna particion',
+      bloque.length > 0 && !bloque.includes('borrarParticion'));
+    // `\s*` y no `\n`: los ficheros del repo van con CRLF, y un patron que pide un salto de linea
+    // exacto no casa en Windows. Con `\s*` da lo mismo en los dos sistemas.
+    comprobar('el selector de los ajustes se pinta al abrir el dialogo',
+      /pintarPerfilEnLosAjustes\(\);\s*\}/.test(renderer));
+
     console.log('\n0.36.0 — farmeo en modo pestañas (trasplantado, no es de perfiles):\n');
 
     comprobar('la decision se toma una vez por pasada',

@@ -659,7 +659,7 @@ La primera de las tres pantallas. Aquí se elige con qué perfil nace la ventana
 
 ---
 
-- [ ] **Paso 1: el HTML del selector**
+- [x] **Paso 1: el HTML del selector**
 
 En `src/index.html`, en el modal de nueva ventana, donde estaba el interruptor, poner:
 
@@ -675,7 +675,7 @@ En `src/index.html`, en el modal de nueva ventana, donde estaba el interruptor, 
           </label>
 ```
 
-- [ ] **Paso 2: pintar los perfiles**
+- [x] **Paso 2: pintar los perfiles**
 
 En `src/renderer.js`, junto a las demás constantes de `browserInstance*`:
 
@@ -703,7 +703,7 @@ function pintarSelectorDePerfiles() {
 }
 ```
 
-- [ ] **Paso 3: guardar al crear**
+- [x] **Paso 3: guardar al crear**
 
 En `openBrowserInstanceModal`, añadir `pintarSelectorDePerfiles();` antes de
 `browserInstanceBackdrop.hidden = false;`, y cambiar el envío del formulario:
@@ -712,7 +712,7 @@ En `openBrowserInstanceModal`, añadir `pintarSelectorDePerfiles();` antes de
     perfilId: browserInstancePerfil?.value || PERFIL_POR_DEFECTO,
 ```
 
-- [ ] **Paso 4: crear un perfil sin salir del modal**
+- [x] **Paso 4: crear un perfil sin salir del modal**
 
 **No se usa `window.prompt`.** Contando lo que hay: `window.confirm` se usa 9 veces, `window.alert` 1, y
 `window.prompt` **ninguna**. Un diálogo del sistema puede aparecer detrás de la ventana o no aparecer, y
@@ -780,7 +780,7 @@ document.querySelector('#nuevoPerfilCrear')?.addEventListener('click', crearPerf
 Un nombre en blanco **sí crea** el perfil: `pokeGridPerfiles.crear` lo acepta y el selector lo enseña
 como «Perfil sin nombre». No se pone un nombre inventado, que sería mentir sobre lo que se escribió.
 
-- [ ] **Paso 5: el CSS del selector**
+- [x] **Paso 5: el CSS del selector**
 
 Al final del bloque de rediseño de `styles.css`:
 
@@ -809,7 +809,7 @@ Al final del bloque de rediseño de `styles.css`:
 }
 ```
 
-- [ ] **Paso 6: comprobar que el selector existe y se guarda**
+- [x] **Paso 6: comprobar que el selector existe y se guarda**
 
 ```
 node herramientas\comprobar-patrones.cjs
@@ -825,7 +825,7 @@ tres, porque si no una de las tres pasa por alto el fallo:
     ['los perfiles se pintan al abrir el modal', /pintarSelectorDePerfiles\(\);/, renderer],
 ```
 
-- [ ] **Paso 7: confirmar**
+- [x] **Paso 7: confirmar**
 
 ```bash
 git add src/index.html src/renderer.js src/styles.css herramientas/comprobar-patrones.cjs herramientas/verificar-paquete.cjs

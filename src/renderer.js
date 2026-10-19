@@ -10581,10 +10581,72 @@ function pintarAjustesDeInstancia() {
       ? 'Un enlace normal se abre en un panel de esta instancia, con la misma sesion de la pantalla de la que salio. Uno con medidas propias —un inicio de sesion, una pasarela— sale en ventana aparte.'
       : 'Un enlace normal se abre en un panel de esta instancia. Las ventanas con medidas propias —un inicio de sesion, una pasarela— salen en ventana aparte. Las ventanas emergentes estan siempre activas.')
     : '';
+  pintarPerfilEnLosAjustes();
 }
 
-function guardarAjustesDeInstancia() {
+// Pinta el selector de perfil del dialogo de ajustes con el perfil que tiene AHORA la ventana
+// seleccionada. Se llama desde `pintarAjustesDeInstancia`, que es lo que se dispara al abrir el
+// dialogo y cada vez que se cambia de ventana en el: si no, el selector llegaria vacio.
+function pintarPerfilEnLosAjustes() {
+  const selector = document.querySelector('#instanceSettingsPerfil');
+  if (!selector) return;
   const instancia = instanciaDeLosAjustes();
+  selector.replaceChildren();
+  for (const perfil of window.pokeGridPerfiles?.listar() || []) {
+    const opcion = document.createElement('option');
+    opcion.value = perfil.id;
+    opcion.textContent = perfil.nombre || 'Perfil sin nombre';
+    selector.appendChild(opcion);
+  }
+  selector.value = window.pokeGridPerfiles?.resolver(instancia?.perfilId) || PERFIL_POR_DEFECTO;
+}
+
+// Cambiar el perfil de una ventana reinicia sus pantallas. El motivo es que la particion se fija al
+// crear el webview: no se puede cambiar despues sin recrearlo. Y recrearlo tira las webs abiertas.
+//
+// El aviso se pinta ANTES de tocar nada. Despues no tendria sentido: las webs abiertas ya estaria
+// perdidas y no habria nada que decidir.
+function confirmarCambioDePerfil(desde, hasta) {
+  const nombreDe = (id) => {
+    const perfil = (window.pokeGridPerfiles?.listar() || []).find((p) => p.id === id);
+    return perfil ? (perfil.nombre || 'Perfil sin nombre') : (id || 'Principal');
+  };
+  if (nombreDe(desde) === nombreDe(hasta)) return true;
+  return window.confirm(
+    `Esta ventana pasa del perfil "${nombreDe(desde)}" al "${nombreDe(hasta)}".\n\n` +
+    'Se reiniciaran sus pantallas y quedaras sin iniciar sesion en los sitios donde estuvieras ' +
+    'conectado: habra que volver a entrar.'
+  );
+}
+
+function aplicarPerfilAInstancia(instanceId, perfilId) {
+  const instancia = browserInstances.find((fila) => fila.id === instanceId);
+  if (!instancia) return false;
+  const nuevo = window.pokeGridPerfiles?.resolver(perfilId) || PERFIL_POR_DEFECTO;
+  if (!confirmarCambioDePerfil(instancia.perfilId, nuevo)) return false;
+  const indice = browserInstances.indexOf(instancia);
+  instancia.perfilId = nuevo;
+  saveBrowserInstances();
+
+  // Se reconstruye la ventana entera. Es lo unico que puede hacerse: el webview ya tiene su particion
+  // fijada al crearse, y no hay forma de cambiarla en caliente.
+  //
+  // Y AQUI NO SE BORRA NINGUNA PARTICION. Es lo unico que distingue esto de `removeBrowserInstance`:
+  // al cerrar una ventana si habia que vaciar su particion del disco, porque era suya. Ahora la
+  // particion es del perfil, la comparten varias ventanas, y borrarla seria dejar sin sesion a las
+  // demas. Se destruyen las pantallas y nada mas.
+  const view = browserInstanceViews.get(instancia.id);
+  if (view) {
+    for (const panel of view.panels || []) destruirPanelDeVerdad(panel);
+    view.workspace?.remove();
+    browserInstanceViews.delete(instancia.id);
+    createBrowserInstanceWorkspace(instancia, indice);
+  }
+  renderBrowserInstanceTabs();
+  return true;
+}
+
+function guardarAjustesDeInstancia() {  const instancia = instanciaDeLosAjustes();
   if (!instancia) return;
   instancia.buscador = instanceSettingsSearch.value;
   instancia.apertura = instanceSettingsLinks.value;
@@ -11792,6 +11854,16 @@ for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]
   });
 }
 sincronizarModoElegido();
+
+// Cambiar el perfil de la ventana que se esta ajustando. Si el usuario dice que no, el selector
+// vuelve a lo que tenia: sin esto se queda mostrando el perfil nuevo, que no es el de la ventana, y
+// el dialogo estaria mintiendo. El fallo se veria mas tarde, cuando una web le pidiera iniciar
+// sesion, y sin relacion aparente con el momento de decidir.
+document.querySelector('#instanceSettingsPerfil')?.addEventListener('change', (evento) => {
+  const instancia = instanciaDeLosAjustes();
+  if (!instancia) return;
+  if (!aplicarPerfilAInstancia(instancia.id, evento.target.value)) pintarPerfilEnLosAjustes();
+});
 
 document.querySelector('#nuevoPerfilButton')?.addEventListener('click', mostrarFormDePerfilNuevo);
 // Enter tambien crea. En un campo de texto de un modal, lo raro es tener que pulsar un boton de al lado.
