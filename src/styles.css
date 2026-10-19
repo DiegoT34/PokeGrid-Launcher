@@ -2702,6 +2702,31 @@ body.has-scripts-modal .webview-host webview { display: none !important; visibil
    `.field-help` lo usan el selector de perfil del modal y los ajustes de la instancia. */
 .field-help { color: #7e97ad; font-size: 8px; line-height: 1.35; }
 
+/* El selector de perfil, en el modal de nueva ventana. El boton va debajo porque aqui no cabe al
+   lado sin apretar el desplegable. El campo de crear aparece debajo del boton, no encima: aparecer
+   arriba, empujando el resto del formulario hacia abajo, obliga a leer otra vez la pantalla entera
+   cada vez que se quiere crear un perfil. */
+.browser-instance-perfil-field { gap: 5px; }
+.browser-instance-perfil-field select {
+  height: 34px;
+  border-color: #22384f;
+  border-radius: 8px;
+  background: #07131e;
+  color: #dbe8f2;
+}
+.browser-instance-perfil-nuevo { justify-self: start; margin-top: 1px; }
+.browser-instance-perfil-form { display: flex; gap: 6px; }
+.browser-instance-perfil-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #22384f;
+  border-radius: 7px;
+  background: #07131e;
+  color: #dbe8f2;
+}
+
 /* Los iconos de la lupa del buscador y del boton «Verificar» de la Shop eran emoji. Mismo cambio que en
    el resto: un SVG necesita su tamaño en pixeles o se dibuja al tamano del viewport. */
 .script-shop-search .launcher-ui-icon { width: 14px; height: 14px; flex: none; }

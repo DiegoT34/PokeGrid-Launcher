@@ -562,14 +562,14 @@ Deja de haber dos mecanismos para lo mismo. Un perfil ya cubre «compartir con l
 
 ---
 
-- [ ] **Paso 1: comprobar que lo que se borra está en uso**
+- [x] **Paso 1: comprobar que lo que se borra está en uso**
 
 ```
 node -e "const fs=require('fs');const t=fs.readFileSync('src/renderer.js','utf8');for(const n of ['browserInstanceSesionCompartida','browserInstanceSesionHelp','explicarSesionCompartida'])console.log(n+': '+(t.split(n).length-1)+' veces')"
 ```
 Esperado: cada uno sale al menos una vez. Si alguno sale 0, ya se había borrado y este paso se salta.
 
-- [ ] **Paso 2: borrarlo del renderer**
+- [x] **Paso 2: borrarlo del renderer**
 
 En `src/renderer.js`, quitar:
 
@@ -606,12 +606,12 @@ y en el envío del formulario:
     sesion: browserInstanceSesionCompartida?.checked ? 'compartida' : SESION_POR_DEFECTO,
 ```
 
-- [ ] **Paso 3: borrarlo del HTML**
+- [x] **Paso 3: borrarlo del HTML**
 
 En `src/index.html`, quitar el bloque completo del interruptor, desde `<div class="field
 browser-instance-sesion-field">` hasta su `</div>` de cierre, incluido el comentario que lo precede.
 
-- [ ] **Paso 4: borrarlo del CSS**
+- [x] **Paso 4: borrarlo del CSS**
 
 En `src/styles.css` (líneas 2703-2719), quitar `.switch-line`, `.switch-line:hover`,
 `.switch-line input`, `.switch-line:has(input:checked)`, el comentario que las precede, y
@@ -624,7 +624,7 @@ Comprobado antes: `switch-line` no aparece en ningún otro sitio de `index.html`
 parece huérfana. Pero las tareas 4 y 5 lo vuelven a usar en el selector de perfil, así que se queda:
 borrarla ahora y reañadirla dos tareas después sería trabajo de más.
 
-- [ ] **Paso 5: comprobar que no queda nada**
+- [x] **Paso 5: comprobar que no queda nada**
 
 ```
 node -e "const fs=require('fs');for(const f of ['src/renderer.js','src/index.html','src/styles.css']){const t=fs.readFileSync(f,'utf8');for(const n of ['SesionCompartida','sesion-compartida','switch-line','SESION_POR_DEFECTO'])if(t.includes(n))console.log('QUEDA '+n+' en '+f)}"
@@ -632,7 +632,7 @@ npm run check
 ```
 Esperado: la primera no imprime nada y el segundo sale con 0.
 
-- [ ] **Paso 6: confirmar**
+- [x] **Paso 6: confirmar**
 
 ```bash
 git add src/renderer.js src/index.html src/styles.css

@@ -205,6 +205,84 @@ app.whenReady().then(async () => {
     comprobar('pero el texto de ayuda de otros campos sigue existiendo',
       estilos.includes('.field-help'), 'no se deberia haber borrado .field-help');
 
+    console.log('\n0.37.0 — el selector de perfil del modal:\n');
+
+    // El texto de la pagina real, no una copia: el selector se pinta al abrir el modal, y eso solo
+    // se puede comprobar abriendo el modal.
+    const ventanaModal = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        preload: path.join(RAIZ, 'tests', 'launcher-preview-preload.js'),
+        contextIsolation: true,
+        sandbox: false,
+        webviewTag: true
+      }
+    });
+    await ventanaModal.loadFile(path.join(RAIZ, 'src', 'index.html'));
+    await new Promise((r) => setTimeout(r, 600));
+
+    const modal = await ventanaModal.webContents.executeJavaScript(`(() => {
+      openBrowserInstanceModal();
+      const selector = document.querySelector('#browserInstancePerfil');
+      const salida = {
+        haySelector: Boolean(selector),
+        opciones: selector ? [...selector.options].map((o) => o.textContent) : [],
+        valores: selector ? [...selector.options].map((o) => o.value) : [],
+        elegido: selector ? selector.value : '',
+        formularioAbierto: !browserInstanceBackdrop.hidden,
+        hayBotonDeNuevo: Boolean(document.querySelector('#nuevoPerfilButton')),
+        elFormEmpiezaOculto: document.querySelector('#nuevoPerfilForm')?.hidden,
+        // Se escribe un nombre y se pulsa Crear, como lo haria la persona.
+        crea: (() => {
+          document.querySelector('#nuevoPerfilButton').click();
+          const form = document.querySelector('#nuevoPerfilForm');
+          const visible = !form.hidden;
+          const campo = document.querySelector('#nuevoPerfilNombre');
+          campo.value = 'Curro';
+          document.querySelector('#nuevoPerfilCrear').click();
+          return {
+            elFormSeEnseno: visible,
+            elFormSeVuelveACerrar: form.hidden,
+            elCampoSeEnfoco: document.activeElement === campo,
+            elegidoAhora: document.querySelector('#browserInstancePerfil').value,
+            nombresDespues: [...document.querySelector('#browserInstancePerfil').options].map((o) => o.textContent),
+            elModalSigueAbierto: !browserInstanceBackdrop.hidden
+          };
+        })(),
+        // Y el perfil elegido es el que se guardaria.
+        loQueSeGuarda: browserInstancePerfil.value
+      };
+      closeBrowserInstanceModal();
+      return salida;
+    })()`);
+
+    comprobar('el selector esta en el modal', modal.haySelector === true);
+    comprobar('y sale con el Principal', modal.elegido === 'principal', modal.elegido);
+    comprobar('con su nombre puesto, no con el identificador',
+      modal.opciones[0] === 'Principal', JSON.stringify(modal.opciones));
+    comprobar('el modal se abre de verdad', modal.formularioAbierto === true);
+    comprobar('hay un boton para crear otro sin salir del modal', modal.hayBotonDeNuevo === true);
+    comprobar('el campo de crear aparece al pulsar ese boton',
+      modal.elFormEmpiezaOculto === true && modal.crea.elFormSeEnseno === true,
+      `oculto al empezar: ${modal.elFormEmpiezaOculto}, visible al pulsar: ${modal.crea.elFormSeEnseno}`);
+    comprobar('y se cierra al crearlo', modal.crea.elFormSeVuelveACerrar === true);
+    comprobar('el perfil nuevo se crea y queda elegido',
+      modal.crea.elegidoAhora !== 'principal' && modal.crea.elegidoAhora.startsWith('perfil-'),
+      modal.crea.elegidoAhora);
+    comprobar('y sale en la lista con su nombre',
+      modal.crea.nombresDespues.includes('Curro'), JSON.stringify(modal.crea.nombresDespues));
+    comprobar('sin cerrar el modal', modal.crea.elModalSigueAbierto === true);
+    comprobar('lo que se guarda es el perfil elegido',
+      modal.loQueSeGuarda === modal.crea.elegidoAhora, `${modal.loQueSeGuarda} vs ${modal.crea.elegidoAhora}`);
+
+    // Volver a abrir el modal tiene que dejar el Principal elegido, no el perfil de la otra vez.
+    const segunda = await ventanaModal.webContents.executeJavaScript(
+      'openBrowserInstanceModal(); browserInstancePerfil.value'
+    );
+    comprobar('al reabrirlo vuelve al Principal, no al de la vez anterior', segunda === 'principal', segunda);
+    await ventanaModal.webContents.executeJavaScript('closeBrowserInstanceModal(); true');
+    ventanaModal.destroy();
+
     console.log('\n0.36.0 — farmeo en modo pestañas (trasplantado, no es de perfiles):\n');
 
     comprobar('la decision se toma una vez por pasada',

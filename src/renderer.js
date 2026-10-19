@@ -159,6 +159,7 @@ const browserInstanceModeInstancia = document.querySelector('#browserInstanceMod
 const browserInstanceModeNavegador = document.querySelector('#browserInstanceModeNavegador');
 const browserInstanceNameField = document.querySelector('.browser-instance-name-field');
 const browserInstanceUrlField = document.querySelector('.browser-instance-url-field');
+const browserInstancePerfil = document.querySelector('#browserInstancePerfil');
 
 const instanceSettingsButton = document.querySelector('#instanceSettingsButton');
 const instanceSettingsBackdrop = document.querySelector('#instanceSettingsBackdrop');
@@ -9410,6 +9411,14 @@ function registrarPanelEnMapa(panel) {
     // Sin esta llamada, una pantalla que nace en una pestaña que no es la activa se queda
     // funcionando sola, y una que nace en la activa arrancaria dormida.
     aplicarDescanso();
+    // El modo de apertura se dice AQUI y no al crear el panel, porque al crearlo la pantalla todavia
+    // no tiene id. Y se dice por pantalla y no por particion: con los perfiles, dos ventanas pueden
+    // compartir sesion, y si el modo se guardara por particion la ultima en abrir se impusiera a las
+    // demas sin avisar.
+    const instancia = browserInstances.find((fila) => fila.id === panel.instanceId);
+    if (instancia) {
+      window.pokeGrid?.setInstanceAperturaDePantalla?.(id, instancia.apertura || APERTURA_POR_DEFECTO);
+    }
     // El icono no se pide aqui: se engancha su oyente al crear la pantalla, que es antes de que el
     // invitado pueda avisar. Aqui solo hacen falta las cosas que necesitan id.
     return true;
@@ -10637,6 +10646,60 @@ function sincronizarModoElegido() {
   }
 }
 
+// Pinta el selector de perfiles.
+//
+// Se llama al abrir el modal y cada vez que se crea uno desde aqui mismo. Un perfil sin nombre sale
+// como «Perfil sin nombre» y no con un nombre inventado: el usuario no escribio ninguno, y poner uno
+// seria mentir sobre lo que hay guardado.
+function pintarSelectorDePerfiles(elegido) {
+  const selector = browserInstancePerfil;
+  if (!selector) return;
+  const lista = window.pokeGridPerfiles?.listar() || [];
+  selector.replaceChildren();
+  for (const perfil of lista) {
+    const opcion = document.createElement('option');
+    opcion.value = perfil.id;
+    opcion.textContent = perfil.nombre || 'Perfil sin nombre';
+    selector.appendChild(opcion);
+  }
+  // Sin `elegido` se deja el Principal: es con lo que nace una ventana nueva, y no con lo que se
+  // USO la ultima vez, que ya seria una sorpresa.
+  selector.value = window.pokeGridPerfiles?.resolver(elegido ?? '') || PERFIL_POR_DEFECTO;
+}
+
+// Crear un perfil con el nombre escrito. Solo crea y lo devuelve: quien llame decide que pintar
+// despues, porque el selector del modal y el gestor tienen que pintar cosas distintas.
+//
+// NO se usa `window.prompt`. En este launcher no se ha usado nunca —`confirm` nueve veces, `alert`
+// una, `prompt` ninguna— y ademas el gestor necesita esta misma operacion desde una fila, donde no
+// hay forma de abrir un dialogo del sistema. Un campo en la propia pantalla es lo que hay.
+function crearPerfilConNombre(nombre) {
+  return window.pokeGridPerfiles?.crear(String(nombre || '').trim()) || null;
+}
+
+function mostrarFormDePerfilNuevo() {
+  const form = document.querySelector('#nuevoPerfilForm');
+  const campo = document.querySelector('#nuevoPerfilNombre');
+  if (!form || !campo) return;
+  form.hidden = false;
+  campo.value = '';
+  campo.focus();
+}
+
+function ocultarFormDePerfilNuevo() {
+  const form = document.querySelector('#nuevoPerfilForm');
+  if (form) form.hidden = true;
+}
+
+// El camino del modal: crear aqui y que el selector se quede en el perfil nuevo, sin cerrarse.
+function crearPerfilDesdeElSelector() {
+  const campo = document.querySelector('#nuevoPerfilNombre');
+  const creado = crearPerfilConNombre(campo?.value);
+  if (!creado) return;
+  pintarSelectorDePerfiles(creado.id);
+  ocultarFormDePerfilNuevo();
+}
+
 function openBrowserInstanceModal() {
 
   browserInstanceMessage.textContent = '';
@@ -10644,6 +10707,10 @@ function openBrowserInstanceModal() {
   browserInstanceUrl.value = '';
   browserInstanceCount.value = '4';
   browserInstanceMode.value = MODO_POR_DEFECTO;
+  // El selector de perfiles se repinta al abrir, y no solo al arrancar: si se crea un perfil desde el
+  // gestor con el launcher abierto, la siguiente ventana nueva tiene que poder elegirlo.
+  pintarSelectorDePerfiles();
+  ocultarFormDePerfilNuevo();
   // Sin esta llamada, los campos se quedaban como estaban de la ultima vez. Con el modo por defecto
   // en «navegador», la URL seguia siendo obligatoria y ambos campos a la vista, que es justo lo que
   // se pidio quitar. Los valores se limpian arriba, pero el modo hay que aplicarlo.
@@ -11726,6 +11793,15 @@ for (const boton of [browserInstanceModeInstancia, browserInstanceModeNavegador]
 }
 sincronizarModoElegido();
 
+document.querySelector('#nuevoPerfilButton')?.addEventListener('click', mostrarFormDePerfilNuevo);
+// Enter tambien crea. En un campo de texto de un modal, lo raro es tener que pulsar un boton de al lado.
+document.querySelector('#nuevoPerfilNombre')?.addEventListener('keydown', (evento) => {
+  if (evento.key !== 'Enter') return;
+  evento.preventDefault();
+  crearPerfilDesdeElSelector();
+});
+document.querySelector('#nuevoPerfilCrear')?.addEventListener('click', crearPerfilDesdeElSelector);
+
 browserInstanceForm.addEventListener('submit', (event) => {
   event.preventDefault();
   browserInstanceMessage.classList.remove('is-ok');
@@ -11745,6 +11821,7 @@ browserInstanceForm.addEventListener('submit', (event) => {
       // `sesion: 'propia' | 'compartida'`: un interruptor que solo sabia decir «estas dos comparten»,
       // y que no tenia ni nombres ni manera de elegir entre varias sesiones. El perfil sustituye a
       // los dos, no se lo suma.
+      perfilId: browserInstancePerfil?.value || PERFIL_POR_DEFECTO,
       // En modo navegador el enlace es opcional: si se escribe, se arranca ahi; si no, en el
       // buscador. El campo se esconde en cuanto se elige ese modo, asi que aqui llega vacio.
       inicio: browserInstanceUrl.value

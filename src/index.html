@@ -154,6 +154,21 @@
             <span>DIRECCI&Oacute;N</span>
             <input id="browserInstanceUrl" type="url" maxlength="1000" required inputmode="url" placeholder="https://sitio/pagina">
           </label>
+          <!-- Con que perfil trabaja esta ventana. Un perfil es una sesion con nombre: dentro de el
+               entras una vez en Google y ya lo tienes en las demas ventanas con el mismo perfil.
+               Las ventanas con perfiles distintos NO se ven entre si. -->
+          <label class="field browser-instance-perfil-field">
+            <span>PERFIL</span>
+            <select id="browserInstancePerfil"></select>
+            <small class="field-help">Las ventanas con el mismo perfil comparten lo que tengas
+              iniciado en ellas.</small>
+            <button id="nuevoPerfilButton" class="button button-secondary browser-instance-perfil-nuevo" type="button">Perfil nuevo</button>
+            <span id="nuevoPerfilForm" class="browser-instance-perfil-form" hidden>
+              <input id="nuevoPerfilNombre" type="text" maxlength="40" placeholder="Nombre del perfil"
+                aria-label="Nombre del perfil nuevo">
+              <button id="nuevoPerfilCrear" class="button button-secondary" type="button">Crear</button>
+            </span>
+          </label>
           <label class="field">
             <span>PANTALLAS / CUENTAS</span>
             <select id="browserInstanceCount">
