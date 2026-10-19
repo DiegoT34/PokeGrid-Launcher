@@ -24,23 +24,23 @@ $pruebas = @(
   @{ nombre = 'plantillas-rotas';   comando = 'node';     args = @('herramientas\buscar-plantilla-rota.cjs', 'tests\descanso-smoke.js', 'tests\sondeos-visibles-smoke.js'); espera = 15 },
   @{ nombre = 'patrones';           comando = 'node';     args = @('herramientas\comprobar-patrones.cjs');   espera = 20 },
   @{ nombre = 'ipc-sender-guard';   comando = 'node';     args = @('tests\ipc-sender-guard-smoke.js');   espera = 20 },
-  @{ nombre = 'instancia-vista';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-vista-smoke.js');        espera = 150 },
-  @{ nombre = 'instancia-navegador';comando = 'tests\lanzar.cjs'; args = @('tests\instancia-navegador-smoke.js');    espera = 230 },
-  @{ nombre = 'instancia-modos';    comando = 'tests\lanzar.cjs'; args = @('tests\instancia-modos-smoke.js');        espera = 90 },
-  @{ nombre = 'instancia-ajustes';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-ajustes-smoke.js');      espera = 90 },
-  @{ nombre = 'instancia-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pestanas-smoke.js');     espera = 95 },
-  @{ nombre = 'instancia-cabecera'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-cabecera-smoke.js');   espera = 100 },
-  @{ nombre = 'instancia-nueva-pestana'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-nueva-pestana-smoke.js'); espera = 100 },
-  @{ nombre = 'instancia-pantallas';  comando = 'tests\lanzar.cjs'; args = @('tests\instancia-pantallas-smoke.js');      espera = 100 },
-  @{ nombre = 'instancia-reanudar'; comando = 'tests\lanzar.cjs'; args = @('tests\instancia-reanudar-smoke.js');     espera = 105 },
-  @{ nombre = 'cuentas-pestanas'; comando = 'tests\lanzar.cjs'; args = @('tests\cuentas-pestanas-smoke.js'); espera = 100 },
-  @{ nombre = 'descanso';           comando = 'tests\lanzar.cjs'; args = @('tests\descanso-smoke.js');             espera = 110 },
-  @{ nombre = 'sondeos-visibles';   comando = 'tests\lanzar.cjs'; args = @('tests\sondeos-visibles-smoke.js');      espera = 100 },
-  @{ nombre = 'ventanas-emergentes';comando = 'tests\lanzar.cjs'; args = @('tests\ventanas-emergentes-smoke.js');   espera = 155 },
-  @{ nombre = 'usuarios';          comando = 'tests\lanzar.cjs'; args = @('tests\userscripts-manager-smoke.js');  espera = 120 },
-  @{ nombre = 'cuentas-iconos-0340'; comando = 'tests\lanzar.cjs'; args = @('tests\cuentas-iconos-0340-smoke.js'); espera = 100 },
-  @{ nombre = 'perfiles-almacen';   comando = 'tests\lanzar.cjs'; args = @('tests\perfiles-almacen-smoke.js');   espera = 80 },
-  @{ nombre = 'perfiles-sesion';     comando = 'tests\lanzar.cjs'; args = @('tests\perfiles-sesion-0370-smoke.js'); espera = 80 }
+  @{ nombre = 'instancia-vista';    comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-vista-smoke.js');        espera = 150 },
+  @{ nombre = 'instancia-navegador';comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-navegador-smoke.js');    espera = 230 },
+  @{ nombre = 'instancia-modos';    comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-modos-smoke.js');        espera = 90 },
+  @{ nombre = 'instancia-ajustes';  comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-ajustes-smoke.js');      espera = 90 },
+  @{ nombre = 'instancia-pestanas'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-pestanas-smoke.js');     espera = 95 },
+  @{ nombre = 'instancia-cabecera'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-cabecera-smoke.js');   espera = 100 },
+  @{ nombre = 'instancia-nueva-pestana'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-nueva-pestana-smoke.js'); espera = 100 },
+  @{ nombre = 'instancia-pantallas';  comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-pantallas-smoke.js');      espera = 100 },
+  @{ nombre = 'instancia-reanudar'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\instancia-reanudar-smoke.js');     espera = 105 },
+  @{ nombre = 'cuentas-pestanas'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\cuentas-pestanas-smoke.js'); espera = 100 },
+  @{ nombre = 'descanso';           comando = 'node'; args = @('tests\lanzar.cjs', 'tests\descanso-smoke.js');             espera = 110 },
+  @{ nombre = 'sondeos-visibles';   comando = 'node'; args = @('tests\lanzar.cjs', 'tests\sondeos-visibles-smoke.js');      espera = 100 },
+  @{ nombre = 'ventanas-emergentes';comando = 'node'; args = @('tests\lanzar.cjs', 'tests\ventanas-emergentes-smoke.js');   espera = 155 },
+  @{ nombre = 'usuarios';          comando = 'node'; args = @('tests\lanzar.cjs', 'tests\userscripts-manager-smoke.js');  espera = 120 },
+  @{ nombre = 'cuentas-iconos-0340'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\cuentas-iconos-0340-smoke.js'); espera = 100 },
+  @{ nombre = 'perfiles-almacen';   comando = 'node'; args = @('tests\lanzar.cjs', 'tests\perfiles-almacen-smoke.js');   espera = 80 },
+  @{ nombre = 'perfiles-sesion';     comando = 'node'; args = @('tests\lanzar.cjs', 'tests\perfiles-sesion-0370-smoke.js'); espera = 80 }
 )
 # `verificar-paquete` y `comprobar-entrega` NO estan aqui a proposito. Comprueban el ARTEFACTO, y antes
 # de compilar mirarian el build de la entrega anterior: darian verde —o fallarian— por un fichero que
@@ -59,28 +59,54 @@ $salidaDeUna = Join-Path $carpeta 'area-una.txt'
 foreach ($p in $pruebas) {
   Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   Add-Content -Path $salida -Value "`n=== $($p.nombre) ===" -Encoding utf8
+  # NO se usa `Start-Job`. Un job corre en un espacio de ejecucion SIN consola, y Electron es de
+  # subsistema grafico: sin consola no escribe en la salida que se le pase. `tests\lanzar.cjs` depende
+  # de `stdio: 'inherit'`, que sin consola no es nada, y el guion se quedaba con el fichero vacio y
+  # contaba todas las pruebas como «no ha escrito nada». Con `Start-Process` y redireccion a fichero
+  # Electron si recibe un mango de verdad, y las pruebas de ahi salen.
+  #
+  # El limite de tiempo se conserva con `WaitForExit`: sin el, una prueba colgada dejaria el area
+  # esperando para siempre, que es como se manifestaba antes el cuelgue de `instancia-cabecera`.
   Remove-Item $salidaDeUna -Force -ErrorAction SilentlyContinue
-  # OJO con el nombre del segundo parametro. Se llamaba `$args`, que es una variable AUTOMATICA de
-  # PowerShell: el parametro la tapaba, pero `@args` seguia expandiendo la automatica —que aqui esta
-  # vacia—, asi que la prueba se lanzaba SIN NINGUN ARGUMENTO y no imprimia nada. Como el guion solo
-  # miraba la salida en busca de un fallo, una salida vacia contaba como verde. O sea: este guion lleva
-  # tiempo dando «ok» sin haber comprobado ninguna prueba, y cualquier «20 de 20» suyo no valia.
-  $job = Start-Job -ScriptBlock {
-    param($cmd, $argumentos)
-    Set-Location 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher'
-    & $cmd @argumentos 2>&1 | Out-File -Encoding utf8 'C:\Users\Shockviny\AppData\Local\Temp\opencode\area-una.txt'
-  } -ArgumentList $p.comando, $p.args
-  Start-Sleep -Seconds $p.espera
-  Stop-Job $job -ErrorAction SilentlyContinue
-  Remove-Job $job -Force -ErrorAction SilentlyContinue
+  Remove-Item "$salidaDeUna.err" -Force -ErrorAction SilentlyContinue
+  # El ejecutable se resuelve. `npm` en Windows es un `npm.cmd`, y `Start-Process` no lo encuentra
+  # por su cuenta: se le pasa la ruta entera.
+  # El ejecutable se resuelve, y se prefiere el `.cmd`. `Get-Command npm` devuelve `npm.ps1`, que no es
+  # una aplicacion de Win32 y `Start-Process` lo rechaza con «no es una aplicacion Win32 valida».
+  # `npm.cmd` es el mismo npm y si se ejecuta.
+  $ejecutable = $p.comando
+  if ($ejecutable -notmatch '[/\\]') {
+    foreach ($candidato in @("$ejecutable.cmd", $ejecutable)) {
+      $resuelto = Get-Command $candidato -CommandType Application -ErrorAction SilentlyContinue
+      if ($resuelto) { $ejecutable = $resuelto.Source; break }
+    }
+    if (-not (Test-Path -LiteralPath $ejecutable -PathType Leaf)) {
+      $resuelto = Get-Command $ejecutable -ErrorAction SilentlyContinue
+      if ($resuelto) { $ejecutable = $resuelto.Source }
+    }
+  }
+  $proceso = Start-Process -FilePath $ejecutable -ArgumentList $p.args `
+    -WorkingDirectory 'C:\Users\Shockviny\Downloads\PokeGrid-Launcher' `
+    -NoNewWindow -PassThru `
+    -RedirectStandardOutput $salidaDeUna -RedirectStandardError "$salidaDeUna.err"
+  if (-not $proceso.WaitForExit(($p.espera + 20) * 1000)) {
+    Write-Output "  (se paso de $($p.espera) s y se le mato)"
+    $proceso.Kill()
+  }
   Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   $texto = Get-Content $salidaDeUna -ErrorAction SilentlyContinue
+  if (Test-Path "$salidaDeUna.err") {
+    $texto = @($texto) + @(Get-Content "$salidaDeUna.err" -ErrorAction SilentlyContinue)
+  }
   # MIRAR, no solo buscar un patron de fallo. Un error de Node â€”un throw, una excepcionâ€” no lleva
   # ninguno de los patrones de abajo, y asi se conto como verde una prueba que en realidad habia
   # reventado por no encontrar el ZIP. Eso es exactamente lo que no hay que hacer: mirar el resultado,
   # no suponerlo por la forma de la salida.
   $crudo = ($texto -join "`n")
-  $fallo = $texto | Select-String -Pattern '^\s+FALLA|FALLO:|\d+ comprobaciones fallan|comprobaciones fallan:'
+  # OJO con el numero del patron. `\d+ comprobaciones fallan` ALSO casa con «0 comprobaciones
+  # fallan», que es justo lo que imprime una prueba que PASA: con ese patron toda prueba salia en
+  # rojo por haber escrito bien su resumen. Se pide un numero que no sea cero.
+  $fallo = $texto | Select-String -Pattern '^\s+FALLA|FALLO:|comprobaciones fallan: [1-9]|fallan [1-9] '
   # SIN anclas. Un `^` en PowerShell solo casa al principio del texto entero, y el rastro de un
   # error va en medio: con `^Node.js` esto contou como verde un verificador que habia reventado con
   # ENOENT. Dos veces seguidas el mismo error mio â€”dar por bueno un resultado sin mirar lo que
@@ -115,4 +141,5 @@ if ($fallos.Count) {
   Add-Content -Path $salida -Value ('las ' + $pruebas.Count + ' pasan') -Encoding utf8
 }
 'LISTO' | Out-File -Encoding utf8 (Join-Path $carpeta 'area-fin.txt')
+
 

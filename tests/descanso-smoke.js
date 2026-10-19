@@ -192,41 +192,40 @@ app.whenReady().then(async () => {
     comprobar(enElMapa === false, 'y su entrada se ha quitado del mapa de webContents', `sigue dentro: ${enElMapa}`);
 
     // =================================================================================
-    console.log('\n--- 6. borrar una instancia borra su particion del disco ---');
+    console.log('\n--- 6. cerrar una instancia ya NO borra su particion, y por que ---');
     // La particion se lee ANTES de cerrar, porque despues de `destroy()` el webview ya no contesta.
     const particiones = await ventana.webContents.executeJavaScript(`(() => {
       const paneles = browserInstanceViews.get('descanso-otra')?.panels || [];
       return paneles.map((p) => { try { return p.webview.getAttribute('partition') || ''; } catch { return ''; } });
     })()`);
     const particion = (particiones[0] || '').replace('persist:', '');
-    comprobar(particion.startsWith('pokegrid-instance-'), 'la particion de la instancia tiene el nombre esperado', particion);
+    // Desde la 0.37.0 la particion de una ventana es la de su PERFIL, y no se parece en nada a una
+    // particion propia. Esta comprobacion pedia el nombre antiguo; el nombre nuevo es el correcto, y es
+    // justamente lo que hace que cerrar una ventana no vacie la sesion de las demas del perfil.
+    comprobar(particion.startsWith('pokegrid-perfil-'), 'la particion de la instancia es la de su perfil', particion);
 
-    // Y se cierra la instancia ANTES de borrar su particion. Con la pantalla viva, Windows tiene el
-    // `CdmStorage.db` abierto y el borrado falla con EBUSY — que es exactamente lo que paso la
+    // Y se cierra la instancia. Con la pantalla viva, Windows tiene el `CdmStorage.db` abierto y el
+    // borrado falla con EBUSY — que es exactamente lo que paso la
     // primera vez, y por lo que el proceso principal ahora reintenta unas veces.
     await ventana.webContents.executeJavaScript(`(() => { window.confirm = () => true; removeBrowserInstance('descanso-otra'); })()`);
     await dormir(900);
 
+    // Lo que se pide ahora es lo CONTRARIO de antes: que al cerrar NO se haya borrado nada. La carpeta
+    // se crea a proposito, antes de cerrar, para poder comprobar que sigue ahí.
     const destino = path.join(userDataDir, 'Partitions', particion);
     fs.mkdirSync(destino, { recursive: true });
     fs.writeFileSync(path.join(destino, 'relleno.txt'), 'x'.repeat(4096), 'utf8');
-    comprobar(fs.existsSync(destino), 'la particion existe en disco antes de borrar');
+    comprobar(fs.existsSync(destino), 'la particion existe en disco');
 
+    // Y que el proceso principal se niegue a borrarla si se le pide: es la proteccion que evita que
+    // cerrar una ventana deje sin cookies a las demas que comparten perfil.
     const borrada = await ventana.webContents.executeJavaScript(
       `window.pokeGrid.borrarParticionDeInstancia('persist:${particion}')`
     );
-    // El borrado tiene DOS desenlaces legitimos, y aqui se comprueban los dos. Con la particion
-    // todavia abierta por Chromium da EBUSY y no hay forma de forzarlo en Windows; lo que tiene que
-    // pasar es que NO se finja: o se borra, o se dice que se borrara al arrancar.
-    comprobar(borrada && borrada.ok === true, 'el proceso principal responde con honestidad', JSON.stringify(borrada));
-    const pendiente = fs.existsSync(path.join(userDataDir, RUTA_PENDIENTES))
-      ? JSON.parse(fs.readFileSync(path.join(userDataDir, RUTA_PENDIENTES), 'utf8')) : [];
-    if (borrada && borrada.borrado) {
-      comprobar(!fs.existsSync(destino), 'la particion se ha borrado del disco, ahora');
-    } else {
-      comprobar(borrada && borrada.pendiente === true, 'si esta pillada, avisa de que quedara pendiente', JSON.stringify(borrada));
-      comprobar(pendiente.includes(particion), 'y el nombre queda anotado para el siguiente arranque', JSON.stringify(pendiente));
-    }
+    comprobar(borrada && borrada.ok === false
+      && String(borrada.error || '').includes('no es de una instancia'),
+    'el proceso principal se niega a borrar una particion de perfil', JSON.stringify(borrada));
+    comprobar(fs.existsSync(destino), 'y la particion sigue intacta en disco');
 
     // Ahora, lo que de verdad importa: que la cola se vacie. Y aqui hay que ser honesto con lo que se
     // puede comprobar: dentro de ESTE proceso la particion sigue abierta por Chromium, y mientras
@@ -237,9 +236,16 @@ app.whenReady().then(async () => {
     const sueltaCola = path.join(userDataDir, 'Partitions', 'pokegrid-instance-anotada-y-libre');
     fs.mkdirSync(sueltaCola, { recursive: true });
     fs.writeFileSync(path.join(sueltaCola, 'x.txt'), 'x', 'utf8');
-    const cola = fs.readFileSync(path.join(userDataDir, RUTA_PENDIENTES), 'utf8');
+    // La cola se monta AQUI, y no se espera que otro paso la haya dejado. Antes se dependia de que la
+    // particion de la ventana quedara pillada y se anotara sola al intentar borrarla; desde la 0.37.0
+    // esa particion es de perfil y el proceso principal se niega a borrarla —con razon, la comparten
+    // otras ventanas—, asi que la cola ya no nace de ahi. La dejan las versiones anteriores, que si
+    // dejaban particiones propias. Montarla aqui es lo que hace falta para poder comprobar el barrido,
+    // que es lo unico que este bloque vigila.
+    const colaActual = fs.existsSync(path.join(userDataDir, RUTA_PENDIENTES))
+      ? JSON.parse(fs.readFileSync(path.join(userDataDir, RUTA_PENDIENTES), 'utf8')) : [];
     fs.writeFileSync(path.join(userDataDir, RUTA_PENDIENTES),
-      JSON.stringify([...JSON.parse(cola), 'pokegrid-instance-anotada-y-libre']), 'utf8');
+      JSON.stringify([...colaActual, 'pokegrid-instance-anotada-y-libre']), 'utf8');
 
     const barrido = await ventana.webContents.executeJavaScript('window.pokeGrid.borrarParticionesPendientes()');
     comprobar(Array.isArray(barrido.borradas) && barrido.borradas.includes('pokegrid-instance-anotada-y-libre'),

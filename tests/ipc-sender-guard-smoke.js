@@ -56,6 +56,10 @@ const UI_CHANNELS = [
   'instancia:zoom',
   'instancia:pantalla-completa',
   'instancia:apertura',
+  // El modo de apertura por PANTALLA y no por particion. Va aparte porque guarda otra cosa —que
+  // pantalla abre sus enlaces como— y porque se registra en el `dom-ready`, cuando la pantalla ya
+  // tiene id, y no al crearse la particion.
+  'instancia:apertura-pantalla',
   'instancia:icono',
   'instancia:atenuar',
   'instancia:borrar-particion',

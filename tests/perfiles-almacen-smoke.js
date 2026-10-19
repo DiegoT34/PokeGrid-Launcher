@@ -202,7 +202,12 @@ app.whenReady().then(async () => {
         preload: path.join(RAIZ, 'tests', 'launcher-preview-preload.js'),
         contextIsolation: true,
         sandbox: false,
-        webviewTag: true
+        webviewTag: true,
+        // Sesion en memoria, SIN `persist:`. La page real comparte `localStorage` con la del launcher,
+        // y los perfiles que crea esta prueba se quedan ahi para siempre: en la segunda vuelta ya
+        // habia ocho, y la comprobacion de «solo esta el Principal» daba verde en la primera y falsa
+        // en la segunda. Ademas no se escribe nada en disco.
+        partition: 'perfiles-prueba-almacen'
       }
     });
     await real.loadFile(path.join(RAIZ, 'src', 'index.html'));

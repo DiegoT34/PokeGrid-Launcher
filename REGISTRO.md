@@ -7,6 +7,64 @@ Las versiones van en orden. La carpeta `dist/` conserva todas; nada se sustituye
 
 ---
 
+## 0.37.0 — perfiles de sesión, como los de Chrome
+
+### Qué son
+
+Un perfil es una sesión con nombre. Hay varios, se les pone nombre desde un gestor, y **cada ventana
+elige con cuál trabaja**. Las ventanas que eligen el mismo perfil comparten lo que tengas iniciado
+en ellas: entras una vez en Google y ya lo tienes en las demás.
+
+Donde antes había un interruptor de «compartir la sesión con las demás ventanas», ahora hay una lista
+de perfiles. El interruptor no se amplía: **se sustituye**, porque un perfil ya cubre compartir y
+además permite tener más de una sesión distinta.
+
+### Lo que hay que saber al actualizar
+
+**Todas las ventanas pasan al perfil «Principal».** Es lo que se pidió, y conviene decir lo que
+cuesta: si tenías dos ventanas de la misma web con cuentas distintas, dejan de poder estar separadas
+hasta que crees un segundo perfil y asignes una de ellas. No se pierde nada: las sesiones antiguas se
+quedan en disco, sin borrar.
+
+**Cambiar el perfil de una ventana reinicia sus pantallas.** La partición se fija al crear la web, así
+que no hay forma de cambiarla en caliente. El aviso sale antes de hacerlo y dice las dos cosas: que se
+pierden las webs abiertas y que habrá que volver a entrar en los sitios.
+
+**Las cuentas del juego no se tocan.** Siguen con su propia sesión, una por cuenta. Es la función
+principal del launcher y nada de esto la afecta.
+
+### Un fallo que salió al cambiar el nombre de la partición
+
+Las particiones se llamaban `persist:pokegrid-instance-…`, y el proceso principal usaba ese prefijo
+para saber qué webviews eran ventanas del navegador. Al pasar a `persist:pokegrid-perfil-…` **ninguna
+dejaba de estar registrada**: sin permisos, sin modo de apertura y sin rueda de zoom. No petaba; las
+ventanas seguían abriéndose y solo dejaban de hacer unas cosas, en silencio. Ahora hay dos preguntas
+distintas en un solo sitio: qué es una ventana (las dos formas) y qué se puede borrar al cerrarla
+(solo la antigua), porque la de un perfil la comparten otras ventanas.
+
+### La puerta de pruebas llevaba tiempo sin comprobar
+
+`herramientas/area-entera.ps1` usaba `param($cmd, $args)`. `$args` es una variable **automática** de
+PowerShell, así que `@args` expandía la automática —vacía— y las pruebas se lanzaban sin argumentos,
+sin imprimir nada. Como el guion solo buscaba un fallo en la salida, el silencio contaba como verde.
+Además no borraba el fichero de salida entre pruebas, así que una que no corría leía el resultado de
+la anterior.
+
+**Cualquier «20 de 20» de esa puerta hasta ahora no valía nada.** Se ha arreglado, y además ahora
+falla si una prueba no escribe nada.
+
+### Cuatro pruebas que ya estaban en rojo
+
+Estaban rotas desde el 16 de octubre y desde la 0.35.0, y nadie lo veía porque la puerta no miraba:
+
+- `instancia-modos` e `instancia-nueva-pestana` manejaban un desplegable que ya no existe (ahora hay
+  dos botones) y pedían que el enlace se viera en modo navegador, cuando el código lo esconde.
+- `instancia-cabecera` medía el logo de la esquina, retirado en la 0.35.0, y miraba los números de la
+  primera regla de `.instance-tab-shell` en vez de la del bloque de rediseño, que es la que se aplica.
+- `instancia-navegador` destapó el fallo de las particiones de arriba.
+
+---
+
 ## 0.36.0 — sesiones compartidas, el farmeo en pestañas y los botones agrupados
 
 ### Sesiones compartidas

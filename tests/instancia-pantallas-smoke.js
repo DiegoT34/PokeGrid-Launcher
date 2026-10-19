@@ -175,8 +175,18 @@ app.whenReady().then(async () => {
     })()`).catch((e) => ({ error: String(e && e.message ? e.message : e) }));
     comprobar(new Set(trasDos.indices || []).size === (trasDos.indices || []).length,
       'tres pantallas, tres indices distintos', JSON.stringify(trasDos.indices));
-    comprobar(new Set(trasDos.particiones || []).size === (trasDos.particiones || []).length,
-      'y tres particiones distintas: ninguna comparte sesion con otra', JSON.stringify(trasDos.particiones));
+    // Las tres pantallas de una ventana COMPARTEN la particion de su perfil. Antes cada pantalla tenia
+    // la suya —`persist:pokegrid-instance-<id>-<n>`— y por eso se podian tener cuentas distintas de la
+    // misma web en dos pantallas de la misma ventana. Desde la 0.37.0 eso se decide con el PERFIL de la
+    // ventana: quien quiere dos cuentas distintas pone una pantalla en un perfil y la otra en otro.
+    // Compartir aqui es lo correcto, y es justo lo que hace que entrar una vez sirva para todas.
+    comprobar(new Set(trasDos.particiones || []).size === 1
+      && String((trasDos.particiones || [])[0] || '').startsWith('persist:pokegrid-perfil-'),
+      'las tres pantallas comparten la sesion del perfil de la ventana',
+      JSON.stringify(trasDos.particiones));
+    comprobar((trasDos.particiones || []).every((p) => !String(p).startsWith('persist:pokegrid-instance-')),
+      'y ninguna usa ya una particion propia, que es lo que se borraria al cerrar',
+      JSON.stringify(trasDos.particiones));
 
     // Y al cerrar la del medio, las que quedan conservan las suyas.
     const trasCerrarMedio = await ventana.webContents.executeJavaScript(`(async () => {

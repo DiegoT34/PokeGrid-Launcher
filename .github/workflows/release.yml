@@ -44,8 +44,20 @@ jobs:
           pnpm test:script-shop
           pnpm test:script-shop-live
 
+      # OJO: `dist:zip`, no `dist`.
+      #
+      # Desde la 0.33.0 el script `dist` es `electron-builder --win dir`: produce `win-unpacked` y la
+      # carpeta portatil, y NO produce ningun ZIP. Este flujo, en cambio, busca
+      # `dist/IDLE-POKE-LAUNCHER-<version>-portatil.zip` en el paso siguiente para publicarlo como
+      # adjunto de la release.
+      #
+      # Con `dist` ese paso fallaba con «No se genero ...-portatil.zip», la release no llegaba a
+      # crearse NUNCA y no habia ninguna pista: la etiqueta ya se habia subido y el publicador ya
+      # habia escrito «PUBLICACION_ENVIADA». Cuatro versiones seguidas (0.33.1, 0.35.1, 0.35.2 y
+      # 0.36.1) tienen etiqueta en GitHub y ninguna release. El actualizador del launcher lee
+      # `releases/latest`, asi que se quedaba en 0.27.0 para siempre sin decir nada.
       - name: Construir ZIP portátil
-        run: pnpm dist
+        run: pnpm dist:zip
 
       - name: Crear firma SHA-256
         id: package

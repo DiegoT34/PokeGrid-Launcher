@@ -522,8 +522,16 @@ app.whenReady().then(async () => {
         /ipcMain\.on\('instancia:rueda'/.test(main) && /getType\(\) !== 'webview'/.test(main)],
       ['no queda el camino viejo de la rueda, que no podia funcionar',
         !/entrada\.wheelDeltaY/.test(main) && !/contents\.on\('input-event'/.test(main)],
+      // Esta comprobacion miraba la frase literal `if (!partition.startsWith('persist:pokegrid-instance-'))
+      // return;`. Desde la 0.37.0 esa linea es `if (!esParticionDeVentana(partition)) return;`, porque
+      // las ventanas pueden usar particiones de perfil. Lo que hay que vigilar NO es la frase, es lo que
+      // protege: que el preload de la rueda se ponga solo en pantallas de ventana del navegador y no en
+      // los webviews del juego. Asi que se mira la guarda y, sobre todo, que el predicado NO de por
+      // buena una particion de cuenta del juego —que es justo de lo que tiene que abstenerse.
       ['el preload no se cuelga en los webviews del juego de Poke Idle World',
-        /if \(!partition\.startsWith\('persist:pokegrid-instance-'\)\) return;/.test(main)]
+        /if \(!esParticionDeVentana\(partition\)\) return;/.test(main)
+        && /PREFIJO_PARTICION_PERFIL = 'persist:pokegrid-perfil-'/.test(main)
+        && !/PREFIJO_PARTICION_[A-Z]+ = 'persist:pokegrid-'/.test(main)]
     ];
     for (const [que, ok] of piezasRueda) {
       comprobar(ok, que);
