@@ -170,24 +170,37 @@ const DESCANSO_QUE_NO = [
   ['el nombre de la API que se llamaba al reves', /setPanelThrottling/, preload + renderer]
 ];
 
-console.log('\n0.36.0 — sesiones compartidas, farmeo en pestañas y botones agrupados:');
+console.log('\n0.37.0 — perfiles de sesion, y lo de 0.36.0 que se conserva:');
 const SESIONES_5360 = [
-  ['las sesiones de instancia son dos', /const SESIONES_DE_INSTANCIA = Object\.freeze\(\['propia', 'compartida'\]\)/.test(renderer)],
-  ['y el valor por defecto es aislada', /const SESION_POR_DEFECTO = 'propia'/.test(renderer)],
-  ['la compartida no lleva el prefijo que se borra al cerrar',
-    /const PARTICION_COMPARTIDA = 'persist:pokegrid-compartida'/.test(renderer)
-    && !/PARTICION_COMPARTIDA = 'persist:pokegrid-instance/.test(renderer)],
+  // Sustituyen a las nueve invariantes de la 0.36.0 que exigian el interruptor de sesion. Ya no se
+  // pueden cumplir: lo que hay ahora son perfiles, y el interruptor se fue.
+  ['el perfil por defecto es el Principal', /const PERFIL_POR_DEFECTO = 'principal'/.test(renderer)],
+  ['la particion de un perfil existe', /function perfilParticion\(perfilId\)/.test(renderer)],
+  ['y lleva el prefijo que NO se borra al cerrar una ventana',
+    /persist:pokegrid-perfil-\$\{id \|\| PERFIL_POR_DEFECTO\}/.test(renderer)],
   ['el borrado sigue filtrando solo por el prefijo de instancia',
     /\.filter\(\(particion\) => particion\.startsWith\('persist:pokegrid-instance-'\)\)/.test(renderer)],
-  ['la particion respeta la opcion',
-    /opciones\.sesion === 'compartida'\) return PARTICION_COMPARTIDA/.test(renderer)],
+  ['la particion sale del perfil y no del id de la ventana',
+    /function browserInstancePartition\(instanceId, index, opciones = \{\}\) \{\s*return perfilParticion\(opciones && opciones\.perfilId\);/.test(renderer)],
   ['y se pasa la instancia al crear la pantalla',
     /browserInstancePartition\(instance\.id, index, instance\)/.test(renderer)],
-  ['el interruptor existe en el HTML', /id="browserInstanceSesionCompartida"/.test(html)],
-  ['y se guarda al crear la ventana',
-    /browserInstanceSesionCompartida\?\.checked \? 'compartida' : SESION_POR_DEFECTO/.test(renderer)],
-  ['el texto explica la consecuencia', /explicarSesionCompartida\(browserInstanceSesionCompartida\.checked\)/.test(renderer)],
-  ['el interruptor se desmarca al abrir', /browserInstanceSesionCompartida\.checked = false;/.test(renderer)],
+  ['el perfil se rellena al leer la ventana, por el almacen',
+    /window\.pokeGridPerfiles\?\.resolver\(opciones\.perfilId\)/.test(renderer)],
+  ['el almacen de perfiles es un fichero propio y va antes que el renderer',
+    /<script src="perfiles-sesion\.js"><\/script>\s*<script src="renderer\.js">/.test(html)],
+  ['el selector de perfil esta en el modal', /id="browserInstancePerfil"/.test(html)],
+  ['y su valor se guarda al crear la ventana',
+    /perfilId: browserInstancePerfil\?\.value \|\| PERFIL_POR_DEFECTO/.test(renderer)],
+  ['el gestor de perfiles tiene su modal y su boton',
+    /id="perfilesBackdrop"/.test(html) && /id="perfilesButton"/.test(html)],
+  ['cuantas ventanas usa un perfil se responde desde el renderer',
+    /window\.pokeGridPerfiles\.conCuantasVentanas = /.test(renderer)],
+  ['y al cambiar de perfil no se borra ninguna particion',
+    (() => {
+      const desde = renderer.indexOf('function aplicarPerfilAInstancia');
+      if (desde < 0) return false;
+      return !renderer.slice(desde, desde + 1400).includes('borrarParticion');
+    })()],
 
   ['el farmeo decide una vez por pasada si lee todas', /const leerTodas = farmeoEstaEnUso\(\);/.test(renderer)],
   ['y lee todo con el selector abierto o una cuenta farmeando',
@@ -203,7 +216,12 @@ const SESIONES_5360 = [
   ['y el nombre se lleva el hueco sobrante', /identity\.style\.flex = '1 1 auto';/.test(renderer)],
   ['la barra ya no reparte el hueco entre los cuatro',
     /\.browser-instance-panelbar \{[^}]*justify-content: flex-start/.test(styles)],
-  ['el interruptor de sesion tiene estilo', /\.switch-line \{/.test(styles)]
+  ['el selector de perfil tiene estilo',
+    /\.browser-instance-perfil-field select \{/.test(styles)
+    && /\.browser-instance-perfil-form input \{/.test(styles)
+    // Y el CSS del interruptor que se fue no puede quedar por ahi: se veria en la pagina sin que nada
+    // lo escuchara, que es la forma mas traicionera de dejar algo a medias.
+    && !/\.switch-line/.test(styles)]
 ];
 for (const [que, ok] of SESIONES_5360) {
   if (!ok) fallos++;
@@ -703,7 +721,12 @@ const VISTA_INSTANCIAS = [
   ['y el owner del nivel es el proceso principal', /function aplicarZoom\(contents, particion, factor, motivo\)/.test(mainCodigo) && /instancia:zoom-aplicado/.test(mainCodigo)],
   ['el atajo compara TODOS los modificadores', /presiona\('control'\) === atajo\.ctrl/.test(mainCodigo) && /presiona\('shift'\) === atajo\.shift/.test(mainCodigo)],
   ['los dos canales llevan el guard de la ventana principal', /ipcMain\.handle\('instancia:atajo', \(event, valor\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo) && /ipcMain\.handle\('instancia:zoom', \(event, id, factor\) => \{\r?\n\s*assertMainWindowSender\(event\);/.test(mainCodigo)],
-  ['el zoom no acepta una pantalla que no sea instancia', /if \(!particion\.startsWith\('persist:pokegrid-instance-'\)\) return \{ ok: false/.test(mainCodigo)],
+  // La guarda mira `esParticionDeVentana`, que acepta las dos formas de particion de una ventana —
+  //la antigua y la del perfil— y no las de las cuentas del juego, que son `persist:pokegrid-<cuenta>`.
+  ['el zoom no acepta una pantalla que no sea ventana del navegador',
+    /if \(!esParticionDeVentana\(particion\)\) return \{ ok: false/.test(mainCodigo)
+    && /PREFIJO_PARTICION_PERFIL = 'persist:pokegrid-perfil-'/.test(mainCodigo)
+    && !/PREFIJO_PARTICION_[A-Z]+ = 'persist:pokegrid-'/.test(mainCodigo)],
   ['el atajo se guarda en el renderer y se le pasa al proceso', /localStorage\.setItem\(INSTANCE_SHORTCUT_KEY/.test(renderer) && /window\.pokeGrid\.setInstanceShortcut\(atajoPantallaCompleta\)/.test(renderer)],
   ['y el zoom se guarda por instancia', /zoomInstancias\[panel\.instanceId\] = factor/.test(renderer) && /JSON\.stringify\(zoomInstancias\)/.test(renderer)],
   ['nadie escribe en el campo de captura entero', !/instanceSettingsShortcutField\.textContent/.test(renderer)],
