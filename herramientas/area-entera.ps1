@@ -1,4 +1,4 @@
-# Corre el area entera de la entrega, en orden, sin saltarse nada.
+﻿# Corre el area entera de la entrega, en orden, sin saltarse nada.
 #
 # LA REGLA
 #
@@ -134,7 +134,7 @@ foreach ($p in $pruebas) {
     } elseif ($fallo) {
       Add-Content -Path $salida -Value ($fallo | Select-Object -First 3 | ForEach-Object { '   ' + $_.Line }) -Encoding utf8
     } else {
-      Add-Content -Path $salida -Value '   (no hay asercion que falle: el comando reventÃ³)' -Encoding utf8
+      Add-Content -Path $salida -Value '   (no hay asercion que falle: el comando reventó)' -Encoding utf8
       Add-Content -Path $salida -Value ('   ' + (($crudo -split "`n" | Where-Object { $_.Trim() } | Select-Object -First 2) -join ' | ')) -Encoding utf8
     }
   } else {
