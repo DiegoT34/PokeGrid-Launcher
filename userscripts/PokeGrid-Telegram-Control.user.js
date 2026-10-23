@@ -94,6 +94,51 @@
     };
   }
 
+  // --- Leer el estado de esta cuenta ---------------------------------------
+  //
+  // Es la version corta del lector del launcher: aqui solo hace falta entrenador, sitio y el primer
+  // Pokemon. Los movimientos, objetos e IV que lee el modo farmeo son para recomendar hunts, y el bot
+  // no recomienda: informa y obedece.
+  function textoDe(elemento) {
+    return String(elemento?.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function primerElemento(selectores) {
+    for (const selector of selectores) {
+      const encontrado = document.querySelector(selector);
+      if (encontrado) return encontrado;
+    }
+    return null;
+  }
+
+  function leerEstadoPagina() {
+    const sitio = textoDe(primerElemento(['.phud-tloc', '.pg-player-meta', '[class*="trainer-meta"]']));
+    const meta = textoDe(primerElemento(['.pg-player-meta', '[class*="trainer-meta"]']));
+    const entrenador = (meta.match(/(?:entrenador|trainer)[:\s]+([^·|]+)/i)?.[1] || '').trim();
+    const nivel = Number(sitio.match(/(?:level|nivel|n[ií]vel|lv|nv)\.?\s*(\d+)/i)?.[1] || 0) || null;
+
+    const ranura = document.querySelector('.pg-team-slot, [class*="team-slot"]');
+    let leader = null;
+    if (ranura) {
+      const hp = textoDe(ranura.querySelector('[class*="hp"]')).match(/(\d+)\s*\/\s*(\d+)/);
+      leader = {
+        nombre: textoDe(ranura.querySelector('[class*="name"]')),
+        nivel: Number(textoDe(ranura.querySelector('[class*="level"]')).replace(/\D/g, '')) || null,
+        hp: hp ? Number(hp[1]) : null,
+        maxHp: hp ? Number(hp[2]) : null
+      };
+      if (!leader.nombre) leader = null;
+    }
+
+    return {
+      ready: location.pathname.startsWith('/play') && Boolean(document.body),
+      trainerName: entrenador,
+      location: sitio,
+      level: nivel,
+      leader
+    };
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -103,9 +148,9 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina };
 })();
