@@ -18,6 +18,9 @@ const perfiles = fs.readFileSync(path.join(raiz, 'src', 'perfiles-sesion.js'), '
   const html = fs.readFileSync(path.join(raiz, 'src', 'index.html'), 'utf8');
 
 const styles = fs.readFileSync(path.join(raiz, 'src', 'styles.css'), 'utf8');
+// El userscript de control por Telegram: sus permisos y la promesa de no guardar el token en claro.
+const scriptControl = fs.readFileSync(
+  path.join(raiz, 'userscripts', 'PokeGrid-Telegram-Control.user.js'), 'utf8');
 
 // El bloque de barras de desplazamiento se comproba contra el CSS SIN el rediseño de la 0.34.0.
 // Those reglas se anadieron a proposito, asi que buscarlas en el fichero entero las encontraria
@@ -106,6 +109,14 @@ const QUE_SI = [
     ['el circulo del perfil elegido se pinta al lado del desplegable',
       /function pintarVistaDelPerfilElegido\(\)/, renderer],
 
+    // ---- 0.40.0: el control del farmeo por Telegram
+    ['el control por Telegram declara los permisos que usa',
+      /@grant\s+GM_xmlhttpRequest[\s\S]{0,200}@grant\s+PokeGrid_sharedStorage/, scriptControl],
+    ['y solo habla con api.telegram.org',
+      /@connect\s+api\.telegram\.org/, scriptControl],
+    ['el viaje no acepta Orre por su cuenta',
+      /aviso && !opciones\.orre/, scriptControl],
+
     // ---- el gestor de perfiles
     ['el gestor de perfiles tiene su modal', /id="perfilesBackdrop"/, html],
     ['el boton de abrir esta en la barra', /id="perfilesButton"/, html],
@@ -177,6 +188,15 @@ const QUE_NO = [
   ['el boton de actualizar del menu', /id="updateLauncherButton"/, html],
   ['su icono en la lista del menu', /'#updateLauncherButton': 'download'/, renderer],
   ['y sus reglas', /\.button-update|\.update-launcher-copy|\.update-launcher-version/, styles],
+
+  // ---- 0.40.0: lo que NO puede hacer el control por Telegram
+  // El token es una credencial: si acabara en `localStorage`, cualquiera con acceso al perfil del
+  // navegador del juego lo leeria en claro. Vive solo en el almacen cifrado del gestor de scripts.
+  ['el token del control por Telegram escrito en localStorage',
+    /localStorage[\s\S]{0,80}token/i, scriptControl],
+  // Y el boton de viajar no puede aceptar el aviso de Orre por su cuenta: mover una cuenta alli cambia
+  // las reglas del juego, y eso lo decide una persona con el interruptor del panel.
+  ['el viaje que acepta Orre sin permiso', /orre:\s*true/, scriptControl],
 
     // ---- 0.36.0: lo que tiene que haber desaparecido
     ['la particion compartida con el prefijo que se borra', /PARTICION_COMPARTIDA = 'persist:pokegrid-instance-compartida'/, renderer],
