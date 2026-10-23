@@ -124,5 +124,22 @@ function almacenFalso(inicial = {}) {
   assert.equal(api.debeEjecutar('x1', { id: 'x2' }), true, 'Uno distinto si.');
   assert.equal(api.debeEjecutar('x1', null), false, 'Sin comando no hay nada que ejecutar.');
 
-  console.log('Control Telegram (puro) OK: turno e idempotencia.');
+  // --- Formato del estado --------------------------------------------------
+const estadoTexto = api.formatearEstado([
+  { accountIndex: 0, trainerName: 'SHOCKVOR', location: 'Kanto · Ruta 12',
+    leader: { nombre: 'Blastoise', nivel: 85 }, at: 1000 },
+  { accountIndex: 1, trainerName: 'SHOCKOR', location: '', leader: null, at: 1000 }
+], 1000);
+assert.ok(estadoTexto.includes('SHOCKVOR'), 'Sale el entrenador.');
+assert.ok(estadoTexto.includes('Kanto · Ruta 12'), 'Sale el sitio.');
+assert.ok(estadoTexto.includes('Blastoise'), 'Sale el lider.');
+assert.ok(estadoTexto.includes('sin leer'), 'Una cuenta sin sitio se marca, no se omite.');
+const viejo = api.formatearEstado([
+  { accountIndex: 0, trainerName: 'SHOCKVOR', location: 'Kanto', leader: null, at: 0 }
+], 120_000);
+assert.ok(/2 min|hace/.test(viejo), `Un dato viejo se marca con su edad: ${viejo}`);
+assert.equal(api.formatearEstado([], 1000), 'No hay ninguna cuenta registrada todavía.',
+  'Sin cuentas se dice, no se devuelve una cadena vacia.');
+
+console.log('Control Telegram (puro) OK: turno e idempotencia.');
 })().catch((error) => { console.error(error); process.exit(1); });

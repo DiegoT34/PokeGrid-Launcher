@@ -174,6 +174,52 @@
     return String(ultimoId || '') !== String(comando.id);
   }
 
+  // --- Telegram -------------------------------------------------------------
+  function llamarTelegram(token, metodo, parametros) {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: `https://api.telegram.org/bot${token}/${metodo}`,
+        headers: { 'Content-Type': 'application/json' },
+        data: JSON.stringify(parametros || {}),
+        timeout: 35_000,
+        onload: (respuesta) => {
+          let cuerpo = null;
+          try { cuerpo = JSON.parse(respuesta.responseText || '{}'); } catch { cuerpo = null; }
+          if (!cuerpo) return resolve({ ok: false, error: 'Telegram no devolvió JSON.' });
+          if (!cuerpo.ok) return resolve({ ok: false, error: cuerpo.description || 'Telegram rechazó la petición.' });
+          resolve({ ok: true, result: cuerpo.result });
+        },
+        onerror: () => resolve({ ok: false, error: 'No se pudo conectar con Telegram.' }),
+        ontimeout: () => resolve({ ok: false, error: 'Telegram no contestó.' })
+      });
+    });
+  }
+
+  // La edad del dato se dice. Un registro de hace dos minutos es informacion; una cuenta que
+  // desaparece de la lista sin decirlo, no.
+  function edadTexto(at, ahora) {
+    const segundos = Math.max(0, Math.round((ahora - Number(at || 0)) / 1000));
+    if (segundos < 60) return '';
+    if (segundos < 3600) return ` · hace ${Math.round(segundos / 60)} min`;
+    return ` · hace ${Math.round(segundos / 3600)} h`;
+  }
+
+  function formatearEstado(registros, ahora) {
+    const lista = (Array.isArray(registros) ? registros : [])
+      .slice()
+      .sort((a, b) => Number(a.accountIndex) - Number(b.accountIndex));
+    if (!lista.length) return 'No hay ninguna cuenta registrada todavía.';
+    return lista.map((fila) => {
+      const nombre = fila.trainerName || `Cuenta ${Number(fila.accountIndex) + 1}`;
+      const sitio = fila.location || 'sin leer';
+      const lider = fila.leader && fila.leader.nombre
+        ? ` · ${fila.leader.nombre}${fila.leader.nivel ? ` Nv. ${fila.leader.nivel}` : ''}`
+        : '';
+      return `${nombre}: ${sitio}${lider}${edadTexto(fila.at, ahora)}`;
+    }).join('\n');
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -183,9 +229,9 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram };
 })();
