@@ -220,6 +220,116 @@
     }).join('\n');
   }
 
+  // --- Catalogo y viaje -----------------------------------------------------
+  //
+  // Esta secuencia es una COPIA RECORTADA de la del launcher. Se queda con lo que hace falta para
+  // viajar y nada mas: no monta los monitores flotantes ni valida Orre por su cuenta. El precio de
+  // este enfoque es que el dia que el juego cambie el mapa hay que tocar los dos sitios; se paga a
+  // gusto quedandose con lo minimo.
+  const ESPERA_MS = 12_000;
+
+  function esperar(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function esperarA(condicion, ms = ESPERA_MS) {
+    const inicio = Date.now();
+    while (Date.now() - inicio < ms) {
+      const valor = condicion();
+      if (valor) return valor;
+      await esperar(100);
+    }
+    return null;
+  }
+
+  function visible(elemento) {
+    if (!elemento || elemento.hidden) return false;
+    const estilo = getComputedStyle(elemento);
+    const caja = elemento.getBoundingClientRect();
+    return estilo.display !== 'none' && estilo.visibility !== 'hidden'
+      && caja.width > 0 && caja.height > 0;
+  }
+
+  // El catalogo sale del endpoint del propio juego, el mismo que usa el modo farmeo. No hace falta
+  // abrir el mapa ni tocar la interfaz para saber que hunts hay.
+  async function leerCatalogo() {
+    const respuesta = await fetch('/api/game/map-markers', { cache: 'no-cache' });
+    if (!respuesta.ok) throw new Error('No se pudo leer el catálogo de hunts.');
+    const datos = await respuesta.json();
+    const lista = Array.isArray(datos) ? datos : (datos?.markers || datos?.hunts || []);
+    return lista.map((fila) => ({
+      slug: String(fila.slug || fila.huntSlug || fila.id || '').trim(),
+      nombre: String(fila.name || fila.huntName || fila.label || '').trim(),
+      mapa: String(fila.map || fila.mapSlug || fila.world || '').trim(),
+      zona: String(fila.area || fila.region || fila.zone || '').trim(),
+      nivel: Number(fila.level || fila.requiredLevel || 0) || 0
+    })).filter((hunt) => hunt.slug && hunt.nombre);
+  }
+
+  async function viajarA(destino, opciones = {}) {
+    try {
+      const mapa = document.querySelector('.map-window, [data-map-window], .map-overlay');
+      if (!visible(mapa)) {
+        const botonMapa = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button')]
+          .find((boton) => /map|mapa/i.test(`${boton.dataset?.guide || ''} ${boton.textContent || ''}`));
+        if (!botonMapa) return { ok: false, mensaje: 'No encontré el botón Mapa.' };
+        botonMapa.click();
+      }
+      const ventanaMapa = await esperarA(() => {
+        const actual = document.querySelector('.map-window, [data-map-window], .map-overlay');
+        return visible(actual) ? actual : null;
+      });
+      if (!ventanaMapa) return { ok: false, mensaje: 'El mapa no abrió a tiempo.' };
+
+      const buscado = normalizarTexto(destino.slug);
+      let marcador = [...document.querySelectorAll('.hunt-marker, [data-hunt-slug], [data-teleport-slug]')]
+        .find((elemento) => normalizarTexto(elemento.dataset?.huntSlug
+          || elemento.dataset?.teleportSlug || elemento.dataset?.slug) === buscado);
+
+      if (!marcador) {
+        const buscador = document.querySelector('.map-filter-q, input[type="search"]');
+        if (buscador) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(buscador, destino.nombre); else buscador.value = destino.nombre;
+          buscador.dispatchEvent(new Event('input', { bubbles: true }));
+          marcador = await esperarA(() => [...document.querySelectorAll('.hunt-marker, [data-hunt-slug]')]
+            .find((elemento) => normalizarTexto(elemento.dataset?.huntSlug) === buscado) || null, 6000);
+        }
+      }
+      if (!marcador) return { ok: false, mensaje: `No encontré ${destino.nombre} en el mapa.` };
+
+      marcador.click();
+      const viajar = await esperarA(() => {
+        const boton = document.querySelector('.map-travel, [data-travel], .map-enter');
+        return visible(boton) ? boton : null;
+      }, 5000);
+      if (!viajar) return { ok: false, mensaje: 'Apareció el marcador pero no el botón de viajar.' };
+      viajar.dataset.pulsado = 'true';
+      viajar.click();
+
+      // El aviso de Orre se detecta pero NO se acepta solo. Aceptarlo mueve la cuenta a una zona con
+      // reglas distintas, y eso lo decide una persona con el interruptor del panel.
+      const aviso = await esperarA(() => {
+        const texto = String(document.body.textContent || '');
+        return /orre/i.test(texto) && /(deseas entrar|quieres entrar|still want to enter)/i.test(texto)
+          ? true : null;
+      }, 2000);
+      if (aviso && !opciones.orre) {
+        return { ok: false, mensaje: 'El destino es de Orre y el permiso está apagado.' };
+      }
+
+      const llegada = await esperarA(() => {
+        const sitio = String(document.querySelector('.phud-tloc')?.textContent || '');
+        return normalizarTexto(sitio).includes(normalizarTexto(destino.nombre)) ? sitio : null;
+      });
+      return llegada
+        ? { ok: true, mensaje: `En ${llegada}` }
+        : { ok: false, mensaje: 'Viajé, pero el juego no confirmó la llegada.' };
+    } catch (error) {
+      return { ok: false, mensaje: error.message || 'Falló el viaje.' };
+    }
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -229,9 +339,9 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA };
 })();

@@ -68,7 +68,41 @@ app.whenReady().then(async () => {
     assert.equal(estado.leader.hp, 120);
     assert.equal(estado.leader.maxHp, 180);
 
-    console.log('Control Telegram (navegador) OK: lector del estado.');
+    // El helper repite el patron de arriba: la excepcion se captura DENTRO y se devuelve como texto.
+    const ejecutar = async (cuerpo) => ventana.webContents.executeJavaScript(`(async () => {
+      try { return { ok: true, valor: await (${cuerpo}) }; }
+      catch (error) { return { ok: false, error: String(error && error.message ? error.message : error) }; }
+    })()`);
+
+    // --- Viaje
+    const viaje = await ejecutar(
+      `__pgControl.viajarA({ slug: 'blastoise', nombre: 'Blastoise', mapa: 'kanto' }, { orre: false })`);
+    assert.equal(viaje.ok, true, `viajarA revento: ${viaje.error}`);
+    assert.equal(viaje.valor.ok, true, `El viaje tiene que funcionar: ${viaje.valor.mensaje}`);
+    const despues = await ventana.webContents.executeJavaScript(`(() => ({
+      mapaAbierto: !document.querySelector('.map-window').hidden,
+      ubicacion: document.querySelector('.phud-tloc').textContent.trim(),
+      viajePulsado: document.querySelector('.map-travel').dataset.pulsado === 'true'
+    }))()`);
+    assert.equal(despues.mapaAbierto, true, 'El viaje abre el mapa si estaba cerrado.');
+    assert.equal(despues.viajePulsado, true, 'Y pulsa viajar.');
+
+    // --- Un destino que no esta en el mapa hasta que se busca
+    const porBuscador = await ejecutar(
+      `__pgControl.viajarA({ slug: 'onix', nombre: 'Onix' }, { orre: false })`);
+    assert.equal(porBuscador.ok, true, `viajarA revento con onix: ${porBuscador.error}`);
+    assert.equal(porBuscador.valor.ok, true,
+      `El viaje tiene que funcionar tambien buscando: ${porBuscador.valor.mensaje}`);
+
+    // --- Un destino que no existe
+    const fallo = await ejecutar(
+      `__pgControl.viajarA({ slug: 'no-existe', nombre: 'NoExiste' }, { orre: false })`);
+    assert.equal(fallo.ok, true, `viajarA revento con un destino inexistente: ${fallo.error}`);
+    assert.equal(fallo.valor.ok, false, 'Un destino que no esta en el mapa tiene que fallar.');
+    assert.ok(/no encontr/i.test(fallo.valor.mensaje),
+      `El error dice que no lo encontro: ${fallo.valor.mensaje}`);
+
+    console.log('Control Telegram (navegador) OK: lector del estado y viaje (por marcador y por buscador).');
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

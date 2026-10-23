@@ -22,6 +22,12 @@
     </div>
   </div>
   <script>
+    // Pulsar Mapa en el dock lo abre, como en el juego. Sin esto el boton no hace nada y el viaje se
+    // queda esperando un mapa que nunca aparece.
+    document.querySelector('.dock-btn[data-guide="map"]').addEventListener('click', () => {
+      document.querySelector('.map-window').hidden = false;
+    });
+
     // El juego real no pinta los 451 marcadores de golpe: los filtra al escribir en el buscador. Esta
     // pagina falsa imita eso con un marcador que SOLO existe despues de buscar «onix», que es lo que
     // hace falta para probar el camino del buscador y no solo el del marcador que ya estaba.
