@@ -169,8 +169,15 @@
   // Telegram reintenta si el acuse tarda, asi que el mismo mensaje puede llegar dos veces. Lo que evita
   // mover la cuenta dos veces no es el turno: es que cada comando lleva un id y cada pagina recuerda el
   // ultimo que ejecuto.
-  function debeEjecutar(ultimoId, comando) {
+  //
+  // Y caduca: el comando se queda en el almacen para siempre. Sin la caducidad, una pagina que se abre
+  // media hora despues se lo encuentra y viaja sola a donde ya no hace falta.
+  const VIGENCIA_COMANDO_MS = 120_000;
+
+  function debeEjecutar(ultimoId, comando, ahora = Date.now()) {
     if (!comando || !comando.id) return false;
+    const desde = Number(comando.desde || 0);
+    if (!desde || ahora - desde > VIGENCIA_COMANDO_MS || desde - ahora > 60_000) return false;
     return String(ultimoId || '') !== String(comando.id);
   }
 
@@ -211,7 +218,7 @@
       .sort((a, b) => Number(a.accountIndex) - Number(b.accountIndex));
     if (!lista.length) return 'No hay ninguna cuenta registrada todavía.';
     return lista.map((fila) => {
-      const nombre = fila.trainerName || `Cuenta ${Number(fila.accountIndex) + 1}`;
+      const nombre = fila.trainerName || fila.label || `Cuenta ${Number(fila.accountIndex) + 1}`;
       const sitio = fila.location || 'sin leer';
       const lider = fila.leader && fila.leader.nombre
         ? ` · ${fila.leader.nombre}${fila.leader.nivel ? ` Nv. ${fila.leader.nivel}` : ''}`
@@ -268,60 +275,158 @@
 
   async function viajarA(destino, opciones = {}) {
     try {
-      const mapa = document.querySelector('.map-window, [data-map-window], .map-overlay');
-      if (!visible(mapa)) {
+      // El permiso de Orre se mira ANTES de tocar el juego. Si se mirara despues, la cuenta podria
+      // haberse movido ya y el mensaje diria «permiso apagado» mintiendo.
+      const region = normalizarTexto([destino.mapa, destino.zona].filter(Boolean).join(' '));
+      const esOrre = /(^|[^a-z0-9])orre([^a-z0-9]|$)/.test(region);
+      if (esOrre && !opciones.orre) {
+        return { ok: false, mensaje: 'El destino es de Orre y el permiso está apagado.' };
+      }
+
+      // La ventana del mapa no siempre es `.map-window`: a veces es un contenedor que envuelve los
+      // marcadores. Se busca igual que en el launcher, subiendo por los padres.
+      const buscarMapa = () => {
+        const directo = [
+          '.map-window', '[data-map-window]', '[data-guide="map-window"]',
+          '.map-overlay', '.map-modal', '[class*="map-window"]'
+        ].flatMap((selector) => [...document.querySelectorAll(selector)])
+          .find((elemento) => visible(elemento));
+        if (directo) return directo;
+        // El respaldo solo vale si hay un marcador VISIBLE. Si no, cuando el mapa esta cerrado los
+        // marcadores siguen en el DOM (ocultos) y subir por los padres acaba en el contenedor de la
+        // pagina entera, que tiene botones: el codigo creeria que el mapa esta abierto y no lo
+        // abriria nunca.
+        const control = [...document.querySelectorAll(
+          '.map-viewport, .map-inner, .hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug]')]
+          .find((elemento) => visible(elemento));
+        let padre = control?.parentElement || null;
+        for (let profundidad = 0; padre && profundidad < 8; profundidad += 1, padre = padre.parentElement) {
+          if (padre === document.body) break;
+          if (visible(padre) && padre.querySelector('button, [role="button"], .hunt-marker')) return padre;
+        }
+        return null;
+      };
+
+      if (!buscarMapa()) {
         const botonMapa = [...document.querySelectorAll('.game-dock .dock-btn, .game-dock button')]
-          .find((boton) => /map|mapa/i.test(`${boton.dataset?.guide || ''} ${boton.textContent || ''}`));
+          .find((boton) => /(^| )map($| )|mapa/i.test(`${boton.dataset?.guide || ''} ${boton.textContent || ''}`));
         if (!botonMapa) return { ok: false, mensaje: 'No encontré el botón Mapa.' };
         botonMapa.click();
       }
       const ventanaMapa = await esperarA(() => {
-        const actual = document.querySelector('.map-window, [data-map-window], .map-overlay');
+        const actual = buscarMapa();
         return visible(actual) ? actual : null;
-      });
+      }, 8500);
       if (!ventanaMapa) return { ok: false, mensaje: 'El mapa no abrió a tiempo.' };
 
-      const buscado = normalizarTexto(destino.slug);
-      let marcador = [...document.querySelectorAll('.hunt-marker, [data-hunt-slug], [data-teleport-slug]')]
-        .find((elemento) => normalizarTexto(elemento.dataset?.huntSlug
-          || elemento.dataset?.teleportSlug || elemento.dataset?.slug) === buscado);
+      // El mapa tiene pestañas de region. Sin elegir la del destino, sus marcadores ni siquiera
+      // existen en el DOM y el viaje fallaria por buscar donde no esta.
+      const estaElegido = (elemento) => Boolean(
+        elemento.classList?.contains('on') || elemento.classList?.contains('active')
+        || elemento.classList?.contains('selected')
+        || elemento.getAttribute('aria-selected') === 'true'
+        || elemento.getAttribute('aria-pressed') === 'true');
+      const elegirRegion = async (valor, atributos) => {
+        const buscado = normalizarTexto(valor);
+        if (!buscado) return true;
+        const candidatos = [...document.querySelectorAll(
+          '.map-area, .map-plate, .map-tab, .map-region, [data-map], [data-map-slug], [data-world], [data-region], [data-area], [role="tab"]')]
+          .filter((elemento) => !elemento.matches(
+            '.hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug]'));
+        const control = candidatos.find((elemento) => atributos.some(
+          (atributo) => normalizarTexto(elemento.getAttribute(atributo)) === buscado)
+          || normalizarTexto(textoDe(elemento)) === buscado);
+        if (!control) return false;
+        if (!estaElegido(control)) {
+          control.click();
+          await esperar(350);
+        }
+        return true;
+      };
+      if (destino.mapa) await elegirRegion(destino.mapa, ['data-map-slug', 'data-map', 'data-world']);
+      if (destino.zona && normalizarTexto(destino.zona) !== normalizarTexto(destino.mapa)) {
+        await elegirRegion(destino.zona, ['data-area', 'data-region', 'data-zone']);
+      }
 
+      const buscado = normalizarTexto(destino.slug);
+      const encontrarMarcador = () => [...document.querySelectorAll(
+        '.hunt-marker, [data-hunt-slug], [data-teleport-slug], [data-field-teleport-slug], [data-guide^="hunt-"]')]
+        .find((elemento) => [
+          elemento.dataset?.huntSlug,
+          elemento.dataset?.teleportSlug,
+          elemento.dataset?.fieldTeleportSlug,
+          elemento.dataset?.slug,
+          (elemento.dataset?.guide || '').replace(/^hunt[-_:]/i, '')
+        ].map(normalizarTexto).filter(Boolean).includes(buscado)) || null;
+
+      let marcador = await esperarA(encontrarMarcador, 4500);
       if (!marcador) {
-        const buscador = document.querySelector('.map-filter-q, input[type="search"]');
+        const buscador = [...document.querySelectorAll(
+          '.map-filter-q, input[type="search"], input[data-map-search]')].find(visible);
         if (buscador) {
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
           if (setter) setter.call(buscador, destino.nombre); else buscador.value = destino.nombre;
           buscador.dispatchEvent(new Event('input', { bubbles: true }));
-          marcador = await esperarA(() => [...document.querySelectorAll('.hunt-marker, [data-hunt-slug]')]
-            .find((elemento) => normalizarTexto(elemento.dataset?.huntSlug) === buscado) || null, 6000);
+          buscador.dispatchEvent(new Event('change', { bubbles: true }));
+          marcador = await esperarA(encontrarMarcador, 7000);
         }
       }
       if (!marcador) return { ok: false, mensaje: `No encontré ${destino.nombre} en el mapa.` };
-
-      marcador.click();
-      const viajar = await esperarA(() => {
-        const boton = document.querySelector('.map-travel, [data-travel], .map-enter');
-        return visible(boton) ? boton : null;
-      }, 5000);
-      if (!viajar) return { ok: false, mensaje: 'Apareció el marcador pero no el botón de viajar.' };
-      viajar.dataset.pulsado = 'true';
-      viajar.click();
-
-      // El aviso de Orre se detecta pero NO se acepta solo. Aceptarlo mueve la cuenta a una zona con
-      // reglas distintas, y eso lo decide una persona con el interruptor del panel.
-      const aviso = await esperarA(() => {
-        const texto = String(document.body.textContent || '');
-        return /orre/i.test(texto) && /(deseas entrar|quieres entrar|still want to enter)/i.test(texto)
-          ? true : null;
-      }, 2000);
-      if (aviso && !opciones.orre) {
-        return { ok: false, mensaje: 'El destino es de Orre y el permiso está apagado.' };
+      if (marcador.classList.contains('no') || marcador.disabled) {
+        return { ok: false, mensaje: `${destino.nombre} todavía está bloqueado para esta cuenta.` };
       }
 
-      const llegada = await esperarA(() => {
-        const sitio = String(document.querySelector('.phud-tloc')?.textContent || '');
-        return normalizarTexto(sitio).includes(normalizarTexto(destino.nombre)) ? sitio : null;
-      });
+      // La llegada se comprueba contra el HUD. Vale el nombre o el slug. Y si el HUD nombra una
+      // region, tiene que ser la del destino: sin eso, «Blastoise» de Kanto coincidiria con el de
+      // Orre y el viaje se daria por hecho sin haberse movido.
+      const REGIONES = ['kanto', 'johto', 'hoenn', 'sinnoh', 'teselia', 'unova', 'kalos', 'alola', 'galar', 'paldea', 'orre'];
+      const textoUbicacion = () => textoDe(document.querySelector(
+        '.phud-tloc, .pg-player-meta, [data-current-hunt], [data-current-location]'));
+      const ubicacionCoincide = () => {
+        const descriptor = normalizarTexto(textoUbicacion());
+        if (!descriptor) return false;
+        const mapa = normalizarTexto(destino.mapa);
+        const mencionadas = REGIONES.filter((nombreRegion) => descriptor.includes(nombreRegion));
+        if (mapa && mencionadas.length && !mencionadas.includes(mapa)) return false;
+        return descriptor.includes(normalizarTexto(destino.nombre)) || descriptor.includes(buscado);
+      };
+
+      // Ya estar alli no es un fallo: es lo que el usuario pidio. Se cierra el mapa y se dice.
+      if (marcador.classList.contains('here') || ubicacionCoincide()) {
+        const cerrar = buscarMapa()?.querySelector(
+          '.cfg-x, [data-action="close"], [aria-label*="cerrar" i], [aria-label*="close" i]');
+        cerrar?.click();
+        return { ok: true, mensaje: `Ya estabas en ${destino.nombre}.` };
+      }
+
+      // Pulsar el marcador ES el viaje. No hay boton de viajar aparte: si se esperara uno, el viaje
+      // no ocurriria nunca.
+      marcador.click();
+
+      // El aviso de Orre solo se acepta con permiso. Se corta en cuanto el mapa se cierra o la
+      // ubicacion ya coincide, para no esperar 6,5 s en cada viaje a Orre sin aviso.
+      if (esOrre && opciones.orre) {
+        const aviso = await esperarA(() => {
+          if (!buscarMapa() || ubicacionCoincide()) return { saltado: true };
+          const texto = String(document.body.textContent || '');
+          if (!/(still want to enter|deseas entrar|quieres entrar|aun asi|tms de aoe)/i.test(texto)) return null;
+          const si = [...document.querySelectorAll('button, [role="button"]')]
+            .filter(visible)
+            .find((boton) => /^(si|sí|yes|confirm|confirmar|aceptar|entrar)$/i.test(textoDe(boton)));
+          if (!si) return null;
+          si.click();
+          return { confirmado: true };
+        }, 6500);
+        if (aviso && !aviso.confirmado && !aviso.saltado) {
+          return { ok: false, mensaje: 'Salió el aviso de Orre pero no encontré cómo confirmarlo.' };
+        }
+      }
+
+      const iniciado = await esperarA(() => ubicacionCoincide() || !buscarMapa(), 9000);
+      if (!iniciado) {
+        return { ok: false, mensaje: 'El viaje no se inició. Revisa el nivel y que el Pokémon líder tenga vida.' };
+      }
+      const llegada = await esperarA(() => (ubicacionCoincide() ? textoUbicacion() : null), 15_000);
       return llegada
         ? { ok: true, mensaje: `En ${llegada}` }
         : { ok: false, mensaje: 'Viajé, pero el juego no confirmó la llegada.' };
@@ -360,6 +465,33 @@
     });
   }
 
+  // El registro se refresca solo cuando cambia algo, y ademas con un latido cada 5 minutos.
+  //
+  // Escribir cada 5 s seria un chorro de escrituras: cada `GM_setSharedValue` serializa y cifra el
+  // almacen ENTERO y lo escribe en disco, y son cuatro paginas. Con el cambio detectado, viajar se
+  // refleja en la siguiente vuelta (1,5 s) y una cuenta quieta escribe una vez cada 5 minutos, que
+  // basta para que la edad de `/estado` distinga una cuenta viva de una cerrada.
+  const REGISTRO_CAMBIO_MS = 1500;
+  const REGISTRO_LATIDO_MS = 300_000;
+  let ultimoRegistro = 0;
+  let ultimaFirma = '';
+
+  function firmaDelEstado(estado) {
+    return JSON.stringify([estado.ready, estado.trainerName, estado.location, estado.level, estado.leader]);
+  }
+
+  async function registrarSiToca(ahora) {
+    const momento = Number(ahora) || Date.now();
+    if (momento - ultimoRegistro < REGISTRO_CAMBIO_MS) return false;
+    const estado = leerEstadoPagina();
+    const firma = firmaDelEstado(estado);
+    if (firma === ultimaFirma && momento - ultimoRegistro < REGISTRO_LATIDO_MS) return false;
+    ultimoRegistro = momento;
+    ultimaFirma = firma;
+    await registrar();
+    return true;
+  }
+
   async function registros() {
     const indice = await almacen.leer(CLAVES.indice, []);
     const filas = [];
@@ -391,6 +523,13 @@
   // manda juntas. Si una no contesta en 40 s se dice «sin respuesta» en vez de callarse: una cuenta
   // cerrada y una que fallo son cosas distintas, y el silencio no distingue entre las dos.
   async function informarResultados(config, chatId, comandoId, esperados) {
+    // Sin cuentas, el texto seria vacio y Telegram rechaza un mensaje vacio. Se dice lo que pasa.
+    if (!esperados.length) {
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId, text: 'No hay ninguna cuenta registrada todavía.'
+      });
+      return;
+    }
     const inicio = Date.now();
     const lineas = new Map();
     const limite = 40_000;
@@ -540,14 +679,22 @@
   async function bucle() {
     const config = normalizarConfig(await almacen.leer(CLAVES.config, null));
     if (!config.token || !config.autorizados.length) return;
-    await mantenerIndice();
-    await registrar();
     let offset = Number(await almacen.leer(CLAVES.offset, 0)) || 0;
     let proximaRenovacion = 0;
+    let proximoIndice = 0;
 
     while (true) {
       try {
         const ahora = Date.now();
+        // El indice se reescribe cada 30 s: si dos paginas arrancan a la vez, una puede perder la
+        // carrera al apuntarse y quedarse fuera de /estado para siempre. Reintentarlo lo cura.
+        if (ahora >= proximoIndice) {
+          await mantenerIndice();
+          proximoIndice = ahora + 30_000;
+        }
+        // Y el registro se refresca solo cuando toca, para que `/estado` no cuente la hunt del
+        // arranque toda la tarde.
+        await registrarSiToca(ahora);
         if (turnoPropio && ahora >= proximaRenovacion) {
           await almacen.escribir(CLAVES.turno, { pageId: PAGE_ID, hasta: ahora + TURNO_MS });
           proximaRenovacion = ahora + TURNO_RENOVAR_MS;
@@ -661,11 +808,11 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca };
 
   // Arranca solo si hay configuracion. `bucle` lo comprueba y se queda quieto si falta el token o los
   // ids, asi que no hace falta preguntarlo dos veces aqui.

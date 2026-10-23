@@ -15,49 +15,116 @@
     </div>
     <div class="map-window" hidden>
       <input class="map-filter-q" type="search" aria-label="Buscar">
-      <button class="map-area" data-map-slug="kanto" aria-selected="true">Kanto</button>
-      <button class="hunt-marker" data-hunt-slug="blastoise">Blastoise</button>
-      <button class="hunt-marker" data-hunt-slug="charizard">Charizard</button>
-      <button class="map-travel" data-travel="blastoise" hidden>Viajar</button>
+      <div class="map-maps">
+        <button class="map-area" data-map-slug="kanto" aria-selected="true">Kanto</button>
+        <button class="map-area" data-map-slug="orre" aria-selected="false">Orre</button>
+      </div>
+      <div class="map-markers"></div>
+      <div class="map-dialog" hidden>
+        <p>Necesitas los TMs de AoE. ¿Aun asi deseas entrar?</p>
+        <button class="map-dialog-si" type="button">Si</button>
+        <button class="map-dialog-no" type="button">No</button>
+      </div>
     </div>
   </div>
   <script>
-    // Pulsar Mapa en el dock lo abre, como en el juego. Sin esto el boton no hace nada y el viaje se
-    // queda esperando un mapa que nunca aparece.
-    document.querySelector('.dock-btn[data-guide="map"]').addEventListener('click', () => {
-      document.querySelector('.map-window').hidden = false;
-    });
+    // Esta pagina imita el juego en lo que importa para el viaje, y en particular en algo que la
+    // primera version de la prueba se invento: NO hay boton de viajar. Se pulsa el marcador y el
+    // viaje ocurre. Si la prueba tuviera un boton que el juego no tiene, estaria aprobando una
+    // fantasia y el viaje real fallaria siempre.
+    const ventana = document.querySelector('.map-window');
+    const marcadores = document.querySelector('.map-markers');
+    const ubicacion = document.querySelector('.phud-tloc');
+    const dialogo = document.querySelector('.map-dialog');
 
-    // El juego real no pinta los 451 marcadores de golpe: los filtra al escribir en el buscador. Esta
-    // pagina falsa imita eso con un marcador que SOLO existe despues de buscar «onix», que es lo que
-    // hace falta para probar el camino del buscador y no solo el del marcador que ya estaba.
-    document.querySelector('.map-filter-q').addEventListener('input', (evento) => {
-      const valor = String(evento.target.value || '').toLowerCase();
-      if (valor.includes('onix') && !document.querySelector('[data-hunt-slug="onix"]')) {
+    const HUNTS = {
+      kanto: [
+        { slug: 'blastoise', nombre: 'Blastoise', bloqueado: false },
+        { slug: 'charizard', nombre: 'Charizard', bloqueado: false },
+        { slug: 'mewtwo', nombre: 'Mewtwo', bloqueado: true }
+      ],
+      orre: [
+        { slug: 'blastoise-orre', nombre: 'Blastoise', bloqueado: false, orre: true }
+      ]
+    };
+    let mapaElegido = 'kanto';
+    let busqueda = '';
+    let destinoPendiente = null;
+
+    function pintar() {
+      marcadores.innerHTML = '';
+      for (const hunt of HUNTS[mapaElegido] || []) {
+        if (busqueda && !hunt.nombre.toLowerCase().includes(busqueda)) continue;
         const marcador = document.createElement('button');
-        marcador.className = 'hunt-marker';
-        marcador.dataset.huntSlug = 'onix';
-        marcador.textContent = 'Onix';
-        document.querySelector('.map-window').insertBefore(
-          marcador, document.querySelector('.map-travel'));
+        marcador.className = 'hunt-marker' + (hunt.bloqueado ? ' no' : '');
+        marcador.dataset.huntSlug = hunt.slug;
+        marcador.textContent = hunt.nombre;
+        if (hunt.bloqueado) marcador.disabled = true;
+        marcador.dataset.orre = hunt.orre ? 'true' : '';
+        marcadores.append(marcador);
       }
+    }
+
+    function viajarA(nombre, mapa) {
+      ubicacion.textContent = `${mapa === 'orre' ? 'Orre' : 'Kanto'} · ${nombre}`;
+      ventana.hidden = true;
+      dialogo.hidden = true;
+      destinoPendiente = null;
+    }
+
+    // Pulsar Mapa en el dock lo abre, como en el juego.
+    document.querySelector('.dock-btn[data-guide="map"]').addEventListener('click', () => {
+      ventana.hidden = false;
+      pintar();
     });
 
-    // Y pulsar un marcador descubre el boton de viajar, como en el juego. Sin esto, el boton de viajar
-    // no aparece nunca y el viaje falla siempre por el mismo sitio.
-    document.querySelector('.map-window').addEventListener('click', (evento) => {
+    // El buscador filtra. «Onix» solo aparece al escribir, para probar el camino del buscador y no
+    // solo el del marcador que ya estaba pintado.
+    document.querySelector('.map-filter-q').addEventListener('input', (evento) => {
+      busqueda = String(evento.target.value || '').toLowerCase();
+      if (busqueda.includes('onix') && !HUNTS.kanto.some((h) => h.slug === 'onix')) {
+        HUNTS.kanto.push({ slug: 'onix', nombre: 'Onix', bloqueado: false });
+      }
+      pintar();
+    });
+
+    // Elegir mapa cambia los marcadores. Sin esto, el viaje a Orre encontraria el marcador de Kanto
+    // o ninguno, y el paso de seleccionar mapa no se probaria.
+    document.querySelector('.map-maps').addEventListener('click', (evento) => {
+      const boton = evento.target.closest('.map-area');
+      if (!boton) return;
+      mapaElegido = boton.dataset.mapSlug;
+      for (const otro of document.querySelectorAll('.map-area')) {
+        otro.setAttribute('aria-selected', String(otro === boton));
+      }
+      pintar();
+    });
+
+    // Pulsar un marcador viaja. En Orre, antes sale el aviso.
+    marcadores.addEventListener('click', (evento) => {
       const marcador = evento.target.closest('.hunt-marker');
-      if (!marcador) return;
-      const viajar = document.querySelector('.map-travel');
-      viajar.dataset.travel = marcador.dataset.huntSlug;
-      viajar.hidden = false;
+      if (!marcador || marcador.disabled) return;
+      const hunt = (HUNTS[mapaElegido] || []).find((h) => h.slug === marcador.dataset.huntSlug);
+      if (!hunt) return;
+      if (hunt.orre) {
+        destinoPendiente = hunt;
+        dialogo.hidden = false;
+        return;
+      }
+      viajarA(hunt.nombre, mapaElegido);
     });
 
-    // Y viajar mueve la ubicacion, que es lo que el script espera para confirmar la llegada.
-    document.querySelector('.map-travel').addEventListener('click', () => {
-      document.querySelector('.phud-tloc').textContent =
-        `Kanto · ${document.querySelector('.map-travel').dataset.travel}`;
+    // El aviso se acepta o se cancela. El script del control solo pulsa «Si» cuando el interruptor
+    // de Orre esta encendido.
+    document.querySelector('.map-dialog-si').addEventListener('click', () => {
+      if (destinoPendiente) viajarA(destinoPendiente.nombre, 'orre');
     });
+    document.querySelector('.map-dialog-no').addEventListener('click', () => {
+      destinoPendiente = null;
+      dialogo.hidden = true;
+    });
+
+    pintar();
   </script>
 </body>
 </html>

@@ -114,8 +114,10 @@ const QUE_SI = [
       /@grant\s+GM_xmlhttpRequest[\s\S]{0,200}@grant\s+PokeGrid_sharedStorage/, scriptControl],
     ['y solo habla con api.telegram.org',
       /@connect\s+api\.telegram\.org/, scriptControl],
-    ['el viaje no acepta Orre por su cuenta',
-      /aviso && !opciones\.orre/, scriptControl],
+    ['el viaje rechaza Orre antes de tocar el juego',
+      /esOrre && !opciones\.orre/, scriptControl],
+    ['y solo confirma el aviso con el permiso encendido',
+      /esOrre && opciones\.orre/, scriptControl],
 
     // ---- el gestor de perfiles
     ['el gestor de perfiles tiene su modal', /id="perfilesBackdrop"/, html],

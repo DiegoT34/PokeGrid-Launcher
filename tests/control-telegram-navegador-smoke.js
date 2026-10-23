@@ -51,13 +51,19 @@ app.whenReady().then(async () => {
     })()`);
     await ventana.webContents.executeJavaScript(script);
 
-    // El `try/catch` va DENTRO del codigo inyectado. Electron convierte cualquier excepcion en
-    // «Script failed to execute» y no dice cual fue: fuera del codigo, el motivo real se pierde y solo
-    // se ve que «algo» fallo.
-    const leido = await ventana.webContents.executeJavaScript(`(() => {
-      try { return { ok: true, valor: __pgControl.leerEstadoPagina() }; }
+    // El helper captura la excepcion DENTRO del codigo inyectado: Electron convierte cualquier
+    // excepcion en «Script failed to execute» y fuera se pierde el motivo real.
+    const ejecutar = async (cuerpo) => ventana.webContents.executeJavaScript(`(async () => {
+      try { return { ok: true, valor: await (${cuerpo}) }; }
       catch (error) { return { ok: false, error: String(error && error.message ? error.message : error) }; }
     })()`);
+    const leerDom = async (cuerpo) => ventana.webContents.executeJavaScript(`(() => {
+      try { return { ok: true, valor: (${cuerpo}) }; }
+      catch (error) { return { ok: false, error: String(error && error.message ? error.message : error) }; }
+    })()`);
+
+    // --- Lector del estado
+    const leido = await ejecutar('__pgControl.leerEstadoPagina()');
     assert.equal(leido.ok, true, `El lector fallo: ${leido.error}`);
     const estado = leido.valor;
     assert.equal(estado.ready, true, 'La pagina esta dentro del juego.');
@@ -68,42 +74,76 @@ app.whenReady().then(async () => {
     assert.equal(estado.leader.hp, 120);
     assert.equal(estado.leader.maxHp, 180);
 
-    // El helper repite el patron de arriba: la excepcion se captura DENTRO y se devuelve como texto.
-    const ejecutar = async (cuerpo) => ventana.webContents.executeJavaScript(`(async () => {
-      try { return { ok: true, valor: await (${cuerpo}) }; }
-      catch (error) { return { ok: false, error: String(error && error.message ? error.message : error) }; }
-    })()`);
-
-    // --- Viaje
+    // --- Viaje a Kanto pulsando el marcador
     const viaje = await ejecutar(
       `__pgControl.viajarA({ slug: 'blastoise', nombre: 'Blastoise', mapa: 'kanto' }, { orre: false })`);
     assert.equal(viaje.ok, true, `viajarA revento: ${viaje.error}`);
     assert.equal(viaje.valor.ok, true, `El viaje tiene que funcionar: ${viaje.valor.mensaje}`);
-    const despues = await ventana.webContents.executeJavaScript(`(() => ({
+    const trasViaje = await leerDom(`({
       mapaAbierto: !document.querySelector('.map-window').hidden,
+      ubicacion: document.querySelector('.phud-tloc').textContent.trim()
+    })`);
+    assert.equal(trasViaje.valor.mapaAbierto, false, 'El viaje cierra el mapa al llegar.');
+    assert.match(trasViaje.valor.ubicacion, /Blastoise/, 'La ubicacion cambia de verdad.');
+
+    // --- Ya estabas en esa hunt: no es un error
+    const repetido = await ejecutar(
+      `__pgControl.viajarA({ slug: 'blastoise', nombre: 'Blastoise', mapa: 'kanto' }, { orre: false })`);
+    assert.equal(repetido.valor.ok, true, `Estar ya alli no es un fallo: ${repetido.valor.mensaje}`);
+    assert.match(repetido.valor.mensaje, /ya estabas/i);
+
+    // --- Hunt bloqueada: se dice, no se pulsa
+    const bloqueado = await ejecutar(
+      `__pgControl.viajarA({ slug: 'mewtwo', nombre: 'Mewtwo', mapa: 'kanto' }, { orre: false })`);
+    assert.equal(bloqueado.valor.ok, false, 'Una hunt bloqueada no puede viajar.');
+    assert.match(bloqueado.valor.mensaje, /bloquead/i, `El error lo dice: ${bloqueado.valor.mensaje}`);
+
+    // --- Orre con el permiso apagado: se rechaza ANTES de tocar el juego
+    const orreApagado = await ejecutar(
+      `__pgControl.viajarA({ slug: 'blastoise-orre', nombre: 'Blastoise', mapa: 'orre' }, { orre: false })`);
+    assert.equal(orreApagado.valor.ok, false, 'Orre sin permiso no puede viajar.');
+    assert.match(orreApagado.valor.mensaje, /orre|permiso/i,
+      `El error dice por que: ${orreApagado.valor.mensaje}`);
+    const trasRechazo = await leerDom(`({
       ubicacion: document.querySelector('.phud-tloc').textContent.trim(),
-      viajePulsado: document.querySelector('.map-travel').dataset.pulsado === 'true'
-    }))()`);
-    assert.equal(despues.mapaAbierto, true, 'El viaje abre el mapa si estaba cerrado.');
-    assert.equal(despues.viajePulsado, true, 'Y pulsa viajar.');
+      avisoVisible: !document.querySelector('.map-dialog').hidden
+    })`);
+    assert.match(trasRechazo.valor.ubicacion, /Blastoise/,
+      'La cuenta no se movio: el rechazo es antes de pulsar.');
+    assert.equal(trasRechazo.valor.avisoVisible, false,
+      'Ni siquiera se abre el aviso de Orre si el permiso esta apagado.');
+
+    // --- Orre con permiso: sale el aviso y se acepta
+    const orreEncendido = await ejecutar(
+      `__pgControl.viajarA({ slug: 'blastoise-orre', nombre: 'Blastoise', mapa: 'orre' }, { orre: true })`);
+    assert.equal(orreEncendido.valor.ok, true,
+      `Con permiso tiene que viajar: ${orreEncendido.valor.mensaje}`);
+    const trasOrre = await leerDom(`({
+      ubicacion: document.querySelector('.phud-tloc').textContent.trim(),
+      avisoVisible: !document.querySelector('.map-dialog').hidden
+    })`);
+    assert.match(trasOrre.valor.ubicacion, /Orre/i, 'La cuenta esta en Orre.');
+    assert.equal(trasOrre.valor.avisoVisible, false, 'El aviso se cierra al aceptar.');
 
     // --- Un destino que no esta en el mapa hasta que se busca
     const porBuscador = await ejecutar(
-      `__pgControl.viajarA({ slug: 'onix', nombre: 'Onix' }, { orre: false })`);
+      `__pgControl.viajarA({ slug: 'onix', nombre: 'Onix', mapa: 'kanto' }, { orre: false })`);
     assert.equal(porBuscador.ok, true, `viajarA revento con onix: ${porBuscador.error}`);
     assert.equal(porBuscador.valor.ok, true,
-      `El viaje tiene que funcionar tambien buscando: ${porBuscador.valor.mensaje}`);
+      `Tiene que viajar tambien buscando: ${porBuscador.valor.mensaje}`);
+    const trasOnix = await leerDom(`document.querySelector('.phud-tloc').textContent.trim()`);
+    assert.match(trasOnix.valor, /Onix/, 'Y llega a Onix.');
 
     // --- Un destino que no existe
     const fallo = await ejecutar(
-      `__pgControl.viajarA({ slug: 'no-existe', nombre: 'NoExiste' }, { orre: false })`);
+      `__pgControl.viajarA({ slug: 'no-existe', nombre: 'NoExiste', mapa: 'kanto' }, { orre: false })`);
     assert.equal(fallo.ok, true, `viajarA revento con un destino inexistente: ${fallo.error}`);
     assert.equal(fallo.valor.ok, false, 'Un destino que no esta en el mapa tiene que fallar.');
-    assert.ok(/no encontr/i.test(fallo.valor.mensaje),
+    assert.match(fallo.valor.mensaje, /no encontr/i,
       `El error dice que no lo encontro: ${fallo.valor.mensaje}`);
 
     // --- Panel de configuracion
-    const panel = await ejecutar(`(() => {
+    const panel = await leerDom(`(() => {
       const abrir = document.querySelector('.pgc-boton');
       const caja = document.querySelector('.pgc-panel');
       return { hayBoton: Boolean(abrir), hayPanel: Boolean(caja), ocultoAlEmpezar: caja ? caja.hidden : null };
@@ -123,7 +163,7 @@ app.whenReady().then(async () => {
     })()`);
     assert.equal(malo.ok, true, `Guardar con token malo revento: ${malo.error}`);
     assert.equal(malo.valor.guardado, null, 'Un token con mala forma no puede guardarse.');
-    assert.ok(/formato/i.test(malo.valor.aviso), `Tiene que avisar del formato: ${malo.valor.aviso}`);
+    assert.match(malo.valor.aviso, /formato/i, `Tiene que avisar del formato: ${malo.valor.aviso}`);
 
     // Uno bueno si, y queda guardado con sus ids.
     const bueno = await ejecutar(`(async () => {
@@ -140,7 +180,30 @@ app.whenReady().then(async () => {
     assert.deepEqual(Array.from(bueno.valor.autorizados), ['111', '222']);
     assert.equal(bueno.valor.orre, true);
 
-    console.log('Control Telegram (navegador) OK: lector, viaje (marcador y buscador) y panel de configuracion.');
+    // --- El registro se refresca (si no, `/estado` mentiria para siempre)
+    const refresco = await ejecutar(`(async () => {
+      document.querySelector('.phud-tloc').textContent = 'Kanto · Charizard';
+      const primera = await __pgControl.registrarSiToca(10000);
+      const segunda = await __pgControl.registrarSiToca(12000);
+      const tercera = await __pgControl.registrarSiToca(400000);
+      document.querySelector('.phud-tloc').textContent = 'Kanto · Onix';
+      const cuarta = await __pgControl.registrarSiToca(410000);
+      return {
+        primera, segunda, tercera, cuarta,
+        fila: __almacen['pgc:registro:' + __pgControl.PAGE_ID] || null
+      };
+    })()`);
+    assert.equal(refresco.ok, true, `Refrescar el registro revento: ${refresco.error}`);
+    assert.equal(refresco.valor.primera, true, 'Un cambio de ubicacion se escribe.');
+    assert.equal(refresco.valor.segunda, false,
+      'Sin cambios y sin pasar el latido no se escribe: es lo que evita el chorro de escrituras.');
+    assert.equal(refresco.valor.tercera, true,
+      'Pasado el latido se reescribe, para que la edad de /estado distinga una cuenta viva.');
+    assert.equal(refresco.valor.cuarta, true, 'Y un cambio nuevo se escribe sin esperar al latido.');
+    assert.equal(refresco.valor.fila.location, 'Kanto · Onix',
+      'El registro tiene que recoger la ubicacion nueva, no la del arranque.');
+
+    console.log('Control Telegram (navegador) OK: lector, viaje (marcador, buscador, ya alli, bloqueada, Orre), panel y refresco del registro.');
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

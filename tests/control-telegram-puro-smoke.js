@@ -128,10 +128,17 @@ function almacenFalso(inicial = {}) {
     'La que ya lo tiene puede renovarlo aunque no haya caducado.');
 
   // --- Idempotencia
-  assert.equal(api.debeEjecutar('', { id: 'x1' }), true, 'Un comando nuevo se ejecuta.');
-  assert.equal(api.debeEjecutar('x1', { id: 'x1' }), false, 'El mismo comando no se repite.');
-  assert.equal(api.debeEjecutar('x1', { id: 'x2' }), true, 'Uno distinto si.');
-  assert.equal(api.debeEjecutar('x1', null), false, 'Sin comando no hay nada que ejecutar.');
+  const AHORA = 1_000_000;
+  assert.equal(api.debeEjecutar('', { id: 'x1', desde: AHORA - 1000 }, AHORA), true,
+    'Un comando nuevo se ejecuta.');
+  assert.equal(api.debeEjecutar('x1', { id: 'x1', desde: AHORA - 1000 }, AHORA), false,
+    'El mismo comando no se repite.');
+  assert.equal(api.debeEjecutar('x1', { id: 'x2', desde: AHORA - 1000 }, AHORA), true, 'Uno distinto si.');
+  assert.equal(api.debeEjecutar('x1', null, AHORA), false, 'Sin comando no hay nada que ejecutar.');
+  assert.equal(api.debeEjecutar('', { id: 'x3', desde: AHORA - 200_000 }, AHORA), false,
+    'Un comando viejo no se ejecuta: una pagina abierta tarde viajaria sola.');
+  assert.equal(api.debeEjecutar('', { id: 'x4' }, AHORA), false,
+    'Un comando sin fecha no se ejecuta: no hay forma de saber si sigue valiendo.');
 
   // --- Formato del estado --------------------------------------------------
 const estadoTexto = api.formatearEstado([
@@ -143,6 +150,10 @@ assert.ok(estadoTexto.includes('SHOCKVOR'), 'Sale el entrenador.');
 assert.ok(estadoTexto.includes('Kanto · Ruta 12'), 'Sale el sitio.');
 assert.ok(estadoTexto.includes('Blastoise'), 'Sale el lider.');
 assert.ok(estadoTexto.includes('sin leer'), 'Una cuenta sin sitio se marca, no se omite.');
+assert.ok(api.formatearEstado([
+  { accountIndex: 2, label: 'SHOCKOR', location: 'Kanto', leader: null, at: 1000 }
+], 1000).includes('SHOCKOR'),
+  'Sin nombre de entrenador se usa la etiqueta de la cuenta, que para eso esta.');
 const viejo = api.formatearEstado([
   { accountIndex: 0, trainerName: 'SHOCKVOR', location: 'Kanto', leader: null, at: 0 }
 ], 120_000);
