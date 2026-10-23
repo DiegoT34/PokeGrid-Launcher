@@ -56,7 +56,7 @@ y pega el mismo token.
 2. Busca **PokeGrid Telegram Control** en la lista. Se instala solo, pero **desactivado**: márcalo y
    elige las cuatro cuentas, como con cualquier script.
 3. Recarga las sesiones.
-4. Dentro de cualquiera de las cuentas, pulsa el botón redondo con el icono **✈** (abajo a la izquierda).
+4. Dentro de cualquiera de las cuentas, pulsa el botón redondo **TG** (abajo a la izquierda).
 5. Pega el token y pulsa **Guardar**.
 6. Escríbele `/estado` al bot. Te contestará **«No autorizado»** con tu id de Telegram: cópialo.
 7. Pégalo en **IDS AUTORIZADOS** y pulsa **Guardar**.

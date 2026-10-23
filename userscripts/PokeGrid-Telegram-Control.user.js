@@ -547,7 +547,7 @@
       const fila = lineas.get(pageId);
       const nombre = nombres.get(pageId) || 'Cuenta';
       if (!fila) return `${nombre}: sin respuesta (¿cuenta cerrada?)`;
-      return `${nombre}: ${fila.ok ? '✓' : '✗'} ${fila.mensaje}`;
+      return `${nombre}: ${fila.ok ? '[ok]' : '[fallo]'} ${fila.mensaje}`;
     }).join('\n');
     await llamarTelegram(config.token, 'sendMessage', { chat_id: chatId, text: texto });
     for (const pageId of esperados) await almacen.borrar(CLAVES.resultado(comandoId, pageId));
@@ -775,7 +775,7 @@
     const botonAbrir = document.createElement('button');
     botonAbrir.type = 'button';
     botonAbrir.className = 'pgc-boton';
-    botonAbrir.textContent = '✈';
+    botonAbrir.textContent = 'TG';
     botonAbrir.title = 'Control por Telegram';
 
     const panel = document.createElement('div');
