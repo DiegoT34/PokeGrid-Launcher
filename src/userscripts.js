@@ -275,7 +275,7 @@
   async function updateBundledTelegramScript(rows) {
     const existing = rows.find((script) => script.namespace === 'pokegrid.telegram-alerts');
     if (!existing) return rows;
-    const bundled = await window.pokeGrid.loadBundledTelegramAlerts();
+    const bundled = await window.pokeGrid.loadBundledUserScript('PokeGrid-Telegram-Alerts.user.js');
     if (!bundled.ok || !bundled.code) return rows;
     const bundledVersion = parseMetadata(bundled.code).version?.[0] || '0';
     if (compareVersions(bundledVersion, existing.version) <= 0) return rows;

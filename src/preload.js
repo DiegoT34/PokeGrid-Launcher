@@ -78,7 +78,7 @@ contextBridge.exposeInMainWorld('pokeGrid', {
   deleteUserScript: (id) => ipcRenderer.invoke('userscripts:delete', id),
   importUserScriptFile: () => ipcRenderer.invoke('userscripts:import-file'),
   exportUserScriptFile: (value) => ipcRenderer.invoke('userscripts:export-file', value),
-  loadBundledTelegramAlerts: () => ipcRenderer.invoke('userscripts:bundled-telegram'),
+  loadBundledUserScript: (name) => ipcRenderer.invoke('userscripts:bundled-script', name),
   fetchUserScriptUrl: (url) => ipcRenderer.invoke('userscripts:fetch-url', url),
   loadScriptShop: (refresh = false) => ipcRenderer.invoke('userscripts:shop-catalog', Boolean(refresh)),
   installScriptShopItem: (value) => ipcRenderer.invoke('userscripts:shop-install', value),

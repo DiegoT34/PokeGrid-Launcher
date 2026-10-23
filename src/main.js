@@ -2557,18 +2557,27 @@ ipcMain.handle('userscripts:export-file', async (event, value) => {
     return { ok: false, error: error.message };
   }
 });
-ipcMain.handle('userscripts:bundled-telegram', (event) => {
+// Los scripts que viajan dentro del launcher. La lista es blanca y no un directorio: el canal recibe un
+// NOMBRE, y sin la lista un nombre con `..` leeria cualquier fichero del disco. Se declara junto al
+// manejador para que anadir un script obligue a tocar aqui.
+const BUNDLED_SCRIPT_NAMES = new Set([
+  'PokeGrid-Telegram-Alerts.user.js',
+  'PokeGrid-Telegram-Control.user.js'
+]);
+ipcMain.handle('userscripts:bundled-script', (event, rawName) => {
   const rechazo = mainWindowSenderRefusal(event);
   if (rechazo) return rechazo;
   try {
-    const filename = 'PokeGrid-Telegram-Alerts.user.js';
-    const file = path.join(bundledUserScriptsPath(), filename);
-    if (!fs.existsSync(file)) throw new Error('No se encontró el módulo de alertas Telegram.');
-    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El módulo supera 10 MB.');
+    const name = path.basename(String(rawName || ''));
+    if (!BUNDLED_SCRIPT_NAMES.has(name)) throw new Error('Ese script no va incluido en el launcher.');
+    const file = path.join(bundledUserScriptsPath(), name);
+    if (!fs.existsSync(file)) throw new Error('No se encontró el script incluido.');
+    if (fs.statSync(file).size > USER_SCRIPT_CODE_LIMIT) throw new Error('El script supera 10 MB.');
     return {
       ok: true,
+      name,
       code: fs.readFileSync(file, 'utf8'),
-      sourceUrl: `pokegrid-bundled://${filename}`
+      sourceUrl: `pokegrid-bundled://${name}`
     };
   } catch (error) {
     return { ok: false, error: error.message };

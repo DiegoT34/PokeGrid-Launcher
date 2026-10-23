@@ -43,7 +43,7 @@ const UI_CHANNELS = [
   'userscripts:delete',
   'userscripts:import-file',
   'userscripts:export-file',
-  'userscripts:bundled-telegram',
+  'userscripts:bundled-script',
   'userscripts:fetch-url',
   'userscripts:shop-catalog',
   'userscripts:shop-install',
@@ -237,6 +237,15 @@ for (const nombre of ['getUserScriptSharedValue', 'setUserScriptSharedValue', 'd
   assert.match(cuerpo[0], /authorizeUserScriptRuntime\(event, scriptId, 'PokeGrid_sharedStorage'\)/,
     `${nombre} tiene que autorizarse antes de tocar el almacenamiento compartido.`);
 }
+
+// El canal de scripts incluidos recibe un NOMBRE. Si aceptara una ruta, un script podria leer cualquier
+// fichero del disco con solo llamarlo; por eso hay lista blanca.
+assert.match(mainSource, /const BUNDLED_SCRIPT_NAMES = new Set\(\[/,
+  'El canal de scripts incluidos tiene que validar el nombre contra una lista blanca.');
+assert.match(mainSource, /if \(!BUNDLED_SCRIPT_NAMES\.has\(name\)\)/,
+  'Y tiene que rechazar lo que no este en la lista.');
+assert.doesNotMatch(mainSource, /'userscripts:bundled-telegram'/,
+  'El canal viejo se sustituye, no se duplica.');
 
 console.log(
   `IPC sender guard smoke passed: ${UI_CHANNELS.length} canales de UI con guard, ` +
