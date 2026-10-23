@@ -571,6 +571,17 @@
       });
       return;
     }
+    if (accion === 'ayuda' || accion === 'help') {
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId,
+        text: [
+          '/estado — en qué hunt está cada cuenta',
+          '/ir blastoise — buscar una hunt y elegir a quién',
+          '/ayuda — esta lista'
+        ].join('\n')
+      });
+      return;
+    }
     if (accion === 'ir') {
       if (!argumento) {
         await llamarTelegram(config.token, 'sendMessage', {
@@ -603,6 +614,15 @@
             boton(`${hunt.nombre} · ${hunt.mapa || '—'} · Nv.${hunt.nivel || '?'}`, `h:${corto}:${indice}`)
           ])
         }
+      });
+      return;
+    }
+
+    // Un comando mal escrito no se queda en silencio: parece que el bot esta caido. El texto suelto
+    // sin barra si se ignora, para no responder a cada mensaje de un grupo.
+    if (accion) {
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId, text: 'No conozco ese comando. Prueba con /ayuda.'
       });
     }
   }
@@ -808,11 +828,11 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback };
 
   // Arranca solo si hay configuracion. `bucle` lo comprueba y se queda quieto si falta el token o los
   // ids, asi que no hace falta preguntarlo dos veces aqui.
