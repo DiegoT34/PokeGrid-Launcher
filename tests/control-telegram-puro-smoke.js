@@ -91,3 +91,38 @@ igual(api.parsearCallback('a:abc123:2:todas'),
   'El mismo boton siempre da lo mismo.');
 
 console.log('Control Telegram (puro) OK: comandos, busqueda, configuracion, seguridad y botones.');
+
+// --- Turno ---------------------------------------------------------------
+function almacenFalso(inicial = {}) {
+  const datos = { ...inicial };
+  return {
+    datos,
+    leer: async (k, d) => (k in datos ? datos[k] : d),
+    escribir: async (k, v) => { datos[k] = v; },
+    borrar: async (k) => { delete datos[k]; }
+  };
+}
+
+(async () => {
+  const primero = almacenFalso();
+  assert.equal(await api.intentarTurno(primero, 'pagina-a', 1000), true,
+    'Sin turno, la primera pagina lo coge.');
+  assert.equal(await api.intentarTurno(almacenFalso(primero.datos), 'pagina-b', 1000), false,
+    'Con el turno vivo, la segunda no lo coge.');
+
+  const caducado = almacenFalso({ [api.CLAVES.turno]: { pageId: 'pagina-a', hasta: 500 } });
+  assert.equal(await api.intentarTurno(caducado, 'pagina-b', 1000), true,
+    'Un turno caducado lo puede coger otra pagina.');
+
+  const propio = almacenFalso({ [api.CLAVES.turno]: { pageId: 'pagina-a', hasta: 5000 } });
+  assert.equal(await api.intentarTurno(propio, 'pagina-a', 1000), true,
+    'La que ya lo tiene puede renovarlo aunque no haya caducado.');
+
+  // --- Idempotencia
+  assert.equal(api.debeEjecutar('', { id: 'x1' }), true, 'Un comando nuevo se ejecuta.');
+  assert.equal(api.debeEjecutar('x1', { id: 'x1' }), false, 'El mismo comando no se repite.');
+  assert.equal(api.debeEjecutar('x1', { id: 'x2' }), true, 'Uno distinto si.');
+  assert.equal(api.debeEjecutar('x1', null), false, 'Sin comando no hay nada que ejecutar.');
+
+  console.log('Control Telegram (puro) OK: turno e idempotencia.');
+})().catch((error) => { console.error(error); process.exit(1); });

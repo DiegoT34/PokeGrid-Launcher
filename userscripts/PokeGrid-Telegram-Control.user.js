@@ -139,6 +139,41 @@
     };
   }
 
+  // --- Turno y comandos ------------------------------------------------------
+  //
+  // El turno no es la garantia de correccion —eso lo hace el id del comando—, es lo que evita que las
+  // cuatro paginas pidan mensajes a la vez y se coman un 409. Por eso se puede robar cuando caduca sin
+  // miedo: como mucho habra dos pidiendo un momento, y la que pierda se aparta.
+  const CLAVES = Object.freeze({
+    config: 'pgc:config',
+    turno: 'pgc:turno',
+    comando: 'pgc:comando',
+    catalogo: 'pgc:catalogo',
+    indice: 'pgc:indice',
+    offset: 'pgc:offset',
+    registro: (pageId) => `pgc:registro:${pageId}`,
+    resultado: (id, pageId) => `pgc:resultado:${id}:${pageId}`,
+    pendiente: (corto) => `pgc:pendiente:${corto}`
+  });
+
+  const TURNO_MS = 15_000;
+  const TURNO_RENOVAR_MS = 10_000;
+
+  async function intentarTurno(almacen, pageId, ahora) {
+    const actual = await almacen.leer(CLAVES.turno, null);
+    if (actual && actual.pageId !== pageId && Number(actual.hasta) > ahora) return false;
+    await almacen.escribir(CLAVES.turno, { pageId, hasta: ahora + TURNO_MS });
+    return true;
+  }
+
+  // Telegram reintenta si el acuse tarda, asi que el mismo mensaje puede llegar dos veces. Lo que evita
+  // mover la cuenta dos veces no es el turno: es que cada comando lleva un id y cada pagina recuerda el
+  // ultimo que ejecuto.
+  function debeEjecutar(ultimoId, comando) {
+    if (!comando || !comando.id) return false;
+    return String(ultimoId || '') !== String(comando.id);
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -148,9 +183,9 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar };
 })();
