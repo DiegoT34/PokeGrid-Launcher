@@ -590,6 +590,68 @@
     }
   }
 
+  // --- Panel de configuracion -----------------------------------------------
+  function montarPanel() {
+    GM_addStyle(`
+      .pgc-boton { position: fixed; left: 10px; bottom: 10px; z-index: 2147483000;
+        width: 30px; height: 30px; border-radius: 50%; border: 1px solid #4a6fa5;
+        background: #101827; color: #cfe4ff; font-size: 14px; cursor: pointer; }
+      .pgc-panel { position: fixed; left: 10px; bottom: 48px; z-index: 2147483001;
+        width: 300px; padding: 12px; border-radius: 10px; border: 1px solid #4a6fa5;
+        background: #0d1622; color: #e6eef7; font: 12px/1.4 system-ui; display: grid; gap: 8px; }
+      .pgc-panel[hidden] { display: none; }
+      .pgc-panel input { width: 100%; padding: 6px; border-radius: 6px;
+        border: 1px solid #2b3f54; background: #071019; color: #e6eef7; }
+      .pgc-panel label { display: grid; gap: 3px; font-size: 10px; letter-spacing: .08em; }
+      .pgc-estado { color: #8fa6ba; font-size: 10px; }
+    `);
+    const botonAbrir = document.createElement('button');
+    botonAbrir.type = 'button';
+    botonAbrir.className = 'pgc-boton';
+    botonAbrir.textContent = '✈';
+    botonAbrir.title = 'Control por Telegram';
+
+    const panel = document.createElement('div');
+    panel.className = 'pgc-panel';
+    panel.hidden = true;
+    panel.innerHTML = `
+      <label>TOKEN DE BOTFATHER<input data-campo="token" type="password" autocomplete="off"></label>
+      <label>IDS AUTORIZADOS (separados por comas)<input data-campo="autorizados" type="text"></label>
+      <label><span><input data-campo="orre" type="checkbox"> Permitir viajar a Orre</span></label>
+      <button data-accion="guardar" type="button">Guardar</button>
+      <span class="pgc-estado"></span>`;
+
+    document.body.append(botonAbrir, panel);
+    botonAbrir.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+
+    const campo = (nombre) => panel.querySelector(`[data-campo="${nombre}"]`);
+    const estado = panel.querySelector('.pgc-estado');
+
+    (async () => {
+      const config = normalizarConfig(await almacen.leer(CLAVES.config, null));
+      campo('token').value = config.token;
+      campo('autorizados').value = config.autorizados.join(', ');
+      campo('orre').checked = config.orre;
+    })();
+
+    panel.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
+      const token = campo('token').value.trim();
+      if (token && !/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
+        estado.textContent = 'El token no tiene el formato de BotFather.';
+        return;
+      }
+      const config = normalizarConfig({
+        token,
+        autorizados: campo('autorizados').value.split(','),
+        orre: campo('orre').checked
+      });
+      await almacen.escribir(CLAVES.config, config);
+      estado.textContent = config.token && config.autorizados.length
+        ? 'Guardado. Recarga las cuentas para que arranque.'
+        : 'Guardado, pero falta el token o los ids.';
+    });
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -607,5 +669,6 @@
 
   // Arranca solo si hay configuracion. `bucle` lo comprueba y se queda quieto si falta el token o los
   // ids, asi que no hace falta preguntarlo dos veces aqui.
+  montarPanel();
   bucle().catch(() => {});
 })();

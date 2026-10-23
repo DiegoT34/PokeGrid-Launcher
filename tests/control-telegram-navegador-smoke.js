@@ -102,7 +102,45 @@ app.whenReady().then(async () => {
     assert.ok(/no encontr/i.test(fallo.valor.mensaje),
       `El error dice que no lo encontro: ${fallo.valor.mensaje}`);
 
-    console.log('Control Telegram (navegador) OK: lector del estado y viaje (por marcador y por buscador).');
+    // --- Panel de configuracion
+    const panel = await ejecutar(`(() => {
+      const abrir = document.querySelector('.pgc-boton');
+      const caja = document.querySelector('.pgc-panel');
+      return { hayBoton: Boolean(abrir), hayPanel: Boolean(caja), ocultoAlEmpezar: caja ? caja.hidden : null };
+    })()`);
+    assert.equal(panel.ok, true, `El panel revento: ${panel.error}`);
+    assert.equal(panel.valor.hayBoton, true, 'Tiene que haber un boton para abrir el panel.');
+    assert.equal(panel.valor.hayPanel, true, 'Y el panel.');
+    assert.equal(panel.valor.ocultoAlEmpezar, true, 'El panel empieza cerrado, que si no estorba.');
+
+    // Un token con mala forma no se guarda y se avisa.
+    const malo = await ejecutar(`(async () => {
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-campo="token"]').value = 'no-es-un-token';
+      panel.querySelector('[data-accion="guardar"]').click();
+      await new Promise((r) => setTimeout(r, 50));
+      return { guardado: __almacen['pgc:config'] || null, aviso: panel.querySelector('.pgc-estado').textContent };
+    })()`);
+    assert.equal(malo.ok, true, `Guardar con token malo revento: ${malo.error}`);
+    assert.equal(malo.valor.guardado, null, 'Un token con mala forma no puede guardarse.');
+    assert.ok(/formato/i.test(malo.valor.aviso), `Tiene que avisar del formato: ${malo.valor.aviso}`);
+
+    // Uno bueno si, y queda guardado con sus ids.
+    const bueno = await ejecutar(`(async () => {
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-campo="token"]').value = '123456:ABCDEFGHIJKLMNOPQRSTUVWX';
+      panel.querySelector('[data-campo="autorizados"]').value = '111, 222';
+      panel.querySelector('[data-campo="orre"]').checked = true;
+      panel.querySelector('[data-accion="guardar"]').click();
+      await new Promise((r) => setTimeout(r, 100));
+      return __almacen['pgc:config'] || null;
+    })()`);
+    assert.equal(bueno.ok, true, `Guardar revento: ${bueno.error}`);
+    assert.equal(bueno.valor.token, '123456:ABCDEFGHIJKLMNOPQRSTUVWX');
+    assert.deepEqual(Array.from(bueno.valor.autorizados), ['111', '222']);
+    assert.equal(bueno.valor.orre, true);
+
+    console.log('Control Telegram (navegador) OK: lector, viaje (marcador y buscador) y panel de configuracion.');
   } catch (error) {
     console.error(error);
     process.exitCode = 1;
