@@ -330,6 +330,266 @@
     }
   }
 
+  // --- Estado compartido y bucle --------------------------------------------
+  const almacen = {
+    leer: (clave, porDefecto) => GM_getSharedValue(clave, porDefecto),
+    escribir: (clave, valor) => GM_setSharedValue(clave, valor),
+    borrar: (clave) => GM_deleteSharedValue(clave)
+  };
+
+  const PAGE_ID = (globalThis.crypto?.randomUUID?.() || `p-${Date.now()}-${Math.random()}`).slice(0, 36);
+  let ultimoIdEjecutado = GM_getValue('ultimoId', '');
+  let turnoPropio = false;
+
+  // El almacen no sabe listar claves, asi que se guarda un indice de paginas. Sin el, `/estado` no
+  // tendria forma de saber que cuentas hay.
+  async function mantenerIndice() {
+    const indice = await almacen.leer(CLAVES.indice, []);
+    if (indice.includes(PAGE_ID)) return;
+    await almacen.escribir(CLAVES.indice, [...indice, PAGE_ID]);
+  }
+
+  async function registrar() {
+    const estado = leerEstadoPagina();
+    await almacen.escribir(CLAVES.registro(PAGE_ID), {
+      pageId: PAGE_ID,
+      accountIndex: Number(GM_info?.script?.account?.index ?? -1),
+      label: String(GM_info?.script?.account?.label || ''),
+      ...estado,
+      at: Date.now()
+    });
+  }
+
+  async function registros() {
+    const indice = await almacen.leer(CLAVES.indice, []);
+    const filas = [];
+    for (const pageId of indice) {
+      const fila = await almacen.leer(CLAVES.registro(pageId), null);
+      if (fila) filas.push(fila);
+    }
+    return filas;
+  }
+
+  function boton(texto, dato) {
+    return { text: texto, callback_data: dato };
+  }
+
+  async function emitirComando(config, accion, destino, cuentas) {
+    const comando = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      accion,
+      destino,
+      cuentas,
+      desde: Date.now()
+    };
+    await almacen.escribir(CLAVES.comando, comando);
+    return comando;
+  }
+
+  // El resultado de un viaje tarda: hay que abrir el mapa, buscar, viajar y esperar la llegada. El bot
+  // promete avisar cuando acabe, asi que esta funcion espera a que cada cuenta escriba su linea y las
+  // manda juntas. Si una no contesta en 40 s se dice «sin respuesta» en vez de callarse: una cuenta
+  // cerrada y una que fallo son cosas distintas, y el silencio no distingue entre las dos.
+  async function informarResultados(config, chatId, comandoId, esperados) {
+    const inicio = Date.now();
+    const lineas = new Map();
+    const limite = 40_000;
+    while (Date.now() - inicio < limite) {
+      for (const pageId of esperados) {
+        if (lineas.has(pageId)) continue;
+        const fila = await almacen.leer(CLAVES.resultado(comandoId, pageId), null);
+        if (fila) lineas.set(pageId, fila);
+      }
+      if (lineas.size >= esperados.length) break;
+      await esperar(1000);
+    }
+    const nombres = new Map((await registros()).map((fila) => [fila.pageId, fila.trainerName || 'Cuenta']));
+    const texto = esperados.map((pageId) => {
+      const fila = lineas.get(pageId);
+      const nombre = nombres.get(pageId) || 'Cuenta';
+      if (!fila) return `${nombre}: sin respuesta (¿cuenta cerrada?)`;
+      return `${nombre}: ${fila.ok ? '✓' : '✗'} ${fila.mensaje}`;
+    }).join('\n');
+    await llamarTelegram(config.token, 'sendMessage', { chat_id: chatId, text: texto });
+    for (const pageId of esperados) await almacen.borrar(CLAVES.resultado(comandoId, pageId));
+  }
+
+  async function atenderMensaje(config, mensaje) {
+    if (!autorizado(config, mensaje.from?.id)) {
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: mensaje.chat.id,
+        text: `No autorizado.\nTu id de Telegram es ${mensaje.from?.id}.`
+      });
+      return;
+    }
+    const { accion, argumento } = parsearComando(mensaje.text);
+    const chatId = mensaje.chat.id;
+    if (accion === 'estado' || accion === 'start') {
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId,
+        text: formatearEstado(await registros(), Date.now()),
+        reply_markup: { inline_keyboard: [[boton('Actualizar', 'a:estado')]] }
+      });
+      return;
+    }
+    if (accion === 'ir') {
+      if (!argumento) {
+        await llamarTelegram(config.token, 'sendMessage', {
+          chat_id: chatId, text: 'Dime a qué hunt: /ir blastoise'
+        });
+        return;
+      }
+      let catalogo = await almacen.leer(CLAVES.catalogo, null);
+      if (!catalogo) {
+        catalogo = await leerCatalogo();
+        await almacen.escribir(CLAVES.catalogo, catalogo);
+      }
+      const encontrados = buscarHunts(catalogo, argumento);
+      if (!encontrados.length) {
+        await llamarTelegram(config.token, 'sendMessage', {
+          chat_id: chatId, text: `No encontré ninguna hunt que se parezca a «${argumento}».`
+        });
+        return;
+      }
+      // La lista se guarda ENTERA, no solo el primero: el boton de cada coincidencia lleva su indice
+      // y sin la lista no habria a que indice apuntar.
+      const corto = Math.random().toString(36).slice(2, 10);
+      await almacen.escribir(CLAVES.pendiente(corto), { hunts: encontrados, creadoEn: Date.now() });
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId,
+        text: '¿A qué hunt las mando?',
+        // Un boton por fila. Seis etiquetas largas en la misma fila no se leen en un movil.
+        reply_markup: {
+          inline_keyboard: encontrados.slice(0, 6).map((hunt, indice) => [
+            boton(`${hunt.nombre} · ${hunt.mapa || '—'} · Nv.${hunt.nivel || '?'}`, `h:${corto}:${indice}`)
+          ])
+        }
+      });
+    }
+  }
+
+  // Los botones.
+  //
+  // Se contesta SIEMPRE al callback, aunque sea para rechazarlo: si no se contesta, el boton se queda
+  // girando en el movil y parece que el bot esta muerto. Y el rechazo no dice nada del estado de las
+  // cuentas: un desconocido no puede sacar informacion pulsando.
+  async function atenderCallback(config, consulta) {
+    const contestar = (texto) => llamarTelegram(config.token, 'answerCallbackQuery', {
+      callback_query_id: consulta.id, text: texto
+    });
+    if (!autorizado(config, consulta.from?.id)) {
+      await contestar('No autorizado.');
+      return;
+    }
+    const chatId = consulta.message?.chat?.id;
+    const elegido = parsearCallback(consulta.data);
+
+    if (elegido.tipo === 'estado') {
+      await contestar('Actualizando…');
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId, text: formatearEstado(await registros(), Date.now())
+      });
+      return;
+    }
+
+    if (elegido.tipo === 'elegirCuenta') {
+      const pendiente = await almacen.leer(CLAVES.pendiente(elegido.corto), null);
+      const hunt = pendiente?.hunts?.[elegido.indice];
+      if (!hunt) { await contestar('Esa lista caducó. Vuelve a escribir /ir.'); return; }
+      const filas = await registros();
+      await contestar('Elige a quién.');
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId,
+        text: `${hunt.nombre} · ${hunt.mapa || '—'} · Nv.${hunt.nivel || '?'}\n¿A quién la mando?`,
+        reply_markup: {
+          inline_keyboard: [
+            [boton('Las 4', `a:${elegido.corto}:${elegido.indice}:todas`)],
+            ...filas.map((fila) => [
+              boton(fila.trainerName || 'Cuenta', `a:${elegido.corto}:${elegido.indice}:${fila.pageId}`)
+            ])
+          ]
+        }
+      });
+      return;
+    }
+
+    // Este es el segundo toque: elegir el destino es la confirmacion de mover las cuatro.
+    if (elegido.tipo === 'viajar') {
+      const pendiente = await almacen.leer(CLAVES.pendiente(elegido.corto), null);
+      const hunt = pendiente?.hunts?.[elegido.indice];
+      if (!hunt) { await contestar('Esa lista caducó. Vuelve a escribir /ir.'); return; }
+      const comando = await emitirComando(config, 'ir', hunt, elegido.destino);
+      await contestar('Enviado.');
+      await llamarTelegram(config.token, 'sendMessage', {
+        chat_id: chatId,
+        text: `Viajando a ${hunt.nombre}. Te digo el resultado en unos segundos.`
+      });
+      await almacen.borrar(CLAVES.pendiente(elegido.corto));
+      // Sin `await`: el bucle tiene que seguir contestando mientras los viajes ocurren. Si se esperara
+      // aqui, el bot dejaria de responder 40 segundos y pareceria caido.
+      const esperados = elegido.destino === 'todas'
+        ? (await registros()).map((fila) => fila.pageId)
+        : [elegido.destino];
+      informarResultados(config, chatId, comando.id, esperados).catch(() => {});
+      return;
+    }
+
+    await contestar('No entendí ese botón.');
+  }
+
+  async function bucle() {
+    const config = normalizarConfig(await almacen.leer(CLAVES.config, null));
+    if (!config.token || !config.autorizados.length) return;
+    await mantenerIndice();
+    await registrar();
+    let offset = Number(await almacen.leer(CLAVES.offset, 0)) || 0;
+    let proximaRenovacion = 0;
+
+    while (true) {
+      try {
+        const ahora = Date.now();
+        if (turnoPropio && ahora >= proximaRenovacion) {
+          await almacen.escribir(CLAVES.turno, { pageId: PAGE_ID, hasta: ahora + TURNO_MS });
+          proximaRenovacion = ahora + TURNO_RENOVAR_MS;
+        } else if (!turnoPropio) {
+          turnoPropio = await intentarTurno(almacen, PAGE_ID, ahora);
+          proximaRenovacion = ahora + TURNO_RENOVAR_MS;
+        }
+
+        // Obedecer: cualquier pagina, tenga turno o no.
+        const comando = await almacen.leer(CLAVES.comando, null);
+        if (debeEjecutar(ultimoIdEjecutado, comando)
+            && (comando.cuentas === 'todas' || comando.cuentas === PAGE_ID)) {
+          ultimoIdEjecutado = comando.id;
+          GM_setValue('ultimoId', ultimoIdEjecutado);
+          const resultado = comando.accion === 'ir'
+            ? await viajarA(comando.destino, { orre: config.orre })
+            : { ok: false, mensaje: 'Comando desconocido.' };
+          await almacen.escribir(CLAVES.resultado(comando.id, PAGE_ID), {
+            ...resultado, at: Date.now()
+          });
+        }
+
+        if (turnoPropio) {
+          const respuesta = await llamarTelegram(config.token, 'getUpdates', {
+            offset, timeout: 25, allowed_updates: ['message', 'callback_query']
+          });
+          if (!respuesta.ok) { turnoPropio = false; await esperar(5000); continue; }
+          for (const actualizacion of respuesta.result || []) {
+            offset = Math.max(offset, Number(actualizacion.update_id) + 1);
+            await almacen.escribir(CLAVES.offset, offset);
+            if (actualizacion.message) await atenderMensaje(config, actualizacion.message);
+            if (actualizacion.callback_query) await atenderCallback(config, actualizacion.callback_query);
+          }
+        } else {
+          await esperar(1500);
+        }
+      } catch (error) {
+        await esperar(3000);
+      }
+    }
+  }
+
   // --- Para las pruebas -----------------------------------------------------
   //
   // Sin `document` no hay pagina que decorar: el script solo tiene que dejar sus funciones puras a
@@ -344,4 +604,8 @@
   }
 
   globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA };
+
+  // Arranca solo si hay configuracion. `bucle` lo comprueba y se queda quieto si falta el token o los
+  // ids, asi que no hace falta preguntarlo dos veces aqui.
+  bucle().catch(() => {});
 })();

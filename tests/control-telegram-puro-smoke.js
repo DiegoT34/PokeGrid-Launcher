@@ -15,7 +15,16 @@ function cargar() {
     console,
     setTimeout,
     clearTimeout,
-    crypto: { randomUUID: () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }
+    crypto: { randomUUID: () => 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' },
+    // El script llama a GM_getValue al cargar para recordar el ultimo comando ejecutado. En la pagina
+    // real ese permiso existe; aqui hay que darlo, o el script muere al definirse.
+    GM_getValue: (clave, porDefecto) => porDefecto,
+    GM_setValue: () => {},
+    GM_getSharedValue: async (clave, porDefecto) => porDefecto,
+    GM_setSharedValue: async () => {},
+    GM_deleteSharedValue: async () => {},
+    GM_addStyle: () => {},
+    GM_xmlhttpRequest: () => {}
   });
   vm.runInContext(codigo, contexto, { filename: 'control-telegram.user.js' });
   return contexto.__pgControl;
