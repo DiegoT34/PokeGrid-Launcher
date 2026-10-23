@@ -29,7 +29,7 @@
   const REQUIRED_SCRIPT_ELEMENTS = [
     '#scriptsButton', '#hamburgerAvisoDotShop', '#hamburgerAvisoDotNotas', '#hamburgerAvisoDotActualizador', '#scriptsMenuBadge', '#scriptsBackdrop',
     // `#installTelegramAlertsButton` se quito en la 0.34.0. No hacia falta: `loadScripts` ya instala
-    // el modulo oficial en cada arranque (`updateBundledTelegramScript`), asi que el boton era una
+    // el modulo oficial en cada arranque (`sincronizarScriptsIncluidos`), asi que el boton era una
     // segunda puerta a lo mismo. El modulo sigue instalandose solo, que es lo que importa.
     '#closeScriptsButton', '#newScriptButton', '#importScriptButton',
     '#scriptUrlForm', '#scriptUrlInput', '#scriptDropZone', '#scriptsList', '#scriptCount',
@@ -272,21 +272,45 @@
     return { matches: normalizedMatches, primary, customGames, external };
   }
 
-  async function updateBundledTelegramScript(rows) {
-    const existing = rows.find((script) => script.namespace === 'pokegrid.telegram-alerts');
-    if (!existing) return rows;
-    const bundled = await window.pokeGrid.loadBundledUserScript('PokeGrid-Telegram-Alerts.user.js');
-    if (!bundled.ok || !bundled.code) return rows;
-    const bundledVersion = parseMetadata(bundled.code).version?.[0] || '0';
-    if (compareVersions(bundledVersion, existing.version) <= 0) return rows;
-    const result = await window.pokeGrid.saveUserScript({
-      id: existing.id,
-      code: bundled.code,
-      enabled: existing.enabled,
-      accounts: existing.accounts,
-      sourceUrl: bundled.sourceUrl
-    });
-    return result.ok ? (result.scripts || rows) : rows;
+  // Los scripts que van dentro del launcher y se mantienen solos.
+  //
+  // Antes esto solo ACTUALIZABA uno que ya existiera, asi que un script incluido que el usuario nunca
+  // habia instalado no aparecia nunca, y el comentario que decia «se instala en cada arranque» mentia.
+  // Ahora, si falta, se instala DESACTIVADO: aparece en la lista y el usuario decide en que cuentas.
+  async function sincronizarScriptsIncluidos(rows) {
+    const incluidos = [
+      'PokeGrid-Telegram-Alerts.user.js',
+      'PokeGrid-Telegram-Control.user.js'
+    ];
+    let lista = rows.slice();
+    for (const nombre of incluidos) {
+      const cargado = await window.pokeGrid.loadBundledUserScript(nombre);
+      if (!cargado.ok || !cargado.code) continue;
+      const meta = parseMetadata(cargado.code);
+      const version = meta.version?.[0] || '0';
+      const namespace = meta.namespace?.[0] || '';
+      const existente = lista.find((script) => script.namespace === namespace);
+      if (existente) {
+        if (compareVersions(version, existente.version) <= 0) continue;
+        const resultado = await window.pokeGrid.saveUserScript({
+          id: existente.id,
+          code: cargado.code,
+          enabled: existente.enabled,
+          accounts: existente.accounts,
+          sourceUrl: cargado.sourceUrl
+        });
+        if (resultado.ok) lista = resultado.scripts || lista;
+        continue;
+      }
+      const resultado = await window.pokeGrid.saveUserScript({
+        code: cargado.code,
+        enabled: false,
+        accounts: [],
+        sourceUrl: cargado.sourceUrl
+      });
+      if (resultado.ok) lista = resultado.scripts || lista;
+    }
+    return lista;
   }
 
   function currentAccountSelection(container = accountToggles) {
@@ -1089,7 +1113,7 @@ function renderScriptShopCategories(categories) {
       setMessage(result.error || 'No se pudieron leer los scripts.');
       scripts = [];
     } else {
-      scripts = await updateBundledTelegramScript(result.scripts || []);
+      scripts = await sincronizarScriptsIncluidos(result.scripts || []);
       const diagnosticPattern = String(window.pokeGrid.diagnosticDisabledScriptPattern || '').trim().toLowerCase();
       if (diagnosticPattern) {
         scripts = scripts.map((script) => String(script.name || '').toLowerCase().includes(diagnosticPattern)
@@ -1297,7 +1321,7 @@ function renderScriptShopCategories(categories) {
 
   // `importBundledTelegramAlerts` se quito en la 0.34.0, junto con el boton que la llamaba: abria el
   // editor con el modulo oficial preseleccionado para que lo instalaras a mano, y ya no habia quien la
-  // llamara. El modulo se sigue instalando solo al arrancar, en `updateBundledTelegramScript`.
+  // llamara. El modulo se sigue instalando solo al arrancar, en `sincronizarScriptsIncluidos`.
 
   async function fetchRemoteScript(event) {
     event.preventDefault();
