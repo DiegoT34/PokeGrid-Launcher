@@ -147,12 +147,18 @@ app.whenReady().then(async () => {
     // verdad —quien puede ejecutar, que se contesta, que botones salen— sin salir a internet.
     await ventana.webContents.executeJavaScript(`(() => {
       globalThis.__telegramEnviados = [];
+      globalThis.__telegramFalla = false;
       globalThis.GM_xmlhttpRequest = (opciones) => {
         const metodo = String(opciones.url || '').split('/').pop();
         let datos = {};
         try { datos = JSON.parse(opciones.data || '{}'); } catch { datos = {}; }
         __telegramEnviados.push({ metodo, datos });
-        opciones.onload?.({ responseText: JSON.stringify({ ok: true, result: metodo === 'getUpdates' ? [] : true }) });
+        if (metodo === 'getMe' && __telegramFalla) {
+          opciones.onload?.({ responseText: JSON.stringify({ ok: false, description: 'Unauthorized' }) });
+          return;
+        }
+        const result = metodo === 'getUpdates' ? [] : metodo === 'getMe' ? { username: 'HunterPokeBot' } : true;
+        opciones.onload?.({ responseText: JSON.stringify({ ok: true, result }) });
       };
       return true;
     })()`);
@@ -294,6 +300,68 @@ app.whenReady().then(async () => {
     assert.match(sinIds.valor.aviso, /\/estado/,
       `Sin ids hay que decir que escriba /estado para obtener el suyo: ${sinIds.valor.aviso}`);
 
+    // --- Boton de prueba del bot
+    const probar = await ejecutar(`(async () => {
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-campo="token"]').value = '123456:ABCDEFGHIJKLMNOPQRSTUVWX';
+      panel.querySelector('[data-accion="probar"]').click();
+      await new Promise((r) => setTimeout(r, 150));
+      return {
+        aviso: panel.querySelector('.pgc-estado').textContent,
+        metodos: __telegramEnviados.map((envio) => envio.metodo)
+      };
+    })()`);
+    assert.equal(probar.ok, true, `Probar bot revento: ${probar.error}`);
+    assert.match(probar.valor.aviso, /@HunterPokeBot/,
+      `La prueba tiene que decir que bot respondio: ${probar.valor.aviso}`);
+    assert.ok(probar.valor.metodos.includes('getMe'), 'El boton de prueba llama a getMe.');
+
+    const probarMalo = await ejecutar(`(async () => {
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-campo="token"]').value = 'no-es-un-token';
+      panel.querySelector('[data-accion="probar"]').click();
+      await new Promise((r) => setTimeout(r, 50));
+      const aviso = panel.querySelector('.pgc-estado').textContent;
+      panel.querySelector('[data-campo="token"]').value = '123456:ABCDEFGHIJKLMNOPQRSTUVWX';
+      return aviso;
+    })()`);
+    assert.match(probarMalo.valor, /formato/i,
+      `Con un token malo no se llama a Telegram: ${probarMalo.valor}`);
+
+    const probarFallo = await ejecutar(`(async () => {
+      globalThis.__telegramFalla = true;
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-accion="probar"]').click();
+      await new Promise((r) => setTimeout(r, 150));
+      globalThis.__telegramFalla = false;
+      return panel.querySelector('.pgc-estado').textContent;
+    })()`);
+    assert.match(probarFallo.valor, /Unauthorized/,
+      `El fallo de Telegram se ensena: ${probarFallo.valor}`);
+
+    // --- La configuracion es comun: al abrir el panel se relee
+    // Otra cuenta escribe en el almacen. Este panel estaba cerrado con lo viejo; al abrirlo tiene
+    // que mostrar lo nuevo, que es lo que hace que las cuatro cuentas compartan la configuracion.
+    const compartido = await ejecutar(`(async () => {
+      __almacen['pgc:config'] = {
+        token: '999999:ZZZZZZZZZZZZZZZZZZZZZZZ', autorizados: ['333'], orre: true
+      };
+      const panel = document.querySelector('.pgc-panel');
+      panel.hidden = true;
+      document.querySelector('.pgc-boton').click();
+      await new Promise((r) => setTimeout(r, 100));
+      return {
+        token: panel.querySelector('[data-campo="token"]').value,
+        ids: panel.querySelector('[data-campo="autorizados"]').value,
+        orre: panel.querySelector('[data-campo="orre"]').checked
+      };
+    })()`);
+    assert.equal(compartido.ok, true, `Releer la configuracion revento: ${compartido.error}`);
+    assert.equal(compartido.valor.token, '999999:ZZZZZZZZZZZZZZZZZZZZZZZ',
+      'Al abrir el panel tiene que traer el token guardado por otra cuenta.');
+    assert.equal(compartido.valor.ids, '333', 'Y sus ids.');
+    assert.equal(compartido.valor.orre, true, 'Y el permiso de Orre.');
+
     // --- El registro se refresca (si no, `/estado` mentiria para siempre)
     const refresco = await ejecutar(`(async () => {
       const base = Date.now() + 60000;
@@ -318,7 +386,7 @@ app.whenReady().then(async () => {
     assert.equal(refresco.valor.fila.location, 'Kanto · Onix',
       'El registro tiene que recoger la ubicacion nueva, no la del arranque.');
 
-    console.log('Control Telegram (navegador) OK: lector, viaje (marcador, buscador, ya alli, bloqueada, Orre), mensajes, botones, panel y refresco del registro.');
+    console.log('Control Telegram (navegador) OK: lector, viaje (marcador, buscador, ya alli, bloqueada, Orre), mensajes, botones, panel, probar bot, configuracion compartida y refresco del registro.');
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

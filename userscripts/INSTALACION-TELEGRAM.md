@@ -57,11 +57,15 @@ y pega el mismo token.
    elige las cuatro cuentas, como con cualquier script.
 3. Recarga las sesiones.
 4. Dentro de cualquiera de las cuentas, pulsa el botón redondo **TG** (abajo a la izquierda).
-5. Pega el token y pulsa **Guardar**.
+5. Pega el token y pulsa **Probar bot**. Si contesta con el nombre del bot, pulsa **Guardar**.
 6. Escríbele `/estado` al bot. Te contestará **«No autorizado»** con tu id de Telegram: cópialo.
 7. Pégalo en **IDS AUTORIZADOS** y pulsa **Guardar**.
 8. Espera unos segundos: el bot recoge la configuración solo, sin recargar. Envía `/estado` y debe
    contestar con las cuatro cuentas.
+
+La configuración es **una sola para las cuatro cuentas**. En cuanto guardas en una, las demás la
+tienen al abrir su panel TG, sin repetir el token ni los ids. El bot también la recoge solo en unos
+segundos, sin reiniciar nada.
 
 ## Comandos
 
@@ -82,6 +86,10 @@ Para mover **las cuatro**, elige la hunt y luego **Las 4**. El segundo toque es 
 - **Una cuenta cerrada no se mueve**, y el bot lo dice: «sin respuesta (¿cuenta cerrada?)».
 - El token se guarda **cifrado** con la protección de Windows, en el almacén del gestor de scripts.
   Nunca se escribe en el `localStorage` de la página.
+- **Probar bot** comprueba el token que hay escrito en el panel, esté guardado o no. Si dice
+  «Unauthorized», el token no vale o lo has revocado en BotFather.
+- Si el panel avisa de que no pudo guardar, reinicia el launcher y vuelve a intentarlo: el almacén
+  compartido necesita el puente de scripts de esta versión.
 
 ## Seguridad
 

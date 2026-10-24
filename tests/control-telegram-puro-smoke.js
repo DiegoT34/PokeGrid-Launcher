@@ -9,7 +9,7 @@ const raiz = path.join(__dirname, '..');
 const codigo = fs.readFileSync(
   path.join(raiz, 'userscripts', 'PokeGrid-Telegram-Control.user.js'), 'utf8');
 
-function cargar() {
+function cargar(extra = {}) {
   const contexto = vm.createContext({
     __PG_CONTROL_TEST__: true,
     console,
@@ -24,7 +24,8 @@ function cargar() {
     GM_setSharedValue: async () => {},
     GM_deleteSharedValue: async () => {},
     GM_addStyle: () => {},
-    GM_xmlhttpRequest: () => {}
+    GM_xmlhttpRequest: () => {},
+    ...extra
   });
   vm.runInContext(codigo, contexto, { filename: 'control-telegram.user.js' });
   return contexto.__pgControl;
@@ -171,4 +172,19 @@ assert.equal(api.formatearEstado([], 1000), 'No hay ninguna cuenta registrada to
   'Sin cuentas se dice, no se devuelve una cadena vacia.');
 
 console.log('Control Telegram (puro) OK: turno e idempotencia.');
+})().catch((error) => { console.error(error); process.exit(1); });
+
+// --- Sin puente del launcher ------------------------------------------------
+//
+// Si el preload del juego no carga, GM_xmlhttpRequest revienta al construir la promesa. El llamador
+// tiene que recibir un fallo con su motivo, no una promesa que no termina nunca.
+(async () => {
+  const sinPuente = cargar({
+    GM_xmlhttpRequest: () => { throw new Error('sin puente'); }
+  });
+  const respuesta = await sinPuente.llamarTelegram('123456:ABCDEFGHIJKLMNOPQRSTUVWX', 'getMe', {});
+  assert.equal(respuesta.ok, false, 'Sin puente, la llamada tiene que fallar.');
+  assert.match(respuesta.error, /puente/i,
+    `El fallo tiene que decir que falta el puente: ${respuesta.error}`);
+  console.log('Control Telegram (puro) OK: sin puente avisa en vez de quedarse colgado.');
 })().catch((error) => { console.error(error); process.exit(1); });

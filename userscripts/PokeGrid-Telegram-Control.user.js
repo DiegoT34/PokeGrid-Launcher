@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid Telegram Control
 // @namespace    pokegrid.telegram-control
-// @version      1.0.1
+// @version      1.0.2
 // @description  Lee en que hunt esta cada cuenta y las envia a otra desde Telegram.
 // @author       PokeGrid
 // @match        https://poke.idleworld.online/*
@@ -184,22 +184,28 @@
   // --- Telegram -------------------------------------------------------------
   function llamarTelegram(token, metodo, parametros) {
     return new Promise((resolve) => {
-      GM_xmlhttpRequest({
-        method: 'POST',
-        url: `https://api.telegram.org/bot${token}/${metodo}`,
-        headers: { 'Content-Type': 'application/json' },
-        data: JSON.stringify(parametros || {}),
-        timeout: 35_000,
-        onload: (respuesta) => {
-          let cuerpo = null;
-          try { cuerpo = JSON.parse(respuesta.responseText || '{}'); } catch { cuerpo = null; }
-          if (!cuerpo) return resolve({ ok: false, error: 'Telegram no devolvió JSON.' });
-          if (!cuerpo.ok) return resolve({ ok: false, error: cuerpo.description || 'Telegram rechazó la petición.' });
-          resolve({ ok: true, result: cuerpo.result });
-        },
-        onerror: () => resolve({ ok: false, error: 'No se pudo conectar con Telegram.' }),
-        ontimeout: () => resolve({ ok: false, error: 'Telegram no contestó.' })
-      });
+      try {
+        GM_xmlhttpRequest({
+          method: 'POST',
+          url: `https://api.telegram.org/bot${token}/${metodo}`,
+          headers: { 'Content-Type': 'application/json' },
+          data: JSON.stringify(parametros || {}),
+          timeout: 35_000,
+          onload: (respuesta) => {
+            let cuerpo = null;
+            try { cuerpo = JSON.parse(respuesta.responseText || '{}'); } catch { cuerpo = null; }
+            if (!cuerpo) return resolve({ ok: false, error: 'Telegram no devolvió JSON.' });
+            if (!cuerpo.ok) return resolve({ ok: false, error: cuerpo.description || 'Telegram rechazó la petición.' });
+            resolve({ ok: true, result: cuerpo.result });
+          },
+          onerror: () => resolve({ ok: false, error: 'No se pudo conectar con Telegram.' }),
+          ontimeout: () => resolve({ ok: false, error: 'Telegram no contestó.' })
+        });
+      } catch {
+        // Sin el puente del launcher (una version vieja, por ejemplo) la llamada ni siquiera sale.
+        // Se contesta el fallo para que el bucle y el boton de prueba no se queden colgados.
+        resolve({ ok: false, error: 'El launcher no tiene el puente de scripts; reinícialo.' });
+      }
     });
   }
 
@@ -820,20 +826,31 @@
       <label>IDS AUTORIZADOS (separados por comas)<input data-campo="autorizados" type="text"></label>
       <label><span><input data-campo="orre" type="checkbox"> Permitir viajar a Orre</span></label>
       <button data-accion="guardar" type="button">Guardar</button>
+      <button data-accion="probar" type="button">Probar bot</button>
       <span class="pgc-estado"></span>`;
 
     document.body.append(botonAbrir, panel);
-    botonAbrir.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+    botonAbrir.addEventListener('click', () => {
+      panel.hidden = !panel.hidden;
+      // La configuracion es una sola para las cuatro cuentas. Al abrir el panel se relee, para que
+      // una cuenta abierta antes de guardar en otra no siga mostrando los campos viejos.
+      if (!panel.hidden) cargarConfigEnPanel().catch(() => {});
+    });
 
     const campo = (nombre) => panel.querySelector(`[data-campo="${nombre}"]`);
     const estado = panel.querySelector('.pgc-estado');
 
-    (async () => {
+    async function cargarConfigEnPanel() {
       const config = normalizarConfig(await almacen.leer(CLAVES.config, null));
       campo('token').value = config.token;
       campo('autorizados').value = config.autorizados.join(', ');
       campo('orre').checked = config.orre;
-    })();
+      return config;
+    }
+
+    cargarConfigEnPanel().catch(() => {
+      estado.textContent = 'No se pudo leer la configuración guardada.';
+    });
 
     panel.querySelector('[data-accion="guardar"]').addEventListener('click', async () => {
       const token = campo('token').value.trim();
@@ -846,12 +863,38 @@
         autorizados: campo('autorizados').value.split(','),
         orre: campo('orre').checked
       });
-      await almacen.escribir(CLAVES.config, config);
+      try {
+        await almacen.escribir(CLAVES.config, config);
+      } catch {
+        estado.textContent = 'No se pudo guardar. Reinicia el launcher y vuelve a intentarlo.';
+        return;
+      }
+      await cargarConfigEnPanel().catch(() => {});
       estado.textContent = !config.token
         ? 'Guardado, pero falta el token.'
         : !config.autorizados.length
           ? 'Guardado. Escríbele /estado al bot: te contestará con tu id. Pégalo aquí.'
-          : 'Guardado. El bot lo coge en unos segundos, sin recargar.';
+          : 'Guardado. Las demás cuentas lo comparten. Pulsa «Probar bot» para comprobarlo.';
+    });
+
+    panel.querySelector('[data-accion="probar"]').addEventListener('click', async () => {
+      const token = campo('token').value.trim();
+      if (!token) {
+        estado.textContent = 'Escribe primero el token.';
+        return;
+      }
+      if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
+        estado.textContent = 'El token no tiene el formato de BotFather.';
+        return;
+      }
+      estado.textContent = 'Probando el bot...';
+      const respuesta = await llamarTelegram(token, 'getMe', {});
+      if (!respuesta.ok) {
+        estado.textContent = `El bot no responde: ${respuesta.error}`;
+        return;
+      }
+      const nombre = respuesta.result?.username ? `@${respuesta.result.username}` : 'el bot';
+      estado.textContent = `Correcto: ${nombre} responde. Si a ti no te contesta, revisa que tu id esté autorizado.`;
     });
   }
 
