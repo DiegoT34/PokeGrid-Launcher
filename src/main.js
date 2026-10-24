@@ -709,15 +709,21 @@ async function applyUnpackedExtensionConfig(value, persist = true) {
 }
 
 function getGameAccountIndex(webContents) {
-  const partition = String(webContents?.session?.partition || '');
-  if (!partition.startsWith('persist:pokegrid-')) return -1;
-  const id = Number(partition.slice('persist:pokegrid-'.length));
-  if (!Number.isInteger(id) || id < 1) return -1;
+  // La sesion no expone su cadena de particion: Session no tiene la propiedad partition. Se
+  // compara el objeto Session, que Electron devuelve siempre el mismo para una misma particion.
+  // Antes se leia session.partition, siempre vacio, y por eso el proceso principal rechazaba
+  // todas las llamadas de los userscripts: no se guardaba la configuracion ni salia la red.
+  const target = webContents?.session;
+  if (!target) return -1;
   try {
-    return readAccounts().findIndex((account) => account.id === id);
+    const cuentas = readAccounts();
+    for (let index = 0; index < cuentas.length; index += 1) {
+      if (session.fromPartition(accountPartition(cuentas[index].id)) === target) return index;
+    }
   } catch {
     return -1;
   }
+  return -1;
 }
 
 function authorizeUserScriptRuntime(event, scriptId, requiredGrant = '') {

@@ -47,6 +47,7 @@ $pruebas = @(
   # El control por Telegram: lo puro en Node, y el lector y el viaje contra una pagina de verdad.
   @{ nombre = 'control-telegram-puro'; comando = 'node'; args = @('tests\control-telegram-puro-smoke.js'); espera = 40 },
   @{ nombre = 'control-telegram-navegador'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\control-telegram-navegador-smoke.js'); espera = 120 },
+  @{ nombre = 'control-telegram-persistencia'; comando = 'node'; args = @('tests\lanzar.cjs', 'tests\control-telegram-persistencia-smoke.js'); espera = 90 },
   @{ nombre = 'launcher-updater';  comando = 'node'; args = @('tests\launcher-updater-smoke.js');                      espera = 40 },
   @{ nombre = 'notification-hub';  comando = 'node'; args = @('tests\lanzar.cjs', 'tests\notification-hub-smoke.js');    espera = 100 },
   @{ nombre = 'update-poll';       comando = 'node'; args = @('tests\lanzar.cjs', 'tests\update-poll-persistence-smoke.js'); espera = 110 },
