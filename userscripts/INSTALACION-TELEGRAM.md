@@ -60,7 +60,8 @@ y pega el mismo token.
 5. Pega el token y pulsa **Guardar**.
 6. Escríbele `/estado` al bot. Te contestará **«No autorizado»** con tu id de Telegram: cópialo.
 7. Pégalo en **IDS AUTORIZADOS** y pulsa **Guardar**.
-8. Recarga las cuentas otra vez para que el bot arranque con la configuración puesta.
+8. Espera unos segundos: el bot recoge la configuración solo, sin recargar. Envía `/estado` y debe
+   contestar con las cuatro cuentas.
 
 ## Comandos
 

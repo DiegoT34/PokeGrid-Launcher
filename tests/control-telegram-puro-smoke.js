@@ -79,6 +79,15 @@ igual(api.normalizarConfig({ token: 'abc', autorizados: ['1', 1, 'x'], orre: tru
   'Los ids se normalizan a texto sin repetir.');
 igual(api.normalizarConfig({ token: '  123:AAA  ' }).token, '123:AAA');
 
+// --- Arranque del bucle
+// El alta empieza con la lista de ids vacia. Si el bucle exigiera un id, no escucharia, y sin
+// escuchar no puede devolverte el id: un circulo cerrado que deja el bot mudo para siempre.
+assert.equal(api.debeArrancar(api.normalizarConfig({ token: '123:AAA' })), true,
+  'Con token y sin ids, el bucle tiene que escuchar para poder darte tu id.');
+assert.equal(api.debeArrancar(api.normalizarConfig({ autorizados: ['111'] })), false,
+  'Sin token no hay nada que escuchar.');
+assert.equal(api.debeArrancar(null), false, 'Sin configuracion tampoco.');
+
 // --- Barra de seguridad
 assert.equal(api.autorizado({ autorizados: ['111'] }, 111), true, 'El id se compara como texto.');
 assert.equal(api.autorizado({ autorizados: ['111'] }, '222'), false, 'Otro id no entra.');

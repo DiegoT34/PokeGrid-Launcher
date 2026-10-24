@@ -280,14 +280,29 @@ app.whenReady().then(async () => {
     assert.deepEqual(Array.from(bueno.valor.autorizados), ['111', '222']);
     assert.equal(bueno.valor.orre, true);
 
+    // Sin ids, el panel tiene que decir como conseguir el tuyo. Es el primer paso del alta y el que
+    // se quedaba sin salida.
+    const sinIds = await ejecutar(`(async () => {
+      const panel = document.querySelector('.pgc-panel');
+      panel.querySelector('[data-campo="autorizados"]').value = '';
+      panel.querySelector('[data-accion="guardar"]').click();
+      await new Promise((r) => setTimeout(r, 100));
+      return { config: __almacen['pgc:config'], aviso: panel.querySelector('.pgc-estado').textContent };
+    })()`);
+    assert.equal(sinIds.ok, true, `Guardar sin ids revento: ${sinIds.error}`);
+    assert.deepEqual(Array.from(sinIds.valor.config.autorizados), []);
+    assert.match(sinIds.valor.aviso, /\/estado/,
+      `Sin ids hay que decir que escriba /estado para obtener el suyo: ${sinIds.valor.aviso}`);
+
     // --- El registro se refresca (si no, `/estado` mentiria para siempre)
     const refresco = await ejecutar(`(async () => {
+      const base = Date.now() + 60000;
       document.querySelector('.phud-tloc').textContent = 'Kanto · Charizard';
-      const primera = await __pgControl.registrarSiToca(10000);
-      const segunda = await __pgControl.registrarSiToca(12000);
-      const tercera = await __pgControl.registrarSiToca(400000);
+      const primera = await __pgControl.registrarSiToca(base);
+      const segunda = await __pgControl.registrarSiToca(base + 2000);
+      const tercera = await __pgControl.registrarSiToca(base + 400000);
       document.querySelector('.phud-tloc').textContent = 'Kanto · Onix';
-      const cuarta = await __pgControl.registrarSiToca(410000);
+      const cuarta = await __pgControl.registrarSiToca(base + 410000);
       return {
         primera, segunda, tercera, cuarta,
         fila: __almacen['pgc:registro:' + __pgControl.PAGE_ID] || null

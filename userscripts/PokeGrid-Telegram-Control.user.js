@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid Telegram Control
 // @namespace    pokegrid.telegram-control
-// @version      1.0.0
+// @version      1.0.1
 // @description  Lee en que hunt esta cada cuenta y las envia a otra desde Telegram.
 // @author       PokeGrid
 // @match        https://poke.idleworld.online/*
@@ -696,16 +696,46 @@
     await contestar('No entendí ese botón.');
   }
 
+  // El bucle arranca con el token, aunque la lista de ids este VACIA.
+  //
+  // Antes exigia tambien algun id autorizado, y eso dejaba el alta en un circulo cerrado: para saber
+  // tu id hay que escribirle al bot, y el bot no escuchaba hasta tener tu id. Con la lista vacia el
+  // bot solo puede hacer una cosa —decirle a quien escribe cual es su id—, y es justo la que hace
+  // falta para el primer paso.
+  const CONFIG_MS = 10_000;
+
+  function debeArrancar(config) {
+    return Boolean(config && config.token);
+  }
+
   async function bucle() {
-    const config = normalizarConfig(await almacen.leer(CLAVES.config, null));
-    if (!config.token || !config.autorizados.length) return;
+    let config = normalizarConfig(await almacen.leer(CLAVES.config, null));
+    let tokenAnterior = config.token;
     let offset = Number(await almacen.leer(CLAVES.offset, 0)) || 0;
     let proximaRenovacion = 0;
     let proximoIndice = 0;
+    let proximaConfig = 0;
 
     while (true) {
       try {
         const ahora = Date.now();
+        // La configuracion se relee sola: guardar en el panel surte efecto en unos segundos, sin
+        // recargar las cuatro cuentas.
+        if (ahora >= proximaConfig) {
+          config = normalizarConfig(await almacen.leer(CLAVES.config, null));
+          proximaConfig = ahora + CONFIG_MS;
+          // Cambiar de bot invalida el offset: los ids de update son de cada bot, y con uno viejo se
+          // saltarian los mensajes del nuevo.
+          if (config.token !== tokenAnterior) {
+            tokenAnterior = config.token;
+            offset = 0;
+            await almacen.escribir(CLAVES.offset, 0);
+          }
+        }
+        if (!debeArrancar(config)) {
+          await esperar(1500);
+          continue;
+        }
         // El indice se reescribe cada 30 s: si dos paginas arrancan a la vez, una puede perder la
         // carrera al apuntarse y quedarse fuera de /estado para siempre. Reintentarlo lo cura.
         if (ahora >= proximoIndice) {
@@ -742,12 +772,16 @@
             offset, timeout: 25, allowed_updates: ['message', 'callback_query']
           });
           if (!respuesta.ok) { turnoPropio = false; await esperar(5000); continue; }
-          for (const actualizacion of respuesta.result || []) {
+          const actualizaciones = respuesta.result || [];
+          for (const actualizacion of actualizaciones) {
             offset = Math.max(offset, Number(actualizacion.update_id) + 1);
             await almacen.escribir(CLAVES.offset, offset);
             if (actualizacion.message) await atenderMensaje(config, actualizacion.message);
             if (actualizacion.callback_query) await atenderCallback(config, actualizacion.callback_query);
           }
+          // Sin novedades, una pausa corta: `getUpdates` con timeout suele esperar 25 s, pero si
+          // responde al instante vacio (proxy, red rara) no se puede martillear la API.
+          if (!actualizaciones.length) await esperar(300);
         } else {
           await esperar(1500);
         }
@@ -813,9 +847,11 @@
         orre: campo('orre').checked
       });
       await almacen.escribir(CLAVES.config, config);
-      estado.textContent = config.token && config.autorizados.length
-        ? 'Guardado. Recarga las cuentas para que arranque.'
-        : 'Guardado, pero falta el token o los ids.';
+      estado.textContent = !config.token
+        ? 'Guardado, pero falta el token.'
+        : !config.autorizados.length
+          ? 'Guardado. Escríbele /estado al bot: te contestará con tu id. Pégalo aquí.'
+          : 'Guardado. El bot lo coge en unos segundos, sin recargar.';
     });
   }
 
@@ -828,11 +864,11 @@
   // estas dos listas; si el bloque se quedara en medio, el `return` cortaria el script antes de
   // definirlas y el bot arrancaria sin viaje ni lector.
   if (typeof document === 'undefined') {
-    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback };
+    globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback, debeArrancar };
     return;
   }
 
-  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback };
+  globalThis.__pgControl = { parsearComando, parsearCallback, autorizado, buscarHunts, normalizarConfig, leerEstadoPagina, CLAVES, intentarTurno, debeEjecutar, formatearEstado, llamarTelegram, leerCatalogo, viajarA, PAGE_ID, registrar, registrarSiToca, atenderMensaje, atenderCallback, debeArrancar };
 
   // Arranca solo si hay configuracion. `bucle` lo comprueba y se queda quieto si falta el token o los
   // ids, asi que no hace falta preguntarlo dos veces aqui.
