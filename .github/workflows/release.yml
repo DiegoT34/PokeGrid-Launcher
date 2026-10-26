@@ -78,3 +78,18 @@ jobs:
           files: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.checksum }}
+
+      - name: Conservar las cinco releases más recientes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releases = gh release list --limit 100 --json tagName,publishedAt,isDraft,isPrerelease | ConvertFrom-Json
+          $sobran = $releases |
+            Where-Object { -not $_.isDraft -and -not $_.isPrerelease } |
+            Sort-Object { [datetime]$_.publishedAt } -Descending |
+            Select-Object -Skip 5
+          foreach ($release in $sobran) {
+            Write-Host "Quitando la release $($release.tagName); la etiqueta se conserva."
+            gh release delete $release.tagName --yes
+          }

@@ -34,7 +34,8 @@ actualizador **no se busca en un botón del menú**: se busca en **Configuracion
    ```
 
 El flujo de GitHub Actions comprueba la versión, instala las dependencias, valida el código,
-construye el ZIP, genera SHA-256 y publica ambos archivos.
+construye el ZIP, genera SHA-256 y publica ambos archivos. También conserva las cinco releases
+más recientes; las etiquetas de las releases retiradas se quedan.
 
 > Para subir la versión sin romper la codificación del `package.json`, usa
 > `node herramientas\subir-version.cjs 0.39.0`. Editar el fichero con PowerShell mete un BOM y
