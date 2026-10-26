@@ -318,7 +318,10 @@ const CUENTAS_ICONOS = [
   ['el boton de instalar alertas de Telegram', !/id="installTelegramAlertsButton"/.test(html)],
   ['la funcion que solo ese boton llamaba', !/async function importBundledTelegramAlerts\(\)/.test(usuarios)],
   ['su CSS', !/\.button-telegram-install/.test(styles)],
-  ['pero el modulo oficial se sigue instalando al arrancar', /scripts = await updateBundledTelegramScript\(/, usuarios],
+  ['pero el modulo oficial se sigue instalando al arrancar',
+    /scripts = await sincronizarScriptsIncluidos\(/.test(usuarios)
+    && /PokeGrid-Telegram-Alerts\.user\.js/.test(usuarios)
+    && /loadBundledUserScript\(/.test(usuarios)],
 
   // El rediseño: los selectores tienen que existir de verdad en el HTML. Una regla con el nombre mal
   // escrito no da error, se queda sin hacer nada, y no se ve hasta que uno mira la pantalla.

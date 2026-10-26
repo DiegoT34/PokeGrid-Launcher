@@ -144,7 +144,10 @@ assert.match(main, /isShopScreenshot \? shopScreenshotCache : remoteImageCache/,
 // La limpieza de memoria tiene que liberar también la caché de capturas. Contarla sin
 // limpiarla haría que cachedEntries y releasedMb dijeran una cosa y la memoria otra.
 {
-  const cuerpo = main.slice(main.indexOf("ipcMain.handle('app:cleanup-memory'"), main.indexOf("ipcMain.handle('app:proxy-results'"));
+  const desde = main.indexOf('async function limpiarMemoriaAhora');
+  const hasta = main.indexOf("ipcMain.handle('app:cleanup-memory'", desde);
+  assert.ok(desde >= 0 && hasta > desde, 'No encuentro la función limpiarMemoriaAhora en main.js.');
+  const cuerpo = main.slice(desde, hasta);
   assert.match(cuerpo, /remoteImageCache\.clear\(\)/, 'La limpieza libera la caché de sprites.');
   assert.match(cuerpo, /pokeApiSpeciesCache\.clear\(\)/, 'La limpieza libera la caché de especies.');
   assert.match(cuerpo, /shopScreenshotCache\.clear\(\)/, 'La limpieza tiene que liberar también la caché de capturas.');
